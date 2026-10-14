@@ -9,6 +9,12 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - Toggling the setting applies immediately without re-indexing.
 - Changed the default icons for functions (`variable-group` → `symbol-function`) and constructors (`symbol-ruler` → `symbol-constructor`) in `searchEverywhere.icons`.
 
+### 🧭 Qualified-Name Search
+- Search members by their container with `.`, `#` or `::`: `UserService.save`, `UserService#save`, `Outer::Inner::run`. A trailing separator (`UserService.`) lists every member.
+- Path queries match the name after the last `/` inside the directory first (`src/models/User`, `models/User.find`), then fall back to the path match.
+- Symbol descriptions show the full container chain (`Outer.Inner`) instead of only the immediate parent.
+- The index gained a container column, so the first start after upgrading empties the cached index (including the shared worktree cache) and reindexes the workspace once.
+
 ## [3.2.0] - 2026-10-05
 ### 🔍 In-File Scope Search, Split Editor & Remote Development Fixes
 - **In-File Scope Search & Outline Navigation** (issue #45):
