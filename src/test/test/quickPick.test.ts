@@ -564,6 +564,21 @@ describe("QuickPick", () => {
       assert.isTrue(loadWithQuery("src/models/User.find").loaded.alwaysShow);
       assert.isUndefined(loadWithQuery("src.models/User").loaded.alwaysShow);
     });
+
+    it("should set alwaysShow on results for a multi-word query", () => {
+      const { loaded, searchStub } = loadWithQuery("user impl");
+
+      assert.equal(searchStub.firstCall.args[0], "user impl");
+      assert.isTrue(loaded.alwaysShow);
+    });
+
+    it("should set alwaysShow on results for a * query", () => {
+      assert.isTrue(loadWithQuery("User*Impl").loaded.alwaysShow);
+    });
+
+    it("should not set alwaysShow for a single word with trailing space", () => {
+      assert.isUndefined(loadWithQuery("UserService ").loaded.alwaysShow);
+    });
   });
 
   describe("ensureUri", () => {
