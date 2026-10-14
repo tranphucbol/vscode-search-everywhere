@@ -15,6 +15,12 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - Symbol descriptions show the full container chain (`Outer.Inner`) instead of only the immediate parent.
 - The index gained a container column, so the first start after upgrading empties the cached index (including the shared worktree cache) and reindexes the workspace once.
 
+### ✳️ Wildcard & Multi-Word Search
+- Space-separated words match in any order: `impl user` and `service impl` both find `UserServiceImpl`. Every word must match; names with the words in order rank first.
+- `*` matches any run of characters between two parts of a word, in order: `user*impl` finds `UserServiceImpl` but `impl*user` does not. A query of only `*` lists everything.
+- When few names contain the words, the words are also matched as a subsequence (`user ctrl` finds `UserController`).
+- Fixed `%` and `_` in a query, in `ignoredNames` and in file paths acting as SQL wildcards; they now match literally (`Item_1234` no longer matches `ItemX1234`).
+
 ## [3.2.0] - 2026-10-05
 ### 🔍 In-File Scope Search, Split Editor & Remote Development Fixes
 - **In-File Scope Search & Outline Navigation** (issue #45):

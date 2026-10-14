@@ -102,6 +102,10 @@ async function runBenchmark(itemCount = 50000) {
     "Service42#Item",
     "Service42.",
     "src/module25/Item",
+    "Service Handler",
+    "Handler Service",
+    "Serv*42",
+    "xyz notfound",
   ];
   const t0OldSearch = Date.now();
   let oldMatches = 0;
