@@ -88,6 +88,10 @@ const keys = {
     name: "recentItemsLimit",
     value: 10,
   },
+  useFileIconTheme: {
+    name: "useFileIconTheme",
+    value: false,
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -258,4 +262,8 @@ export function fetchRecentItemsLimit(): number {
     keys.recentItemsLimit.name,
     keys.recentItemsLimit.value
   );
+}
+
+export function fetchUseFileIconTheme(): boolean {
+  return get(keys.useFileIconTheme.name, keys.useFileIconTheme.value);
 }

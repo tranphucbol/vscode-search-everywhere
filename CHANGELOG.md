@@ -2,6 +2,13 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
+## [Unreleased]
+### 🎨 File Icon Theme Support
+- Added `searchEverywhere.useFileIconTheme` (default `false`) to show file results with icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme). Symbols keep their built-in icons.
+- Requires VS Code 1.108 or newer; older versions automatically fall back to the built-in icon.
+- Toggling the setting applies immediately without re-indexing.
+- Changed the default icons for functions (`variable-group` → `symbol-function`) and constructors (`symbol-ruler` → `symbol-constructor`) in `searchEverywhere.icons`.
+
 ## [3.2.0] - 2026-10-05
 ### 🔍 In-File Scope Search, Split Editor & Remote Development Fixes
 - **In-File Scope Search & Outline Navigation** (issue #45):

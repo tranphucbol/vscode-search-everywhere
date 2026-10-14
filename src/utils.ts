@@ -306,6 +306,27 @@ function getWorkspaceFoldersCommonPathProp() {
   return workspaceFoldersCommonPath;
 }
 
+function isVscodeVersionAtLeast(
+  major: number,
+  minor: number,
+  version: string = vscode.version
+): boolean {
+  const match = /^(\d+)\.(\d+)/.exec(version || "");
+  if (!match) {
+    return false;
+  }
+  const actualMajor = parseInt(match[1]);
+  const actualMinor = parseInt(match[2]);
+  return (
+    actualMajor > major || (actualMajor === major && actualMinor >= minor)
+  );
+}
+
+// QuickPickItem.resourceUri (file icon theme support) was finalized in VS Code 1.108.
+function supportsQuickPickFileIconTheme(): boolean {
+  return isVscodeVersionAtLeast(1, 108);
+}
+
 export const utils = {
   getWorkspaceFoldersCommonPathProp,
   hasWorkspaceAnyFolder,
@@ -334,4 +355,6 @@ export const utils = {
   getStructure,
   setWorkspaceFoldersCommonPath,
   debounce,
+  isVscodeVersionAtLeast,
+  supportsQuickPickFileIconTheme,
 };

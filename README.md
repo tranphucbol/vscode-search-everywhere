@@ -187,10 +187,10 @@ Default value:
   "5": "symbol-method",
   "6": "symbol-property",
   "7": "symbol-field",
-  "8": "symbol-ruler",
+  "8": "symbol-constructor",
   "9": "symbol-enum",
   "10": "symbol-interface",
-  "11": "variable-group",
+  "11": "symbol-function",
   "12": "symbol-variable",
   "13": "symbol-constant",
   "14": "symbol-string",
@@ -220,10 +220,10 @@ Below you can find the table with information which symbol kind refers to which 
 |   5  | symbol-method      | method         |
 |   6  | symbol-property    | property       |
 |   7  | symbol-field       | field          |
-|   8  | symbol-ruler       | constructor    |
+|   8  | symbol-constructor | constructor    |
 |   9  | symbol-enum        | enum           |
 |  10  | symbol-interface   | interface      |
-|  11  | variable-group     | function       |
+|  11  | symbol-function    | function       |
 |  12  | symbol-variable    | variable       |
 |  13  | symbol-constant    | constant       |
 |  14  | symbol-string      | string         |
@@ -373,6 +373,11 @@ Default value: `true`
 
 Maximum number of recent items to show when the search query is empty.
 Default value: `10`
+
+* `searchEverywhere.useFileIconTheme`
+
+Ability to show file icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme) instead of the built-in icon. Symbols keep their built-in icons. Requires VS Code 1.108 or newer; older versions keep the built-in icon.
+Default value: `false`
 
 ## Release Notes
 

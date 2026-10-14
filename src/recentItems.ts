@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { getRecentItems as getStoredRecentItems, updateRecentItems, clearRecentItems as clearStoredRecentItems } from "./cache";
 import { dataConverter } from "./dataConverter";
+import { extractName } from "./database";
 import { QuickPickItem } from "./types";
 import { utils } from "./utils";
 
@@ -25,7 +26,8 @@ function getItemKey(
   character: number,
   label: string
 ): string {
-  return `${uri}#${symbolKind}#${line}#${character}#${label}`;
+  // Labels may or may not carry a "$(icon)  " prefix depending on icon settings.
+  return `${uri}#${symbolKind}#${line}#${character}#${extractName(label)}`;
 }
 
 export function addRecentItem(item: QuickPickItem): void {
