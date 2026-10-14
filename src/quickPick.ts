@@ -624,8 +624,11 @@ function loadItems() {
     ignoredNames: itemsFilter.ignoredNames,
     fileUri: fileScopeUri,
   });
+  const nameQuery = cleanQuery.includes("/")
+    ? database.splitPathQuery(cleanQuery).leaf
+    : cleanQuery;
   const needsOverrides =
-    !!lineSuffix.position || !!database.parseQualifiedQuery(cleanQuery);
+    !!lineSuffix.position || !!database.parseQualifiedQuery(nameQuery);
   const dbResults = needsOverrides
     ? withQueryOverrides(searchResults, lineSuffix.position)
     : searchResults;

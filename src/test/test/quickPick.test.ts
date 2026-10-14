@@ -559,6 +559,11 @@ describe("QuickPick", () => {
       assert.isTrue(loaded.alwaysShow);
       assert.equal(loaded.targetPosition.line, 11);
     });
+
+    it("should set alwaysShow only when the leaf of a path query is qualified", () => {
+      assert.isTrue(loadWithQuery("src/models/User.find").loaded.alwaysShow);
+      assert.isUndefined(loadWithQuery("src.models/User").loaded.alwaysShow);
+    });
   });
 
   describe("ensureUri", () => {

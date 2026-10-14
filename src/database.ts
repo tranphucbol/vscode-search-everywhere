@@ -191,6 +191,16 @@ export function parseQualifiedQuery(query: string): QualifiedQuery | undefined {
   return { container, member };
 }
 
+export interface PathQuery {
+  dir: string;
+  leaf: string;
+}
+
+export function splitPathQuery(query: string): PathQuery {
+  const lastSlash = query.lastIndexOf("/");
+  return { dir: query.slice(0, lastSlash), leaf: query.slice(lastSlash + 1) };
+}
+
 export function extractCleanStem(name: string, symbolKind?: number): string {
   if (!name) {
     return "";
@@ -554,15 +564,51 @@ export function search(
       addItemsFromRows(results[0].values);
     }
   } else if (query.includes("/")) {
-    // Path search (e.g. "src/user")
-    const matchClause = "uri LIKE ?";
-    const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
-    const results = db.exec(
-      `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
-      [...params, `%${query}%`]
-    );
-    if (results && results.length) {
-      addItemsFromRows(results[0].values);
+    const { dir, leaf } = splitPathQuery(query);
+    const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+
+    if (leaf) {
+      const dirClause = "uri LIKE ?";
+      const dirWhere = baseWhere ? `${baseWhere} AND ${dirClause}` : `WHERE ${dirClause}`;
+      const dirParams = [...params, `%${dir}/%`];
+      const cleanLeaf = extractCleanName(leaf);
+
+      if (cleanLeaf) {
+        const leafResults = db.exec(
+          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? OR clean_name LIKE ?)
+          ORDER BY
+            ${kindSort}
+            CASE WHEN clean_stem = ? OR clean_name = ? THEN 0 ELSE 1 END ASC,
+            CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+            LENGTH(name) ASC,
+            name COLLATE NOCASE ASC
+          LIMIT ${limit}`,
+          [...dirParams, `${cleanLeaf}%`, `${cleanLeaf}%`, cleanLeaf, cleanLeaf]
+        );
+        if (leafResults && leafResults.length) {
+          addItemsFromRows(leafResults[0].values);
+        }
+      }
+
+      const qualifiedLeaf = parseQualifiedQuery(leaf);
+      if (qualifiedLeaf) {
+        addItemsFromRows(
+          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length)
+        );
+      }
+    }
+
+    if (matchedItems.length < limit) {
+      const matchClause = "uri LIKE ?";
+      const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+      const results = db.exec(
+        `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
+        [...params, `%${query}%`]
+      );
+      if (results && results.length) {
+        addItemsFromRows(results[0].values);
+      }
+      matchedItems = matchedItems.slice(0, limit);
     }
   } else {
     const cleanQuery = extractCleanName(query);
@@ -911,4 +957,5 @@ export const database = {
   extractCleanStem,
   extractCleanContainer,
   parseQualifiedQuery,
+  splitPathQuery,
 };

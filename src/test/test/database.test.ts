@@ -342,6 +342,54 @@ describe("Database", () => {
         });
         assert.deepEqual(byFile.map(keyOf), [keyOf(chainSave)]);
       });
+
+      describe("path queries", () => {
+        const fileItem = (path: string): QuickPickItem => ({
+          uri: vscode.Uri.file(path),
+          symbolKind: 0,
+          label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+        });
+        const modelsUser = fileItem("/workspace/src/models/User.ts");
+        const modelsUserProfile = fileItem("/workspace/src/models/UserProfile.ts");
+        const libUser = fileItem("/workspace/lib/User.ts");
+        const libFind = member("find", "User", "/workspace/lib/User.ts", 2);
+
+        beforeEach(() => {
+          database.insertSymbolsBatch([modelsUser, modelsUserProfile, libUser, libFind]);
+        });
+
+        it("should split a path query at the last slash", () => {
+          assert.deepEqual(database.splitPathQuery("src/models/User"), {
+            dir: "src/models",
+            leaf: "User",
+          });
+          assert.deepEqual(database.splitPathQuery("src/"), { dir: "src", leaf: "" });
+        });
+
+        it("should match the leaf name inside the directory for path queries", () => {
+          const results = database.search("src/models/User").map(keyOf);
+          assert.equal(results[0], keyOf(modelsUser));
+          assert.isAbove(results.indexOf(keyOf(modelsUserProfile)), 0);
+          assert.notInclude(results, keyOf(libUser));
+        });
+
+        it("should match a qualified leaf inside the directory for path queries", () => {
+          const results = database.search("models/User.find").map(keyOf);
+          assert.equal(results[0], keyOf(find));
+          assert.notInclude(results, keyOf(libFind));
+        });
+
+        it("should fall back to uri substring for path queries", () => {
+          const emptyLeaf = database.search("src/models/").map(keyOf);
+          assert.include(emptyLeaf, keyOf(modelsUser));
+          assert.include(emptyLeaf, keyOf(find));
+          assert.notInclude(emptyLeaf, keyOf(libUser));
+
+          const noLeafMatch = database.search("workspace/src/Outer").map(keyOf);
+          assert.include(noLeafMatch, keyOf(innerRun));
+          assert.include(noLeafMatch, keyOf(outerRun));
+        });
+      });
     });
   });
 
