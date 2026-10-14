@@ -516,6 +516,56 @@ describe("QuickPick", () => {
     });
   });
 
+  describe("loadItems with a qualified query", () => {
+    const loadWithQuery = (query: string) => {
+      const control = vscode.window.createQuickPick<any>();
+      control.value = query;
+      const item = { ...getQpItems()[0] };
+      delete item.alwaysShow;
+      const sandbox = sinon.createSandbox();
+      sandbox.stub(quickPick, "getControl").returns(control);
+      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(database, "isReady").returns(true);
+      const searchStub = sandbox.stub(database, "search").returns([item]);
+
+      quickPick.loadItems();
+
+      const loaded = control.items[0];
+      sandbox.restore();
+      control.dispose();
+      return { item, loaded, searchStub };
+    };
+
+    it("should set alwaysShow on results for a qualified query", () => {
+      const { item, loaded, searchStub } = loadWithQuery("UserService.save");
+
+      assert.equal(searchStub.firstCall.args[0], "UserService.save");
+      assert.isTrue(loaded.alwaysShow);
+      assert.isUndefined(loaded.targetPosition);
+      assert.isUndefined(item.alwaysShow);
+    });
+
+    it("should not set alwaysShow for an unqualified query", () => {
+      const { loaded } = loadWithQuery("UserService");
+
+      assert.isUndefined(loaded.alwaysShow);
+    });
+
+    it("should combine a qualified query with a line suffix", () => {
+      const { loaded, searchStub } = loadWithQuery("UserService#save:12");
+
+      assert.equal(searchStub.firstCall.args[0], "UserService#save");
+      assert.isTrue(loaded.alwaysShow);
+      assert.equal(loaded.targetPosition.line, 11);
+    });
+
+    it("should set alwaysShow only when the leaf of a path query is qualified", () => {
+      assert.isTrue(loadWithQuery("src/models/User.find").loaded.alwaysShow);
+      assert.isUndefined(loadWithQuery("src.models/User").loaded.alwaysShow);
+    });
+  });
+
   describe("ensureUri", () => {
     it("should return vscode.Uri instance as-is", () => {
       const uri = vscode.Uri.file("/home/user/file.ts");

@@ -1,7 +1,10 @@
 import { assert } from "chai";
+import * as fs from "fs";
 import * as path from "path";
+import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { database } from "../../database";
+import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
 
 describe("Database", () => {
@@ -198,6 +201,196 @@ describe("Database", () => {
       assert.equal(results.length, 2);
       assert.isFalse(results.some((r) => r.label.includes("mainProcessService")));
     });
+
+    describe("qualified names", () => {
+      const member = (
+        name: string,
+        containerName: string,
+        file: string,
+        line: number,
+        symbolKind = vscode.SymbolKind.Method
+      ): QuickPickItem => ({
+        uri: vscode.Uri.file(file),
+        symbolKind,
+        label: `$(symbol-method) ${name}`,
+        containerName,
+        range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 1, 0)),
+      });
+
+      const save = member("save", "UserService", "/workspace/src/UserService.ts", 6);
+      const saveAll = member("saveAll", "UserService", "/workspace/src/UserService.ts", 8);
+      const load = member("load", "UserService", "/workspace/src/UserService.ts", 10);
+      const otherSave = member("save", "UserController", "/workspace/src/UserController.ts", 12);
+      const innerRun = member("run", "Outer.Inner", "/workspace/src/Outer.ts", 3);
+      const outerRun = member("run", "Outer", "/workspace/src/Outer.ts", 9);
+      const chainSave = member("save", "UserServiceImpl.Helper", "/workspace/src/Impl.ts", 4);
+      const find = member("find", "User", "/workspace/src/models/User.ts", 2);
+
+      beforeEach(() => {
+        database.insertSymbolsBatch([
+          save,
+          saveAll,
+          load,
+          otherSave,
+          innerRun,
+          outerRun,
+          chainSave,
+          find,
+        ]);
+      });
+
+      const keyOf = (item: QuickPickItem) =>
+        `${item.label}@${item.uri.path}:${item.range?.start.line ?? 0}`;
+
+      it("should parse qualified queries with dot, hash and double colon", () => {
+        const expected = { container: "userservice", member: "save" };
+        assert.deepEqual(database.parseQualifiedQuery("UserService.save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("UserService#save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("UserService::save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("Outer::Inner::run"), {
+          container: "outer.inner",
+          member: "run",
+        });
+        assert.deepEqual(database.parseQualifiedQuery("user.service.ts"), {
+          container: "user.service",
+          member: "ts",
+        });
+        assert.deepEqual(database.parseQualifiedQuery("a..b"), { container: "a", member: "b" });
+        assert.deepEqual(database.parseQualifiedQuery("UserService."), {
+          container: "userservice",
+          member: "",
+        });
+      });
+
+      it("should not treat a leading dot as a qualifier", () => {
+        assert.isUndefined(database.parseQualifiedQuery(".env"));
+        assert.isUndefined(database.parseQualifiedQuery("save"));
+        assert.isUndefined(database.parseQualifiedQuery(""));
+      });
+
+      it("should find a member by Class.method", () => {
+        const results = database.search("UserService.save");
+        assert.equal(keyOf(results[0]), keyOf(save));
+        assert.isFalse(results.some((r) => keyOf(r) === keyOf(otherSave)));
+      });
+
+      it("should find a member by Class#method and Class::method", () => {
+        assert.equal(keyOf(database.search("UserService#save")[0]), keyOf(save));
+        assert.equal(keyOf(database.search("UserService::save")[0]), keyOf(save));
+      });
+
+      it("should match a nested member by its immediate parent", () => {
+        const byParent = database.search("Inner.run");
+        assert.equal(keyOf(byParent[0]), keyOf(innerRun));
+
+        const byChain = database.search("Outer::Inner::run");
+        assert.equal(keyOf(byChain[0]), keyOf(innerRun));
+
+        const byOuter = database.search("Outer.run");
+        assert.equal(keyOf(byOuter[0]), keyOf(outerRun));
+      });
+
+      it("should list every member for a trailing separator", () => {
+        const results = database.search("UserService.").map(keyOf);
+        for (const item of [save, saveAll, load]) {
+          assert.include(results, keyOf(item));
+        }
+        assert.notInclude(results, keyOf(otherSave));
+      });
+
+      it("should rank an exact file stem above qualified matches", () => {
+        const file: QuickPickItem = {
+          uri: vscode.Uri.file("/workspace/src/user.service.ts"),
+          symbolKind: vscode.SymbolKind.File,
+          label: "$(symbol-file) user.service.ts",
+        };
+        const tsMember = member("ts", "User.Service", "/workspace/src/Other.ts", 1);
+        database.insertSymbolsBatch([file, tsMember]);
+
+        const results = database.search("user.service.ts");
+        assert.equal(keyOf(results[0]), keyOf(file));
+        assert.include(results.map(keyOf), keyOf(tsMember));
+      });
+
+      it("should rank exact parent and member above chain-contains matches", () => {
+        const results = database.search("UserService.save").map(keyOf);
+        const exactIdx = results.indexOf(keyOf(save));
+        const prefixIdx = results.indexOf(keyOf(saveAll));
+        const chainIdx = results.indexOf(keyOf(chainSave));
+        assert.equal(exactIdx, 0);
+        assert.isAbove(prefixIdx, exactIdx);
+        assert.isAbove(chainIdx, prefixIdx);
+      });
+
+      it("should apply symbolKind and fileUri filters to qualified matches", () => {
+        const prop = member(
+          "saveCount",
+          "UserService",
+          "/workspace/src/UserService.ts",
+          12,
+          vscode.SymbolKind.Property
+        );
+        database.insertSymbol(prop);
+
+        const byKind = database.search("UserService.save", 500, {
+          symbolKind: vscode.SymbolKind.Property,
+        });
+        assert.deepEqual(byKind.map(keyOf), [keyOf(prop)]);
+
+        const byFile = database.search("UserService.save", 500, {
+          fileUri: "/workspace/src/Impl.ts",
+        });
+        assert.deepEqual(byFile.map(keyOf), [keyOf(chainSave)]);
+      });
+
+      describe("path queries", () => {
+        const fileItem = (path: string): QuickPickItem => ({
+          uri: vscode.Uri.file(path),
+          symbolKind: 0,
+          label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+        });
+        const modelsUser = fileItem("/workspace/src/models/User.ts");
+        const modelsUserProfile = fileItem("/workspace/src/models/UserProfile.ts");
+        const libUser = fileItem("/workspace/lib/User.ts");
+        const libFind = member("find", "User", "/workspace/lib/User.ts", 2);
+
+        beforeEach(() => {
+          database.insertSymbolsBatch([modelsUser, modelsUserProfile, libUser, libFind]);
+        });
+
+        it("should split a path query at the last slash", () => {
+          assert.deepEqual(database.splitPathQuery("src/models/User"), {
+            dir: "src/models",
+            leaf: "User",
+          });
+          assert.deepEqual(database.splitPathQuery("src/"), { dir: "src", leaf: "" });
+        });
+
+        it("should match the leaf name inside the directory for path queries", () => {
+          const results = database.search("src/models/User").map(keyOf);
+          assert.equal(results[0], keyOf(modelsUser));
+          assert.isAbove(results.indexOf(keyOf(modelsUserProfile)), 0);
+          assert.notInclude(results, keyOf(libUser));
+        });
+
+        it("should match a qualified leaf inside the directory for path queries", () => {
+          const results = database.search("models/User.find").map(keyOf);
+          assert.equal(results[0], keyOf(find));
+          assert.notInclude(results, keyOf(libFind));
+        });
+
+        it("should fall back to uri substring for path queries", () => {
+          const emptyLeaf = database.search("src/models/").map(keyOf);
+          assert.include(emptyLeaf, keyOf(modelsUser));
+          assert.include(emptyLeaf, keyOf(find));
+          assert.notInclude(emptyLeaf, keyOf(libUser));
+
+          const noLeafMatch = database.search("workspace/src/Outer").map(keyOf);
+          assert.include(noLeafMatch, keyOf(innerRun));
+          assert.include(noLeafMatch, keyOf(outerRun));
+        });
+      });
+    });
   });
 
   describe("extractCleanName and extractCleanStem", () => {
@@ -214,6 +407,58 @@ describe("Database", () => {
       assert.equal(database.extractCleanStem("map_service.py"), "mapservice");
       assert.equal(database.extractCleanStem(".gitignore"), "gitignore");
       assert.equal(database.extractCleanStem("map.service.spec.ts"), "mapservicespec");
+    });
+  });
+
+  describe("extractCleanContainer", () => {
+    it("should store the cleaned container chain", () => {
+      assert.equal(database.extractCleanContainer("Outer.Inner"), "outer.inner");
+      assert.equal(database.extractCleanContainer("My_Mod.Sub-Cls"), "mymod.subcls");
+      assert.equal(database.extractCleanContainer("a..b"), "a.b");
+      assert.equal(database.extractCleanContainer(undefined), "");
+    });
+  });
+
+  describe("schema migration", () => {
+    const dbFile = path.join(fakeContext.storageUri.fsPath, "search-everywhere-index.db");
+
+    const writeVersion0Database = async () => {
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const legacy = new SQL.Database();
+      legacy.run(`CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
+        clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', symbol_kind INTEGER NOT NULL,
+        label TEXT NOT NULL, description TEXT, detail TEXT,
+        range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
+        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
+      legacy.run(
+        "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?)",
+        ["file:///workspace/src/User.ts", "save", "save", "save", 5, "save"]
+      );
+      fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
+      legacy.close();
+    };
+
+    it("should empty a version-0 database on open", async () => {
+      const logStub = sinon.stub(logger, "log");
+      try {
+        database.closeDatabase();
+        await writeVersion0Database();
+        database.setSeededFromTemplate(true);
+
+        await database.initDatabase(fakeContext);
+
+        assert.isTrue(database.isEmpty());
+        assert.isFalse(database.wasSeededFromTemplate());
+        database.insertSymbol({ ...item1, containerName: "Outer.Inner" });
+        assert.equal(database.getCount(), 1);
+      } finally {
+        logStub.restore();
+      }
     });
   });
 

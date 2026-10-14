@@ -90,6 +90,7 @@ export const mocks = {
       {
         label: "test name",
         description: "Module at lines: 1 - 4 in fake-1.ts",
+        containerName: "fake-1.ts",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
@@ -107,6 +108,7 @@ export const mocks = {
       {
         label: "test name 2",
         description: "Module at lines: 5 - 6 in fake-1.ts",
+        containerName: "fake-1.ts",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
@@ -207,6 +209,7 @@ export const mocks = {
       {
         label: "$(another-fake-icon)  test name",
         description: "[^^test name] Module at lines: 1 - 4 in fake-1.ts",
+        containerName: "fake-1.ts",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,

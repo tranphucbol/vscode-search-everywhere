@@ -168,6 +168,57 @@ export const getTestSetups = () => {
       },
     },
 
+    convertUriAndSymbolsToQpItems: {
+      setupForConvertingSymbols: () => {
+        stubConfig(sandbox);
+        stubMultiple(
+          [
+            {
+              object: utils,
+              method: "getNameFromUri",
+              returns: "user.ts",
+            },
+            {
+              object: utils,
+              method: "normalizeUriPath",
+              returns: "/./fake/user.ts",
+            },
+            {
+              object: utils,
+              method: "getSplitter",
+              returns: "§&§",
+            },
+          ],
+          sandbox
+        );
+
+        const range = new vscode.Range(
+          new vscode.Position(3, 0),
+          new vscode.Position(3, 0)
+        );
+        const nestedSymbol = {
+          name: "Outer.Inner§&§run",
+          detail: "",
+          kind: vscode.SymbolKind.Method,
+          range,
+          selectionRange: range,
+          children: [],
+        } as vscode.DocumentSymbol;
+        const symbolInformation = {
+          name: "save",
+          containerName: "UserService",
+          kind: vscode.SymbolKind.Method,
+          location: new vscode.Location(vscode.Uri.file("/./fake/user.ts"), range),
+        } as unknown as vscode.DocumentSymbol;
+
+        return {
+          uri: vscode.Uri.file("/./fake/user.ts"),
+          nestedSymbol,
+          symbolInformation,
+        };
+      },
+    },
+
     fetchConfig: {
       setupForFetchingIcons: () => {
         const configuration = getConfiguration().searchEverywhere;

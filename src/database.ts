@@ -14,6 +14,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 
 const SEARCH_LIMIT = 500;
+const SCHEMA_VERSION = 1;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -153,6 +154,53 @@ export function extractCleanName(name: string): string {
   return name.toLowerCase().replace(/[\s.\-_]/g, "");
 }
 
+export function extractCleanContainer(container?: string): string {
+  if (!container) {
+    return "";
+  }
+  return container
+    .split(".")
+    .map(extractCleanName)
+    .filter((segment) => segment)
+    .join(".");
+}
+
+const QUALIFIER_REGEX = /\.|#|::/g;
+
+export interface QualifiedQuery {
+  container: string;
+  member: string;
+}
+
+export function parseQualifiedQuery(query: string): QualifiedQuery | undefined {
+  if (!query) {
+    return undefined;
+  }
+  const segments = query.split(QUALIFIER_REGEX);
+  if (segments.length < 2) {
+    return undefined;
+  }
+  const member = extractCleanName(segments.pop()!);
+  const container = segments
+    .map(extractCleanName)
+    .filter((segment) => segment)
+    .join(".");
+  if (!container) {
+    return undefined;
+  }
+  return { container, member };
+}
+
+export interface PathQuery {
+  dir: string;
+  leaf: string;
+}
+
+export function splitPathQuery(query: string): PathQuery {
+  const lastSlash = query.lastIndexOf("/");
+  return { dir: query.slice(0, lastSlash), leaf: query.slice(lastSlash + 1) };
+}
+
 export function extractCleanStem(name: string, symbolKind?: number): string {
   if (!name) {
     return "";
@@ -176,6 +224,7 @@ function createTables(): void {
       name TEXT NOT NULL,
       clean_name TEXT DEFAULT '',
       clean_stem TEXT DEFAULT '',
+      clean_container TEXT DEFAULT '',
       symbol_kind INTEGER NOT NULL,
       label TEXT NOT NULL,
       description TEXT,
@@ -225,6 +274,8 @@ function createTables(): void {
     }
   } catch {}
 
+  migrateSchema();
+
   db.run("CREATE INDEX IF NOT EXISTS idx_symbols_uri ON symbols(uri)");
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_symbols_uri_line ON symbols(uri, range_start_line, range_start_char)"
@@ -250,6 +301,31 @@ function createTables(): void {
   );
 }
 
+function getSchemaVersion(): number {
+  const result = db.exec("PRAGMA user_version");
+  return result && result.length ? (result[0].values[0][0] as number) : 0;
+}
+
+// clean_container cannot be backfilled: the container chain is not stored
+// anywhere in the table, so an older index is emptied and rebuilt instead.
+function migrateSchema(): void {
+  const version = getSchemaVersion();
+  if (version >= SCHEMA_VERSION) {
+    return;
+  }
+  if (version < 1) {
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN clean_container TEXT DEFAULT ''");
+    } catch {}
+    if (!isEmpty()) {
+      db.run("DELETE FROM symbols");
+      seededFromTemplate = false;
+      logger.log("Index schema upgraded; the workspace will be reindexed.");
+    }
+  }
+  db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+}
+
 export function insertSymbol(item: QuickPickItem): void {
   if (!db) {
     return;
@@ -260,14 +336,15 @@ export function insertSymbol(item: QuickPickItem): void {
   const cleanStem = extractCleanStem(name, item.symbolKind);
   db.run(
     `INSERT INTO symbols
-     (uri, name, clean_name, clean_stem, symbol_kind, label, description, detail,
+     (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
       range_start_line, range_start_char, range_end_line, range_end_char)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.uri.toString(),
       name,
       cleanName,
       cleanStem,
+      extractCleanContainer(item.containerName),
       item.symbolKind,
       item.label,
       item.description || "",
@@ -288,9 +365,9 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare(`
     INSERT INTO symbols
-    (uri, name, clean_name, clean_stem, symbol_kind, label, description, detail,
+    (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
      range_start_line, range_start_char, range_end_line, range_end_char)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   try {
     for (let i = 0; i < items.length; i++) {
@@ -301,6 +378,7 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
         name,
         extractCleanName(name),
         extractCleanStem(name, item.symbolKind),
+        extractCleanContainer(item.containerName),
         item.symbolKind,
         item.label,
         item.description || "",
@@ -347,6 +425,52 @@ export interface SearchOptions {
 
 const QUERY_COLUMNS =
   "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char";
+
+// Tier 1: exact member under its immediate parent, 2: prefix member under its
+// immediate parent, 3: member match anywhere below a container chain containing the query.
+function queryQualifiedRows(
+  qualified: QualifiedQuery,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number
+): any[][] {
+  if (!db || limit <= 0) {
+    return [];
+  }
+  const { container, member } = qualified;
+  const matchClause =
+    "symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? AND clean_container LIKE ?";
+  const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+  const sql = `
+    SELECT ${QUERY_COLUMNS},
+      CASE
+        WHEN (clean_container = ? OR clean_container LIKE ?) AND clean_name = ? THEN 1
+        WHEN clean_container = ? OR clean_container LIKE ? THEN 2
+        ELSE 3
+      END AS tier
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      tier ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const immediateParent = `%.${container}`;
+  const results = db.exec(sql, [
+    container,
+    immediateParent,
+    member,
+    container,
+    immediateParent,
+    ...params,
+    `${member}%`,
+    `%${container}%`,
+  ]);
+  return results && results.length ? results[0].values : [];
+}
 
 const SEARCH_CACHE_MAX_SIZE = 50;
 const searchCache = new Map<string, QuickPickItem[]>();
@@ -440,15 +564,51 @@ export function search(
       addItemsFromRows(results[0].values);
     }
   } else if (query.includes("/")) {
-    // Path search (e.g. "src/user")
-    const matchClause = "uri LIKE ?";
-    const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
-    const results = db.exec(
-      `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
-      [...params, `%${query}%`]
-    );
-    if (results && results.length) {
-      addItemsFromRows(results[0].values);
+    const { dir, leaf } = splitPathQuery(query);
+    const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+
+    if (leaf) {
+      const dirClause = "uri LIKE ?";
+      const dirWhere = baseWhere ? `${baseWhere} AND ${dirClause}` : `WHERE ${dirClause}`;
+      const dirParams = [...params, `%${dir}/%`];
+      const cleanLeaf = extractCleanName(leaf);
+
+      if (cleanLeaf) {
+        const leafResults = db.exec(
+          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? OR clean_name LIKE ?)
+          ORDER BY
+            ${kindSort}
+            CASE WHEN clean_stem = ? OR clean_name = ? THEN 0 ELSE 1 END ASC,
+            CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+            LENGTH(name) ASC,
+            name COLLATE NOCASE ASC
+          LIMIT ${limit}`,
+          [...dirParams, `${cleanLeaf}%`, `${cleanLeaf}%`, cleanLeaf, cleanLeaf]
+        );
+        if (leafResults && leafResults.length) {
+          addItemsFromRows(leafResults[0].values);
+        }
+      }
+
+      const qualifiedLeaf = parseQualifiedQuery(leaf);
+      if (qualifiedLeaf) {
+        addItemsFromRows(
+          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length)
+        );
+      }
+    }
+
+    if (matchedItems.length < limit) {
+      const matchClause = "uri LIKE ?";
+      const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+      const results = db.exec(
+        `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
+        [...params, `%${query}%`]
+      );
+      if (results && results.length) {
+        addItemsFromRows(results[0].values);
+      }
+      matchedItems = matchedItems.slice(0, limit);
     }
   } else {
     const cleanQuery = extractCleanName(query);
@@ -493,11 +653,27 @@ export function search(
       `${query}%`,
     ];
 
-    let hasExactMatch = false;
     const stage1Results = db.exec(stage1Sql, stage1Params);
-    if (stage1Results && stage1Results.length) {
-      addItemsFromRows(stage1Results[0].values);
-      hasExactMatch = stage1Results[0].values.some((row: any[]) => row[9] === 1);
+    const stage1Rows: any[][] = stage1Results && stage1Results.length ? stage1Results[0].values : [];
+    let hasExactMatch = stage1Rows.some((row) => row[9] === 1);
+
+    const qualified = parseQualifiedQuery(query);
+    if (qualified) {
+      // An exact name match (e.g. the file "user.service.ts") still outranks qualified members.
+      addItemsFromRows(stage1Rows.filter((row) => row[9] === 1));
+      const qualifiedRows = queryQualifiedRows(
+        qualified,
+        baseWhere,
+        params,
+        kindSort,
+        limit - matchedItems.length
+      );
+      addItemsFromRows(qualifiedRows);
+      hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
+      addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1));
+      matchedItems = matchedItems.slice(0, limit);
+    } else {
+      addItemsFromRows(stage1Rows);
     }
 
     // Stage 2: Substring matches if we have space left
@@ -779,4 +955,7 @@ export const database = {
   extractName,
   extractCleanName,
   extractCleanStem,
+  extractCleanContainer,
+  parseQualifiedQuery,
+  splitPathQuery,
 };

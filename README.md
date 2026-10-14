@@ -94,6 +94,10 @@ After the scan is completed, the extension continuously tracks changes in the wo
 
 * Jump to line: append `:line` or `:line:column` to the query (e.g. `UserService.java:42` or `src/user.ts:10:5`) to open the selected item at that position.
 
+* Qualified names: search a member through its class or namespace with `.`, `#` or `::` (e.g. `UserService.save`, `UserService#save`, `Outer::Inner::run`). End the query with a separator (`UserService.`) to list every member of that container. Members under the exact parent rank above members found deeper in the container chain, and an exact file match such as `user.service.ts` still comes first.
+
+* Directory + name: a query with `/` matches the part after the last `/` against names inside that directory (e.g. `src/models/User` or `models/User.find`), then falls back to matching the path.
+
 * Dedicated output with logs related to triggered actions, scanned directories structure, etc.
 
 * Ability to decide whether the items should be sorted by type

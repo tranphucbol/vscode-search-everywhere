@@ -57,6 +57,41 @@ describe("DataConverter", () => {
     });
   });
 
+  describe("convertUriAndSymbolsToQpItems", () => {
+    it("should set containerName and description from the ancestor chain", () => {
+      const { uri, nestedSymbol } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        nestedSymbol,
+      ]);
+
+      assert.equal(item.label, "run");
+      assert.equal(item.containerName, "Outer.Inner");
+      assert.equal(item.description, "Method at line: 4 in Outer.Inner");
+    });
+
+    it("should fall back to SymbolInformation containerName", () => {
+      const { uri, symbolInformation } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        symbolInformation,
+      ]);
+
+      assert.equal(item.label, "save");
+      assert.equal(item.containerName, "UserService");
+      assert.equal(item.description, "Method at line: 4 in UserService");
+    });
+
+    it("should leave containerName unset for files", () => {
+      const { uri } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [fileItem] = dataConverter.convertUriAndSymbolsToQpItems(uri);
+
+      assert.equal(fileItem.symbolKind, 0);
+      assert.isFalse("containerName" in fileItem);
+    });
+  });
+
   describe("fetchConfig", () => {
     it("should fetch icons", () => {
       const icons = setups.fetchConfig.setupForFetchingIcons();

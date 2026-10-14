@@ -162,16 +162,19 @@ export function parseLineSuffix(query: string): {
   return { query: match[1], position: new vscode.Position(line, character) };
 }
 
-function withTargetPosition(
+function withQueryOverrides(
   items: QuickPickItem[],
-  position: vscode.Position
+  targetPosition?: vscode.Position
 ): QuickPickItem[] {
   // Clone so cached database results are not mutated; alwaysShow keeps VS Code
-  // from hiding items whose label does not contain the ":line" suffix.
+  // from hiding items whose label does not contain the ":line" suffix or the
+  // "Class." qualifier.
   return items.map((item) =>
     item.kind === vscode.QuickPickItemKind.Separator
       ? item
-      : { ...item, targetPosition: position, alwaysShow: true }
+      : targetPosition
+      ? { ...item, targetPosition, alwaysShow: true }
+      : { ...item, alwaysShow: true }
   );
 }
 
@@ -621,8 +624,13 @@ function loadItems() {
     ignoredNames: itemsFilter.ignoredNames,
     fileUri: fileScopeUri,
   });
-  const dbResults = lineSuffix.position
-    ? withTargetPosition(searchResults, lineSuffix.position)
+  const nameQuery = cleanQuery.includes("/")
+    ? database.splitPathQuery(cleanQuery).leaf
+    : cleanQuery;
+  const needsOverrides =
+    !!lineSuffix.position || !!database.parseQualifiedQuery(nameQuery);
+  const dbResults = needsOverrides
+    ? withQueryOverrides(searchResults, lineSuffix.position)
     : searchResults;
   reinitQpItemsButton(dbResults);
   syncItemsFilterPhrases(dbResults);
