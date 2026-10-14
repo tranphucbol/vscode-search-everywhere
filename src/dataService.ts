@@ -7,6 +7,8 @@ import { patternProvider } from "./patternProvider";
 import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";
 import { utils } from "./utils";
 
+const CONTAINER_SEPARATOR = ".";
+
 async function fetchUris(): Promise<vscode.Uri[]> {
   const includePatterns = patternProvider.getIncludePatterns();
   const excludePatterns = await patternProvider.getExcludePatterns();
@@ -321,7 +323,7 @@ function prepareSymbolNameIfHasParent(
 ) {
   const splitter = utils.getSplitter();
   if (parentName) {
-    parentName = parentName.split(splitter)[0];
+    parentName = parentName.split(splitter).join(CONTAINER_SEPARATOR);
     symbol.name = `${parentName}${splitter}${symbol.name}`;
   }
 }

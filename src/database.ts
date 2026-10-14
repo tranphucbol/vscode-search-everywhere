@@ -14,6 +14,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 
 const SEARCH_LIMIT = 500;
+const SCHEMA_VERSION = 1;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -153,6 +154,17 @@ export function extractCleanName(name: string): string {
   return name.toLowerCase().replace(/[\s.\-_]/g, "");
 }
 
+export function extractCleanContainer(container?: string): string {
+  if (!container) {
+    return "";
+  }
+  return container
+    .split(".")
+    .map(extractCleanName)
+    .filter((segment) => segment)
+    .join(".");
+}
+
 export function extractCleanStem(name: string, symbolKind?: number): string {
   if (!name) {
     return "";
@@ -176,6 +188,7 @@ function createTables(): void {
       name TEXT NOT NULL,
       clean_name TEXT DEFAULT '',
       clean_stem TEXT DEFAULT '',
+      clean_container TEXT DEFAULT '',
       symbol_kind INTEGER NOT NULL,
       label TEXT NOT NULL,
       description TEXT,
@@ -225,6 +238,8 @@ function createTables(): void {
     }
   } catch {}
 
+  migrateSchema();
+
   db.run("CREATE INDEX IF NOT EXISTS idx_symbols_uri ON symbols(uri)");
   db.run(
     "CREATE INDEX IF NOT EXISTS idx_symbols_uri_line ON symbols(uri, range_start_line, range_start_char)"
@@ -250,6 +265,31 @@ function createTables(): void {
   );
 }
 
+function getSchemaVersion(): number {
+  const result = db.exec("PRAGMA user_version");
+  return result && result.length ? (result[0].values[0][0] as number) : 0;
+}
+
+// clean_container cannot be backfilled: the container chain is not stored
+// anywhere in the table, so an older index is emptied and rebuilt instead.
+function migrateSchema(): void {
+  const version = getSchemaVersion();
+  if (version >= SCHEMA_VERSION) {
+    return;
+  }
+  if (version < 1) {
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN clean_container TEXT DEFAULT ''");
+    } catch {}
+    if (!isEmpty()) {
+      db.run("DELETE FROM symbols");
+      seededFromTemplate = false;
+      logger.log("Index schema upgraded; the workspace will be reindexed.");
+    }
+  }
+  db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+}
+
 export function insertSymbol(item: QuickPickItem): void {
   if (!db) {
     return;
@@ -260,14 +300,15 @@ export function insertSymbol(item: QuickPickItem): void {
   const cleanStem = extractCleanStem(name, item.symbolKind);
   db.run(
     `INSERT INTO symbols
-     (uri, name, clean_name, clean_stem, symbol_kind, label, description, detail,
+     (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
       range_start_line, range_start_char, range_end_line, range_end_char)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.uri.toString(),
       name,
       cleanName,
       cleanStem,
+      extractCleanContainer(item.containerName),
       item.symbolKind,
       item.label,
       item.description || "",
@@ -288,9 +329,9 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare(`
     INSERT INTO symbols
-    (uri, name, clean_name, clean_stem, symbol_kind, label, description, detail,
+    (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
      range_start_line, range_start_char, range_end_line, range_end_char)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   try {
     for (let i = 0; i < items.length; i++) {
@@ -301,6 +342,7 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
         name,
         extractCleanName(name),
         extractCleanStem(name, item.symbolKind),
+        extractCleanContainer(item.containerName),
         item.symbolKind,
         item.label,
         item.description || "",
@@ -779,4 +821,5 @@ export const database = {
   extractName,
   extractCleanName,
   extractCleanStem,
+  extractCleanContainer,
 };

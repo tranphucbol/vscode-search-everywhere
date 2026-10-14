@@ -48,7 +48,10 @@ function mapDocumentSymbolToQpItem(
 ): QuickPickItem {
   const splitter = utils.getSplitter();
   const symbolName = symbol.name.split(splitter);
-  const parent = symbolName.length === 2 ? symbolName[0] : "";
+  const parent =
+    symbolName.length === 2
+      ? symbolName[0]
+      : (symbol as unknown as vscode.SymbolInformation).containerName || "";
   const name = symbolName.length === 2 ? symbolName[1] : symbol.name;
   const icons = dataConverter.getIcons();
   const icon = icons[symbol.kind] ? `$(${icons[symbol.kind]})` : "";
@@ -72,7 +75,8 @@ function mapDocumentSymbolToQpItem(
     range.start,
     range.end,
     label,
-    description
+    description,
+    parent || undefined
   );
 }
 
@@ -126,9 +130,10 @@ function createQuickPickItem(
   start: vscode.Position,
   end: vscode.Position,
   label: string,
-  description: string
+  description: string,
+  containerName?: string
 ): QuickPickItem {
-  return {
+  const item = {
     uri,
     symbolKind,
     range: {
@@ -145,6 +150,10 @@ function createQuickPickItem(
     //   },
     // ],
   } as QuickPickItem;
+  if (containerName) {
+    item.containerName = containerName;
+  }
+  return item;
 }
 
 function reload() {

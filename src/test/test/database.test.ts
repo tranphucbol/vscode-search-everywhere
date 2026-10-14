@@ -1,7 +1,10 @@
 import { assert } from "chai";
+import * as fs from "fs";
 import * as path from "path";
+import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { database } from "../../database";
+import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
 
 describe("Database", () => {
@@ -214,6 +217,58 @@ describe("Database", () => {
       assert.equal(database.extractCleanStem("map_service.py"), "mapservice");
       assert.equal(database.extractCleanStem(".gitignore"), "gitignore");
       assert.equal(database.extractCleanStem("map.service.spec.ts"), "mapservicespec");
+    });
+  });
+
+  describe("extractCleanContainer", () => {
+    it("should store the cleaned container chain", () => {
+      assert.equal(database.extractCleanContainer("Outer.Inner"), "outer.inner");
+      assert.equal(database.extractCleanContainer("My_Mod.Sub-Cls"), "mymod.subcls");
+      assert.equal(database.extractCleanContainer("a..b"), "a.b");
+      assert.equal(database.extractCleanContainer(undefined), "");
+    });
+  });
+
+  describe("schema migration", () => {
+    const dbFile = path.join(fakeContext.storageUri.fsPath, "search-everywhere-index.db");
+
+    const writeVersion0Database = async () => {
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const legacy = new SQL.Database();
+      legacy.run(`CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
+        clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', symbol_kind INTEGER NOT NULL,
+        label TEXT NOT NULL, description TEXT, detail TEXT,
+        range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
+        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
+      legacy.run(
+        "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?)",
+        ["file:///workspace/src/User.ts", "save", "save", "save", 5, "save"]
+      );
+      fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
+      legacy.close();
+    };
+
+    it("should empty a version-0 database on open", async () => {
+      const logStub = sinon.stub(logger, "log");
+      try {
+        database.closeDatabase();
+        await writeVersion0Database();
+        database.setSeededFromTemplate(true);
+
+        await database.initDatabase(fakeContext);
+
+        assert.isTrue(database.isEmpty());
+        assert.isFalse(database.wasSeededFromTemplate());
+        database.insertSymbol({ ...item1, containerName: "Outer.Inner" });
+        assert.equal(database.getCount(), 1);
+      } finally {
+        logStub.restore();
+      }
     });
   });
 

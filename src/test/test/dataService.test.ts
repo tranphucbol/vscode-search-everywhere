@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as vscode from "vscode";
 import { dataService } from "../../dataService";
 import { getTestSetups } from "../testSetup/dataService.testSetup";
 import { getItem, getItems } from "../util/itemMockFactory";
@@ -109,6 +110,20 @@ describe("DataService", () => {
       const items = await dataService.fetchData();
 
       assert.equal(items.count, 3);
+    });
+  });
+
+  describe("getSymbolsForUri", () => {
+    it("should keep the full ancestor chain in nested symbol names", async () => {
+      setups.getSymbolsForUri.setupForNestedSymbols();
+      const symbols = await dataService.getSymbolsForUri(
+        vscode.Uri.file("/./fake/outer.ts")
+      );
+
+      assert.deepEqual(
+        symbols!.map((symbol) => symbol.name),
+        ["Outer", "Outer§&§Inner", "Outer.Inner§&§run"]
+      );
     });
   });
 
