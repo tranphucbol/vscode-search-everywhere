@@ -125,6 +125,61 @@ describe("Database", () => {
       assert.isFalse(results.some((r) => r.label.includes("Controller")));
     });
 
+    it("should escape %, _ and backslash in like patterns", () => {
+      assert.equal(database.escapeLike("a_b%"), "a\\_b\\%");
+      assert.equal(database.escapeLike("c:\\dir"), "c:\\\\dir");
+      assert.equal(database.escapeLike("plain"), "plain");
+    });
+
+    it("should treat _ in a query as a literal character", () => {
+      const symbol = (name: string): QuickPickItem => ({
+        uri: vscode.Uri.file(`/workspace/src/${name}.ts`),
+        symbolKind: vscode.SymbolKind.Variable,
+        label: `$(symbol-variable) ${name}`,
+      });
+      database.clearAll();
+      database.insertSymbolsBatch([symbol("Item_1234"), symbol("ItemX1234")]);
+
+      const results = database.search("Item_1234").map((r) => r.label);
+      assert.include(results, "$(symbol-variable) Item_1234");
+      assert.notInclude(results, "$(symbol-variable) ItemX1234");
+    });
+
+    it("should treat % in a query as a literal character", () => {
+      const percent: QuickPickItem = {
+        uri: vscode.Uri.file("/workspace/src/progress.ts"),
+        symbolKind: vscode.SymbolKind.Constant,
+        label: "$(symbol-constant) 100%",
+      };
+      database.insertSymbol(percent);
+
+      const results = database.search("%");
+      assert.deepEqual(
+        results.map((r) => r.label),
+        ["$(symbol-constant) 100%"]
+      );
+    });
+
+    it("should treat _ in ignoredNames as a literal character", () => {
+      const underscored: QuickPickItem = {
+        uri: vscode.Uri.file("/workspace/src/user_model.ts"),
+        symbolKind: vscode.SymbolKind.Class,
+        label: "$(symbol-class) User_Model",
+      };
+      const plain: QuickPickItem = {
+        uri: vscode.Uri.file("/workspace/src/UserXModel.ts"),
+        symbolKind: vscode.SymbolKind.Class,
+        label: "$(symbol-class) UserXModel",
+      };
+      database.insertSymbolsBatch([underscored, plain]);
+
+      const results = database
+        .search("", 500, { ignoredNames: ["User_Model"] })
+        .map((r) => r.label);
+      assert.notInclude(results, underscored.label);
+      assert.include(results, plain.label);
+    });
+
     it("should prioritize exact stem matches like MapService and map.service.ts on top (Issue #49)", () => {
       const mapClass: QuickPickItem = {
         uri: vscode.Uri.file("/workspace/src/MapService.ts"),
@@ -480,6 +535,25 @@ describe("Database", () => {
       const results = database.search("User");
       assert.equal(results.length, 2);
       assert.isTrue(results.every((r) => !r.uri.toString().includes("/workspace/src/models")));
+    });
+
+    it("should not delete siblings whose uri matches an encoded % in the prefix", () => {
+      const inSpacedDir: QuickPickItem = {
+        ...item1,
+        uri: vscode.Uri.file("/workspace/my dir/UserController.ts"),
+      };
+      const inSibling: QuickPickItem = {
+        ...item2,
+        uri: vscode.Uri.file("/workspace/myX20dir/UserService.ts"),
+      };
+      database.insertSymbolsBatch([inSpacedDir, inSibling]);
+
+      const prefix = vscode.Uri.file("/workspace/my dir").toString();
+      assert.include(prefix, "my%20dir");
+      database.deleteByUriPrefix(prefix);
+
+      const remaining = database.search("").map((r) => r.uri.toString());
+      assert.deepEqual(remaining, [inSibling.uri.toString()]);
     });
   });
 

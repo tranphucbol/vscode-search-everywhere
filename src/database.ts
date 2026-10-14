@@ -165,6 +165,19 @@ export function extractCleanContainer(container?: string): string {
     .join(".");
 }
 
+const LIKE_ESCAPE = "ESCAPE '\\'";
+const LIKE_SPECIAL_CHARS = /[\\%_]/;
+
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+// The three-argument like() made every search about 9% slower in scripts/benchmark.js,
+// so the ESCAPE clause is only added when escapeLike actually changed the text.
+function likeEscape(value: string): string {
+  return LIKE_SPECIAL_CHARS.test(value) ? LIKE_ESCAPE : "";
+}
+
 const QUALIFIER_REGEX = /\.|#|::/g;
 
 export interface QualifiedQuery {
@@ -411,7 +424,7 @@ export function deleteByUriPrefix(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  db.run("DELETE FROM symbols WHERE uri LIKE ?", [uriPath + "%"]);
+  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, [escapeLike(uriPath) + "%"]);
 }
 
 export interface SearchOptions {
@@ -433,20 +446,20 @@ function queryQualifiedRows(
   baseWhere: string,
   params: any[],
   kindSort: string,
-  limit: number
+  limit: number,
+  esc: string
 ): any[][] {
   if (!db || limit <= 0) {
     return [];
   }
   const { container, member } = qualified;
-  const matchClause =
-    "symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? AND clean_container LIKE ?";
+  const matchClause = `symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? ${esc} AND clean_container LIKE ? ${esc}`;
   const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
   const sql = `
     SELECT ${QUERY_COLUMNS},
       CASE
-        WHEN (clean_container = ? OR clean_container LIKE ?) AND clean_name = ? THEN 1
-        WHEN clean_container = ? OR clean_container LIKE ? THEN 2
+        WHEN (clean_container = ? OR clean_container LIKE ? ${esc}) AND clean_name = ? THEN 1
+        WHEN clean_container = ? OR clean_container LIKE ? ${esc} THEN 2
         ELSE 3
       END AS tier
     FROM symbols
@@ -458,7 +471,7 @@ function queryQualifiedRows(
       name COLLATE NOCASE ASC
     LIMIT ${limit}
   `;
-  const immediateParent = `%.${container}`;
+  const immediateParent = `%.${escapeLike(container)}`;
   const results = db.exec(sql, [
     container,
     immediateParent,
@@ -466,8 +479,8 @@ function queryQualifiedRows(
     container,
     immediateParent,
     ...params,
-    `${member}%`,
-    `%${container}%`,
+    `${escapeLike(member)}%`,
+    `%${escapeLike(container)}%`,
   ]);
   return results && results.length ? results[0].values : [];
 }
@@ -528,14 +541,15 @@ export function search(
     if (options.ignoredNames && options.ignoredNames.length > 0) {
       for (const ign of options.ignoredNames) {
         if (ign) {
-          conditions.push("name NOT LIKE ?");
-          params.push(`%${ign}%`);
+          conditions.push(`name NOT LIKE ? ${likeEscape(ign)}`);
+          params.push(`%${escapeLike(ign)}%`);
         }
       }
     }
   }
 
   const baseWhere = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const esc = likeEscape(query);
 
   let matchedItems: QuickPickItem[] = [];
   const seenKeys = new Set<string>();
@@ -568,14 +582,15 @@ export function search(
     const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
 
     if (leaf) {
-      const dirClause = "uri LIKE ?";
+      const dirClause = `uri LIKE ? ${esc}`;
       const dirWhere = baseWhere ? `${baseWhere} AND ${dirClause}` : `WHERE ${dirClause}`;
-      const dirParams = [...params, `%${dir}/%`];
+      const dirParams = [...params, `%${escapeLike(dir)}/%`];
       const cleanLeaf = extractCleanName(leaf);
 
       if (cleanLeaf) {
+        const leafPrefix = `${escapeLike(cleanLeaf)}%`;
         const leafResults = db.exec(
-          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? OR clean_name LIKE ?)
+          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
           ORDER BY
             ${kindSort}
             CASE WHEN clean_stem = ? OR clean_name = ? THEN 0 ELSE 1 END ASC,
@@ -583,7 +598,7 @@ export function search(
             LENGTH(name) ASC,
             name COLLATE NOCASE ASC
           LIMIT ${limit}`,
-          [...dirParams, `${cleanLeaf}%`, `${cleanLeaf}%`, cleanLeaf, cleanLeaf]
+          [...dirParams, leafPrefix, leafPrefix, cleanLeaf, cleanLeaf]
         );
         if (leafResults && leafResults.length) {
           addItemsFromRows(leafResults[0].values);
@@ -593,17 +608,17 @@ export function search(
       const qualifiedLeaf = parseQualifiedQuery(leaf);
       if (qualifiedLeaf) {
         addItemsFromRows(
-          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length)
+          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length, esc)
         );
       }
     }
 
     if (matchedItems.length < limit) {
-      const matchClause = "uri LIKE ?";
+      const matchClause = `uri LIKE ? ${esc}`;
       const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
       const results = db.exec(
         `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
-        [...params, `%${query}%`]
+        [...params, `%${escapeLike(query)}%`]
       );
       if (results && results.length) {
         addItemsFromRows(results[0].values);
@@ -612,21 +627,25 @@ export function search(
     }
   } else {
     const cleanQuery = extractCleanName(query);
+    const cleanLike = escapeLike(cleanQuery);
+    const rawLike = escapeLike(query);
     const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+    const nameLikeAny = `(clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} OR name LIKE ? ${esc})`;
+    const notPrefixed = `clean_stem NOT LIKE ? ${esc} AND clean_name NOT LIKE ? ${esc} AND name NOT LIKE ? ${esc}`;
 
     // Stage 1: Exact and Prefix matches on clean_stem, clean_name, or name
     // Ranked by relevance:
     // 1: Exact match on stem / clean_name / raw name
     // 2: Prefix match on stem / clean_name / raw name
     const stage1Where = baseWhere
-      ? `${baseWhere} AND (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)`
-      : `WHERE (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)`;
+      ? `${baseWhere} AND ${nameLikeAny}`
+      : `WHERE ${nameLikeAny}`;
 
     const stage1Sql = `
       SELECT ${QUERY_COLUMNS},
         CASE
           WHEN clean_stem = ? OR clean_name = ? OR name = ? COLLATE NOCASE THEN 1
-          WHEN clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ? THEN 2
+          WHEN ${nameLikeAny} THEN 2
           ELSE 3
         END AS relevance
       FROM symbols
@@ -644,13 +663,13 @@ export function search(
       cleanQuery,
       cleanQuery,
       query,
-      `${cleanQuery}%`,
-      `${cleanQuery}%`,
-      `${query}%`,
+      `${cleanLike}%`,
+      `${cleanLike}%`,
+      `${rawLike}%`,
       ...params,
-      `${cleanQuery}%`,
-      `${cleanQuery}%`,
-      `${query}%`,
+      `${cleanLike}%`,
+      `${cleanLike}%`,
+      `${rawLike}%`,
     ];
 
     const stage1Results = db.exec(stage1Sql, stage1Params);
@@ -666,7 +685,8 @@ export function search(
         baseWhere,
         params,
         kindSort,
-        limit - matchedItems.length
+        limit - matchedItems.length,
+        esc
       );
       addItemsFromRows(qualifiedRows);
       hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
@@ -685,10 +705,8 @@ export function search(
       );
 
       const stage2Where = baseWhere
-        ? `${baseWhere} AND (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`
-        : `WHERE (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`;
+        ? `${baseWhere} AND ${nameLikeAny} AND ${notPrefixed}`
+        : `WHERE ${nameLikeAny} AND ${notPrefixed}`;
 
       const stage2Sql = `
         SELECT ${QUERY_COLUMNS}
@@ -704,12 +722,12 @@ export function search(
 
       const stage2Params = [
         ...params,
-        `%${cleanQuery}%`,
-        `%${cleanQuery}%`,
-        `%${query}%`,
-        `${cleanQuery}%`,
-        `${cleanQuery}%`,
-        `${query}%`,
+        `%${cleanLike}%`,
+        `%${cleanLike}%`,
+        `%${rawLike}%`,
+        `${cleanLike}%`,
+        `${cleanLike}%`,
+        `${rawLike}%`,
       ];
 
       const stage2Results = db.exec(stage2Sql, stage2Params);
@@ -733,13 +751,12 @@ export function search(
         limit - matchedItems.length,
         SUBSTRING_MIN_THRESHOLD - matchedItems.length
       );
-      const fuzzyPattern = "%" + cleanQuery.split("").join("%") + "%";
+      const fuzzyPattern = "%" + cleanQuery.split("").map(escapeLike).join("%") + "%";
+      const fuzzyClause = `(clean_stem LIKE ? ${esc} OR name LIKE ? ${esc}) AND ${notPrefixed}`;
 
       const stage3Where = baseWhere
-        ? `${baseWhere} AND (clean_stem LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`
-        : `WHERE (clean_stem LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`;
+        ? `${baseWhere} AND ${fuzzyClause}`
+        : `WHERE ${fuzzyClause}`;
 
       const stage3Sql = `
         SELECT ${QUERY_COLUMNS}
@@ -757,9 +774,9 @@ export function search(
         ...params,
         fuzzyPattern,
         fuzzyPattern,
-        `%${cleanQuery}%`,
-        `%${cleanQuery}%`,
-        `%${query}%`,
+        `%${cleanLike}%`,
+        `%${cleanLike}%`,
+        `%${rawLike}%`,
       ];
 
       const stage3Results = db.exec(stage3Sql, stage3Params);
@@ -956,6 +973,7 @@ export const database = {
   extractCleanName,
   extractCleanStem,
   extractCleanContainer,
+  escapeLike,
   parseQualifiedQuery,
   splitPathQuery,
 };
