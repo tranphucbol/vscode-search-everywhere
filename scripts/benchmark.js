@@ -20,6 +20,10 @@ const vscodeMock = {
     Constant: 13,
     Function: 11,
   },
+  workspace: {
+    workspaceFolders: undefined,
+    getConfiguration: () => ({ get: (_key, defaultValue) => defaultValue }),
+  },
 };
 
 // Hook module loader for 'vscode'
@@ -31,6 +35,15 @@ Module.prototype.require = function (id) {
 };
 
 const { database } = require("../dist/database");
+const { initCache } = require("../dist/cache");
+
+const workspaceStateStore = new Map();
+initCache({
+  workspaceState: {
+    get: (key) => workspaceStateStore.get(key),
+    update: (key, value) => workspaceStateStore.set(key, value),
+  },
+});
 
 function formatBytes(bytes) {
   return (bytes / 1024 / 1024).toFixed(2) + " MB";
@@ -47,6 +60,7 @@ function generateMockItems(count) {
       uri: vscodeMock.Uri.file(`/workspace/project/src/module${fileId % 50}/file${fileId}.ts`),
       symbolKind: kind,
       label: `$(symbol-class) ${name}`,
+      containerName: kind === 0 ? undefined : `Service${i % 100}.Handler${i % 7}`,
       description: `src/module${fileId % 50}/file${fileId}.ts`,
       detail: `function ${name}(opts: Options): Promise<Result${i}>`,
       range: {
@@ -79,7 +93,15 @@ async function runBenchmark(itemCount = 50000) {
   console.log(`  -> RAM zajmowany przez obiekty w JS: +${formatBytes(oldArrayRAM)}`);
 
   // Symulacja wyszukiwania w starej architekturze (pełne filtrowanie 50 000 obiektów w JS)
-  const queries = ["ServiceHandler42", "Item_1234", "module25", "xyznotfound"];
+  const queries = [
+    "ServiceHandler42",
+    "Item_1234",
+    "module25",
+    "xyznotfound",
+    "ServiceHandler42.method",
+    "Service#handle",
+    "src/module25/Item",
+  ];
   const t0OldSearch = Date.now();
   let oldMatches = 0;
   for (let iter = 0; iter < 10; iter++) {
@@ -150,7 +172,18 @@ async function runBenchmark(itemCount = 50000) {
   }
   const t1SqlSearch = Date.now();
   const newAvgQueryMs = ((t1SqlSearch - t0SqlSearch) / (10 * queries.length)).toFixed(2);
-  console.log(`  -> Średni czas zapytania SQLite (40 zapytań): ${newAvgQueryMs} ms / zapytanie`);
+  console.log(`  -> Średni czas zapytania SQLite (${10 * queries.length} zapytań): ${newAvgQueryMs} ms / zapytanie`);
+
+  for (const q of queries) {
+    let count = 0;
+    const t0 = process.hrtime.bigint();
+    for (let iter = 0; iter < 10; iter++) {
+      database.clearSearchCache();
+      count = database.search(q, 500).length;
+    }
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 10;
+    console.log(`     ${q.padEnd(26)} ${ms.toFixed(2).padStart(8)} ms  (${count} wyników, bez cache)`);
+  }
 
   // Wielkość pliku bazy na dysku
   database.persistToFile();
