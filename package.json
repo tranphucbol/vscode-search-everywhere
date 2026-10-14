@@ -68,10 +68,10 @@
             "5": "symbol-method",
             "6": "symbol-property",
             "7": "symbol-field",
-            "8": "symbol-ruler",
+            "8": "symbol-constructor",
             "9": "symbol-enum",
             "10": "symbol-interface",
-            "11": "variable-group",
+            "11": "symbol-function",
             "12": "symbol-variable",
             "13": "symbol-constant",
             "14": "symbol-string",
@@ -199,6 +199,11 @@
           "type": "number",
           "default": 10,
           "description": "Maximum number of recent items to show when search input is empty."
+        },
+        "searchEverywhere.useFileIconTheme": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show file icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme) instead of the built-in icon. Requires VS Code 1.108 or newer; older versions keep the built-in icon."
         }
       }
     },

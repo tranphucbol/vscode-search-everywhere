@@ -10,6 +10,7 @@ import {
   fetchShouldUseDebounce,
   fetchShouldUseItemsFilterPhrases,
   fetchShowRecentItemsOnEmptyQuery,
+  fetchUseFileIconTheme,
 } from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
@@ -20,6 +21,7 @@ import { utils } from "./utils";
 const debounce = utils.debounce;
 
 const VIRTUAL_PAGE_SIZE = 500;
+const ICON_PREFIX_REGEX = /^\$\([^)]+\)\s+/;
 
 function disposeOnDidChangeValueEventListeners(): void {
   quickPick
@@ -644,7 +646,7 @@ function syncItemsFilterPhrases(items: QuickPickItem[]): void {
     }
     const phrase = filterPhrases[item.symbolKind];
     if (phrase) {
-      const name = item.label.replace(/^\$\([^)]+\)\s+/, "");
+      const name = item.label.replace(ICON_PREFIX_REGEX, "");
       const tag = `[${phrase}${name}]`;
       if (item.description && item.description.startsWith("[")) {
         item.description = item.description.replace(/^\[[^\]]+\]/, () => tag);
@@ -760,9 +762,45 @@ function setItems(newItems: QuickPickItem[]): void {
   reinitQpItemsButton(storedItems);
 }
 
+function shouldUseFileIconTheme(): boolean {
+  return fetchUseFileIconTheme() && utils.supportsQuickPickFileIconTheme();
+}
+
+function applyItemIcon(item: QuickPickItem, useFileIconTheme: boolean): void {
+  if (item.isHelp || typeof item.symbolKind !== "number") {
+    return;
+  }
+
+  const isFile = item.symbolKind === vscode.SymbolKind.File;
+  if (isFile && useFileIconTheme) {
+    item.label = item.label.replace(ICON_PREFIX_REGEX, "");
+    item.iconPath = vscode.ThemeIcon.File;
+    item.resourceUri = ensureUri(item.uri);
+    return;
+  }
+
+  if (isFile) {
+    // Revert items decorated while the setting was on (e.g. reused or recent items).
+    delete item.iconPath;
+    delete item.resourceUri;
+  }
+
+  // Labels stored in the index keep the icon from indexing time, so rebuild the
+  // prefix from the current icon map to pick up changed defaults without a reindex.
+  const icons = dataConverter.getIcons();
+  if (!icons) {
+    return;
+  }
+  const icon = icons[item.symbolKind];
+  const name = item.label.replace(ICON_PREFIX_REGEX, "");
+  item.label = icon ? `$(${icon})  ${name}` : name;
+}
+
 function reinitQpItemsButton(data: QuickPickItem[]) {
+  const useFileIconTheme = shouldUseFileIconTheme();
   data.forEach((item) => {
     if (item.kind !== vscode.QuickPickItemKind.Separator) {
+      applyItemIcon(item, useFileIconTheme);
       const buttons: vscode.QuickInputButton[] = [];
       if (item.symbolKind === 0 && !fileScopeUri) {
         buttons.push({

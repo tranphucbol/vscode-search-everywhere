@@ -1,7 +1,10 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../config";
+import { dataConverter } from "../../dataConverter";
 import { quickPick } from "../../quickPick";
+import { Icons } from "../../types";
+import { utils } from "../../utils";
 import { getQuickPickOnDidChangeValueEventListeners } from "../util/eventMockFactory";
 import {
   getQpHelpItem,
@@ -708,6 +711,35 @@ export const getTestSetups = () => {
     handleDidHide: {
       setupForSettingEmptyText: () => {
         stubControl(sandbox);
+      },
+    },
+
+    fileIcons: {
+      setupForFileIconTheme: (
+        useFileIconTheme: boolean,
+        supported: boolean = true,
+        icons: Icons = { 0: "symbol-file", 4: "symbol-class" }
+      ) => {
+        return stubMultiple(
+          [
+            {
+              object: config,
+              method: "fetchUseFileIconTheme",
+              returns: useFileIconTheme,
+            },
+            {
+              object: utils,
+              method: "supportsQuickPickFileIconTheme",
+              returns: supported,
+            },
+            {
+              object: dataConverter,
+              method: "getIcons",
+              returns: icons,
+            },
+          ],
+          sandbox
+        );
       },
     },
 

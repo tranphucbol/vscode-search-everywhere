@@ -207,4 +207,16 @@ describe("Config", () => {
       );
     });
   });
+
+  describe("fetchUseFileIconTheme", () => {
+    it("should return boolean from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "useFileIconTheme";
+
+      assert.equal(
+        config.fetchUseFileIconTheme(),
+        configuration[section][key]
+      );
+    });
+  });
 });

@@ -66,6 +66,20 @@ describe("RecentItems", () => {
     assert.equal(retrieved[1].label, "Item2");
   });
 
+  it("should treat labels with and without icon prefix as the same item", () => {
+    const uri = vscode.Uri.file("/test/item1.ts");
+    recentItems.addRecentItem({
+      label: "$(symbol-file)  item1.ts",
+      uri,
+      symbolKind: 0,
+    });
+    recentItems.addRecentItem({ label: "item1.ts", uri, symbolKind: 0 });
+
+    const stored = cache.getRecentItems<any>();
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].label, "item1.ts");
+  });
+
   it("should ignore separator and help items", () => {
     const separatorItem: QuickPickItem = {
       label: "Recent",

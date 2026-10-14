@@ -431,4 +431,15 @@ describe("Utils", () => {
       }, 60);
     });
   });
+
+  describe("isVscodeVersionAtLeast", () => {
+    it("should compare major and minor versions", () => {
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "1.108.0"), true);
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "1.141.0-insider"), true);
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "2.0.0"), true);
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "1.107.1"), false);
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "0.200.0"), false);
+      assert.equal(utils.isVscodeVersionAtLeast(1, 108, "invalid"), false);
+    });
+  });
 });
