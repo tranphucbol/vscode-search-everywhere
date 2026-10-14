@@ -201,6 +201,148 @@ describe("Database", () => {
       assert.equal(results.length, 2);
       assert.isFalse(results.some((r) => r.label.includes("mainProcessService")));
     });
+
+    describe("qualified names", () => {
+      const member = (
+        name: string,
+        containerName: string,
+        file: string,
+        line: number,
+        symbolKind = vscode.SymbolKind.Method
+      ): QuickPickItem => ({
+        uri: vscode.Uri.file(file),
+        symbolKind,
+        label: `$(symbol-method) ${name}`,
+        containerName,
+        range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 1, 0)),
+      });
+
+      const save = member("save", "UserService", "/workspace/src/UserService.ts", 6);
+      const saveAll = member("saveAll", "UserService", "/workspace/src/UserService.ts", 8);
+      const load = member("load", "UserService", "/workspace/src/UserService.ts", 10);
+      const otherSave = member("save", "UserController", "/workspace/src/UserController.ts", 12);
+      const innerRun = member("run", "Outer.Inner", "/workspace/src/Outer.ts", 3);
+      const outerRun = member("run", "Outer", "/workspace/src/Outer.ts", 9);
+      const chainSave = member("save", "UserServiceImpl.Helper", "/workspace/src/Impl.ts", 4);
+      const find = member("find", "User", "/workspace/src/models/User.ts", 2);
+
+      beforeEach(() => {
+        database.insertSymbolsBatch([
+          save,
+          saveAll,
+          load,
+          otherSave,
+          innerRun,
+          outerRun,
+          chainSave,
+          find,
+        ]);
+      });
+
+      const keyOf = (item: QuickPickItem) =>
+        `${item.label}@${item.uri.path}:${item.range?.start.line ?? 0}`;
+
+      it("should parse qualified queries with dot, hash and double colon", () => {
+        const expected = { container: "userservice", member: "save" };
+        assert.deepEqual(database.parseQualifiedQuery("UserService.save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("UserService#save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("UserService::save"), expected);
+        assert.deepEqual(database.parseQualifiedQuery("Outer::Inner::run"), {
+          container: "outer.inner",
+          member: "run",
+        });
+        assert.deepEqual(database.parseQualifiedQuery("user.service.ts"), {
+          container: "user.service",
+          member: "ts",
+        });
+        assert.deepEqual(database.parseQualifiedQuery("a..b"), { container: "a", member: "b" });
+        assert.deepEqual(database.parseQualifiedQuery("UserService."), {
+          container: "userservice",
+          member: "",
+        });
+      });
+
+      it("should not treat a leading dot as a qualifier", () => {
+        assert.isUndefined(database.parseQualifiedQuery(".env"));
+        assert.isUndefined(database.parseQualifiedQuery("save"));
+        assert.isUndefined(database.parseQualifiedQuery(""));
+      });
+
+      it("should find a member by Class.method", () => {
+        const results = database.search("UserService.save");
+        assert.equal(keyOf(results[0]), keyOf(save));
+        assert.isFalse(results.some((r) => keyOf(r) === keyOf(otherSave)));
+      });
+
+      it("should find a member by Class#method and Class::method", () => {
+        assert.equal(keyOf(database.search("UserService#save")[0]), keyOf(save));
+        assert.equal(keyOf(database.search("UserService::save")[0]), keyOf(save));
+      });
+
+      it("should match a nested member by its immediate parent", () => {
+        const byParent = database.search("Inner.run");
+        assert.equal(keyOf(byParent[0]), keyOf(innerRun));
+
+        const byChain = database.search("Outer::Inner::run");
+        assert.equal(keyOf(byChain[0]), keyOf(innerRun));
+
+        const byOuter = database.search("Outer.run");
+        assert.equal(keyOf(byOuter[0]), keyOf(outerRun));
+      });
+
+      it("should list every member for a trailing separator", () => {
+        const results = database.search("UserService.").map(keyOf);
+        for (const item of [save, saveAll, load]) {
+          assert.include(results, keyOf(item));
+        }
+        assert.notInclude(results, keyOf(otherSave));
+      });
+
+      it("should rank an exact file stem above qualified matches", () => {
+        const file: QuickPickItem = {
+          uri: vscode.Uri.file("/workspace/src/user.service.ts"),
+          symbolKind: vscode.SymbolKind.File,
+          label: "$(symbol-file) user.service.ts",
+        };
+        const tsMember = member("ts", "User.Service", "/workspace/src/Other.ts", 1);
+        database.insertSymbolsBatch([file, tsMember]);
+
+        const results = database.search("user.service.ts");
+        assert.equal(keyOf(results[0]), keyOf(file));
+        assert.include(results.map(keyOf), keyOf(tsMember));
+      });
+
+      it("should rank exact parent and member above chain-contains matches", () => {
+        const results = database.search("UserService.save").map(keyOf);
+        const exactIdx = results.indexOf(keyOf(save));
+        const prefixIdx = results.indexOf(keyOf(saveAll));
+        const chainIdx = results.indexOf(keyOf(chainSave));
+        assert.equal(exactIdx, 0);
+        assert.isAbove(prefixIdx, exactIdx);
+        assert.isAbove(chainIdx, prefixIdx);
+      });
+
+      it("should apply symbolKind and fileUri filters to qualified matches", () => {
+        const prop = member(
+          "saveCount",
+          "UserService",
+          "/workspace/src/UserService.ts",
+          12,
+          vscode.SymbolKind.Property
+        );
+        database.insertSymbol(prop);
+
+        const byKind = database.search("UserService.save", 500, {
+          symbolKind: vscode.SymbolKind.Property,
+        });
+        assert.deepEqual(byKind.map(keyOf), [keyOf(prop)]);
+
+        const byFile = database.search("UserService.save", 500, {
+          fileUri: "/workspace/src/Impl.ts",
+        });
+        assert.deepEqual(byFile.map(keyOf), [keyOf(chainSave)]);
+      });
+    });
   });
 
   describe("extractCleanName and extractCleanStem", () => {

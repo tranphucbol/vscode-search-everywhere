@@ -98,8 +98,9 @@ async function runBenchmark(itemCount = 50000) {
     "Item_1234",
     "module25",
     "xyznotfound",
-    "ServiceHandler42.method",
-    "Service#handle",
+    "Handler2.Item_1234",
+    "Service42#Item",
+    "Service42.",
     "src/module25/Item",
   ];
   const t0OldSearch = Date.now();

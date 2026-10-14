@@ -165,6 +165,32 @@ export function extractCleanContainer(container?: string): string {
     .join(".");
 }
 
+const QUALIFIER_REGEX = /\.|#|::/g;
+
+export interface QualifiedQuery {
+  container: string;
+  member: string;
+}
+
+export function parseQualifiedQuery(query: string): QualifiedQuery | undefined {
+  if (!query) {
+    return undefined;
+  }
+  const segments = query.split(QUALIFIER_REGEX);
+  if (segments.length < 2) {
+    return undefined;
+  }
+  const member = extractCleanName(segments.pop()!);
+  const container = segments
+    .map(extractCleanName)
+    .filter((segment) => segment)
+    .join(".");
+  if (!container) {
+    return undefined;
+  }
+  return { container, member };
+}
+
 export function extractCleanStem(name: string, symbolKind?: number): string {
   if (!name) {
     return "";
@@ -390,6 +416,52 @@ export interface SearchOptions {
 const QUERY_COLUMNS =
   "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char";
 
+// Tier 1: exact member under its immediate parent, 2: prefix member under its
+// immediate parent, 3: member match anywhere below a container chain containing the query.
+function queryQualifiedRows(
+  qualified: QualifiedQuery,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number
+): any[][] {
+  if (!db || limit <= 0) {
+    return [];
+  }
+  const { container, member } = qualified;
+  const matchClause =
+    "symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? AND clean_container LIKE ?";
+  const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+  const sql = `
+    SELECT ${QUERY_COLUMNS},
+      CASE
+        WHEN (clean_container = ? OR clean_container LIKE ?) AND clean_name = ? THEN 1
+        WHEN clean_container = ? OR clean_container LIKE ? THEN 2
+        ELSE 3
+      END AS tier
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      tier ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const immediateParent = `%.${container}`;
+  const results = db.exec(sql, [
+    container,
+    immediateParent,
+    member,
+    container,
+    immediateParent,
+    ...params,
+    `${member}%`,
+    `%${container}%`,
+  ]);
+  return results && results.length ? results[0].values : [];
+}
+
 const SEARCH_CACHE_MAX_SIZE = 50;
 const searchCache = new Map<string, QuickPickItem[]>();
 
@@ -535,11 +607,27 @@ export function search(
       `${query}%`,
     ];
 
-    let hasExactMatch = false;
     const stage1Results = db.exec(stage1Sql, stage1Params);
-    if (stage1Results && stage1Results.length) {
-      addItemsFromRows(stage1Results[0].values);
-      hasExactMatch = stage1Results[0].values.some((row: any[]) => row[9] === 1);
+    const stage1Rows: any[][] = stage1Results && stage1Results.length ? stage1Results[0].values : [];
+    let hasExactMatch = stage1Rows.some((row) => row[9] === 1);
+
+    const qualified = parseQualifiedQuery(query);
+    if (qualified) {
+      // An exact name match (e.g. the file "user.service.ts") still outranks qualified members.
+      addItemsFromRows(stage1Rows.filter((row) => row[9] === 1));
+      const qualifiedRows = queryQualifiedRows(
+        qualified,
+        baseWhere,
+        params,
+        kindSort,
+        limit - matchedItems.length
+      );
+      addItemsFromRows(qualifiedRows);
+      hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
+      addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1));
+      matchedItems = matchedItems.slice(0, limit);
+    } else {
+      addItemsFromRows(stage1Rows);
     }
 
     // Stage 2: Substring matches if we have space left
@@ -822,4 +910,5 @@ export const database = {
   extractCleanName,
   extractCleanStem,
   extractCleanContainer,
+  parseQualifiedQuery,
 };
