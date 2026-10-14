@@ -91,10 +91,10 @@ docs/plans/                 working implementation plans; only the template is t
 
 ## Git workflow
 
-- `fork` (`tranphucbol/vscode-search-everywhere`) is where work lands; `origin`
+- `origin` (`tranphucbol/vscode-search-everywhere`) is where work lands; `fork-repo`
   (`kbysiec/vscode-search-everywhere`) is upstream and is not pushed to.
 - Every change gets its own branch (`feature/…`, `fix/…`, `chore/…`) and is merged into `master`
-  on `fork`, with `Merge branch '<branch>'` or through a pull request.
+  on `origin`, with `Merge branch '<branch>'` or through a pull request.
 
 ## Code comments
 
