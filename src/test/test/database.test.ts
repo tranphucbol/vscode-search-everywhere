@@ -180,6 +180,111 @@ describe("Database", () => {
       assert.include(results, plain.label);
     });
 
+    it("should parse words and * gaps into pattern queries", () => {
+      assert.deepEqual(database.parsePatternQuery("user impl"), {
+        words: ["user", "impl"],
+        joined: "userimpl",
+      });
+      assert.deepEqual(database.parsePatternQuery("User*Impl"), {
+        words: ["user%impl"],
+        joined: "userimpl",
+      });
+      assert.deepEqual(database.parsePatternQuery("  get_user  *  svc* "), {
+        words: ["getuser", "svc"],
+        joined: "getusersvc",
+      });
+      assert.deepEqual(database.parsePatternQuery("100% done"), {
+        words: ["100\\%", "done"],
+        joined: "100%done",
+      });
+      assert.deepEqual(database.parsePatternQuery("*"), { words: [], joined: "" });
+    });
+
+    it("should not treat a single word or a path query as a pattern query", () => {
+      assert.isUndefined(database.parsePatternQuery(""));
+      assert.isUndefined(database.parsePatternQuery("UserService"));
+      assert.isUndefined(database.parsePatternQuery("UserService "));
+      assert.isUndefined(database.parsePatternQuery("src/user service"));
+      assert.isUndefined(database.parsePatternQuery("src/User*"));
+    });
+
+    describe("pattern queries", () => {
+      const symbol = (name: string, kind = vscode.SymbolKind.Class): QuickPickItem => ({
+        uri: vscode.Uri.file(`/workspace/src/${name}.ts`),
+        symbolKind: kind,
+        label: `$(symbol-class) ${name}`,
+      });
+      const labels = (results: QuickPickItem[]) => results.map((r) => r.label);
+
+      it("should match words in any order", () => {
+        database.insertSymbol(symbol("UserServiceImpl"));
+
+        assert.include(labels(database.search("impl user")), "$(symbol-class) UserServiceImpl");
+        assert.include(labels(database.search("service impl")), "$(symbol-class) UserServiceImpl");
+      });
+
+      it("should require every word to match", () => {
+        database.insertSymbol(symbol("UserServiceImpl"));
+
+        const results = labels(database.search("user repository"));
+        assert.notInclude(results, "$(symbol-class) UserServiceImpl");
+        assert.notInclude(results, "$(symbol-class) UserService");
+      });
+
+      it("should treat * as an ordered gap", () => {
+        database.insertSymbol(symbol("UserServiceImpl"));
+
+        assert.include(labels(database.search("user*impl")), "$(symbol-class) UserServiceImpl");
+        assert.notInclude(labels(database.search("impl*user")), "$(symbol-class) UserServiceImpl");
+      });
+
+      it("should rank exact, anchored, ordered, then any-order matches", () => {
+        database.clearAll();
+        database.insertSymbolsBatch([
+          symbol("ImplOfUser"),
+          symbol("AdminUserImpl"),
+          symbol("UserServiceImpl"),
+          symbol("UserImpl"),
+        ]);
+
+        assert.deepEqual(labels(database.search("user impl")), [
+          "$(symbol-class) UserImpl",
+          "$(symbol-class) UserServiceImpl",
+          "$(symbol-class) AdminUserImpl",
+          "$(symbol-class) ImplOfUser",
+        ]);
+      });
+
+      it("should fall back to subsequence matching for pattern queries", () => {
+        assert.deepEqual(labels(database.search("user ctrl")), [
+          "$(symbol-class) UserController",
+        ]);
+      });
+
+      it("should list everything for a query of only *", () => {
+        assert.equal(database.search("*").length, 3);
+        assert.equal(database.search(" * ").length, 3);
+      });
+
+      it("should apply symbolKind and fileUri filters to pattern matches", () => {
+        const method = (file: string): QuickPickItem => ({
+          uri: vscode.Uri.file(`/workspace/src/${file}`),
+          symbolKind: vscode.SymbolKind.Method,
+          label: "$(symbol-method) getUserService",
+        });
+        database.insertSymbolsBatch([method("a.ts"), method("b.ts")]);
+
+        const classes = database.search("user service", 500, {
+          symbolKind: vscode.SymbolKind.Class,
+        });
+        assert.deepEqual(labels(classes), ["$(symbol-class) UserService"]);
+
+        const inFile = database.search("user service", 500, { fileUri: "/workspace/src/a.ts" });
+        assert.equal(inFile.length, 1);
+        assert.equal(inFile[0].uri.path, "/workspace/src/a.ts");
+      });
+    });
+
     it("should prioritize exact stem matches like MapService and map.service.ts on top (Issue #49)", () => {
       const mapClass: QuickPickItem = {
         uri: vscode.Uri.file("/workspace/src/MapService.ts"),

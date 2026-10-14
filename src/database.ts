@@ -204,6 +204,40 @@ export function parseQualifiedQuery(query: string): QualifiedQuery | undefined {
   return { container, member };
 }
 
+export interface PatternQuery {
+  /** Escaped LIKE fragments, one per word, with `*` gaps turned into `%`, e.g. "user%impl". */
+  words: string[];
+  /** The cleaned words concatenated without escaping, e.g. "userimpl". */
+  joined: string;
+}
+
+/**
+ * Returns undefined unless the query is a pattern query: no `/`, and either a `*` or at
+ * least two whitespace-separated words. A query of only `*` yields no words.
+ */
+export function parsePatternQuery(query: string): PatternQuery | undefined {
+  if (!query || query.includes("/")) {
+    return undefined;
+  }
+  const rawWords = query.split(/\s+/).filter((word) => word);
+  if (rawWords.length < 2 && !query.includes("*")) {
+    return undefined;
+  }
+  const words: string[] = [];
+  let joined = "";
+  for (const rawWord of rawWords) {
+    const pieces = rawWord
+      .split("*")
+      .map(extractCleanName)
+      .filter((piece) => piece);
+    if (pieces.length) {
+      words.push(pieces.map(escapeLike).join("%"));
+      joined += pieces.join("");
+    }
+  }
+  return { words, joined };
+}
+
 export interface PathQuery {
   dir: string;
   leaf: string;
@@ -485,7 +519,99 @@ function queryQualifiedRows(
   return results && results.length ? results[0].values : [];
 }
 
+// Every word must occur in clean_stem or clean_name. Tier 1: the joined words are the whole
+// name, 2: the words appear in order from the start, 3: in order anywhere, 4: any order.
+function queryPatternRows(
+  pattern: PatternQuery,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number,
+  esc: string
+): any[][] {
+  if (!db || limit <= 0 || !pattern.words.length) {
+    return [];
+  }
+  const { words, joined } = pattern;
+  const wordClause = words
+    .map(() => `(clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})`)
+    .join(" AND ");
+  const where = baseWhere ? `${baseWhere} AND ${wordClause}` : `WHERE ${wordClause}`;
+  const ordered = words.join("%");
+  const sql = `
+    SELECT ${QUERY_COLUMNS},
+      CASE
+        WHEN clean_stem = ? OR clean_name = ? THEN 1
+        WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 2
+        WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 3
+        ELSE 4
+      END AS tier
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      tier ASC,
+      CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const wordParams = words.flatMap((word) => [`%${word}%`, `%${word}%`]);
+  const results = db.exec(sql, [
+    joined,
+    joined,
+    `${ordered}%`,
+    `${ordered}%`,
+    `%${ordered}%`,
+    `%${ordered}%`,
+    ...params,
+    ...wordParams,
+  ]);
+  return results && results.length ? results[0].values : [];
+}
+
+// Subsequence matches that are not already substring matches of the query. rawQuery also
+// excludes substring matches on the raw name; pattern queries have no single raw form.
+function queryFuzzyRows(
+  cleanQuery: string,
+  rawQuery: string | undefined,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number,
+  esc: string
+): any[][] {
+  if (!db || limit <= 0) {
+    return [];
+  }
+  const fuzzyPattern = "%" + cleanQuery.split("").map(escapeLike).join("%") + "%";
+  const cleanSubstring = `%${escapeLike(cleanQuery)}%`;
+  const exclusions = [`clean_stem NOT LIKE ? ${esc}`, `clean_name NOT LIKE ? ${esc}`];
+  const exclusionParams = [cleanSubstring, cleanSubstring];
+  if (rawQuery !== undefined) {
+    exclusions.push(`name NOT LIKE ? ${esc}`);
+    exclusionParams.push(`%${escapeLike(rawQuery)}%`);
+  }
+  const fuzzyClause = `(clean_stem LIKE ? ${esc} OR name LIKE ? ${esc}) AND ${exclusions.join(" AND ")}`;
+  const where = baseWhere ? `${baseWhere} AND ${fuzzyClause}` : `WHERE ${fuzzyClause}`;
+  const sql = `
+    SELECT ${QUERY_COLUMNS}
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const results = db.exec(sql, [...params, fuzzyPattern, fuzzyPattern, ...exclusionParams]);
+  return results && results.length ? results[0].values : [];
+}
+
 const SEARCH_CACHE_MAX_SIZE = 50;
+const SUBSTRING_MIN_THRESHOLD = 50;
+const FUZZY_MIN_THRESHOLD = 10;
 const searchCache = new Map<string, QuickPickItem[]>();
 
 export function clearSearchCache(): void {
@@ -564,7 +690,9 @@ export function search(
     }
   };
 
-  if (!query) {
+  const pattern = parsePatternQuery(query);
+
+  if (!query || (pattern && !pattern.words.length)) {
     const sortOrder = options?.fileUri
       ? "range_start_line ASC, range_start_char ASC"
       : options?.sortByKind
@@ -576,6 +704,29 @@ export function search(
     );
     if (results && results.length) {
       addItemsFromRows(results[0].values);
+    }
+  } else if (pattern) {
+    const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+    const patternRows = queryPatternRows(pattern, baseWhere, params, kindSort, limit, esc);
+    addItemsFromRows(patternRows);
+
+    if (
+      !patternRows.some((row) => row[9] === 1) &&
+      matchedItems.length < FUZZY_MIN_THRESHOLD &&
+      matchedItems.length < limit &&
+      pattern.joined.length >= 2
+    ) {
+      const remaining = Math.min(
+        limit - matchedItems.length,
+        SUBSTRING_MIN_THRESHOLD - matchedItems.length
+      );
+      const cap = matchedItems.length + remaining;
+      // Over-fetch: unlike the plain search, ordered matches are not excluded in SQL and
+      // only drop out in addItemsFromRows.
+      addItemsFromRows(
+        queryFuzzyRows(pattern.joined, undefined, baseWhere, params, kindSort, cap, esc)
+      );
+      matchedItems = matchedItems.slice(0, cap);
     }
   } else if (query.includes("/")) {
     const { dir, leaf } = splitPathQuery(query);
@@ -697,7 +848,6 @@ export function search(
     }
 
     // Stage 2: Substring matches if we have space left
-    const SUBSTRING_MIN_THRESHOLD = 50;
     if (matchedItems.length < SUBSTRING_MIN_THRESHOLD && matchedItems.length < limit) {
       const remaining = Math.min(
         limit - matchedItems.length,
@@ -740,7 +890,6 @@ export function search(
     // - No exact matches were found in Stage 1 (!hasExactMatch)
     // - Direct matches are few (< FUZZY_MIN_THRESHOLD)
     // - Query length >= 2
-    const FUZZY_MIN_THRESHOLD = 10;
     if (
       !hasExactMatch &&
       matchedItems.length < FUZZY_MIN_THRESHOLD &&
@@ -751,38 +900,9 @@ export function search(
         limit - matchedItems.length,
         SUBSTRING_MIN_THRESHOLD - matchedItems.length
       );
-      const fuzzyPattern = "%" + cleanQuery.split("").map(escapeLike).join("%") + "%";
-      const fuzzyClause = `(clean_stem LIKE ? ${esc} OR name LIKE ? ${esc}) AND ${notPrefixed}`;
-
-      const stage3Where = baseWhere
-        ? `${baseWhere} AND ${fuzzyClause}`
-        : `WHERE ${fuzzyClause}`;
-
-      const stage3Sql = `
-        SELECT ${QUERY_COLUMNS}
-        FROM symbols
-        ${stage3Where}
-        ORDER BY
-          ${kindSort}
-          CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
-          LENGTH(name) ASC,
-          name COLLATE NOCASE ASC
-        LIMIT ${remaining}
-      `;
-
-      const stage3Params = [
-        ...params,
-        fuzzyPattern,
-        fuzzyPattern,
-        `%${cleanLike}%`,
-        `%${cleanLike}%`,
-        `%${rawLike}%`,
-      ];
-
-      const stage3Results = db.exec(stage3Sql, stage3Params);
-      if (stage3Results && stage3Results.length) {
-        addItemsFromRows(stage3Results[0].values);
-      }
+      addItemsFromRows(
+        queryFuzzyRows(cleanQuery, query, baseWhere, params, kindSort, remaining, esc)
+      );
     }
   }
 
@@ -975,5 +1095,6 @@ export const database = {
   extractCleanContainer,
   escapeLike,
   parseQualifiedQuery,
+  parsePatternQuery,
   splitPathQuery,
 };
