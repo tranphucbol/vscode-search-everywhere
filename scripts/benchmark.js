@@ -29,12 +29,24 @@ const vscodeMock = {
 // Hook module loader for 'vscode'
 const Module = require("module");
 const originalRequire = Module.prototype.require;
+// Records the last restricted (recent-keys) query so its EXPLAIN QUERY PLAN can be printed.
+let lastRestrictedQuery;
 Module.prototype.require = function (id) {
   if (id === "vscode") return vscodeMock;
-  return originalRequire.apply(this, arguments);
+  const loaded = originalRequire.apply(this, arguments);
+  if (id !== "sql.js") return loaded;
+  return async (...args) => {
+    const SQL = await loaded(...args);
+    const exec = SQL.Database.prototype.exec;
+    SQL.Database.prototype.exec = function (sql, params) {
+      if (sql.includes("IN (VALUES")) lastRestrictedQuery = { db: this, sql, params };
+      return exec.call(this, sql, params);
+    };
+    return SQL;
+  };
 };
 
-const { database } = require("../dist/database");
+const { database, extractName } = require("../dist/database");
 const { initCache } = require("../dist/cache");
 
 const workspaceStateStore = new Map();
@@ -44,6 +56,18 @@ initCache({
     update: (key, value) => workspaceStateStore.set(key, value),
   },
 });
+
+function toRecentKey(item) {
+  return {
+    uri: item.uri.toString(),
+    symbolKind: item.symbolKind,
+    name: extractName(item.label),
+  };
+}
+
+function recentKeyString(key) {
+  return `${key.uri}#${key.symbolKind}#${key.name}`;
+}
 
 function formatBytes(bytes) {
   return (bytes / 1024 / 1024).toFixed(2) + " MB";
@@ -193,6 +217,47 @@ async function runBenchmark(itemCount = 50000) {
     }
     const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 10;
     console.log(`     ${q.padEnd(26)} ${ms.toFixed(2).padStart(8)} ms  (${count} wyników, bez cache)`);
+  }
+
+  console.log(`\n  -> Recent ranking: 10 recent keys matching the query + 40 random rows, uncached`);
+  console.log(`     ${"query".padEnd(26)} ${"no recent".padStart(11)} ${"50 recent".padStart(11)}  boosted in top 50`);
+  const randomKeys = [];
+  for (let k = 0; k < 40; k++) {
+    const i = Math.floor(Math.random() * itemCount);
+    const [item] = generateMockItems(i + 1).slice(i);
+    randomKeys.push(toRecentKey(item));
+  }
+  for (const q of queries) {
+    database.clearSearchCache();
+    const matched = database.search(q, 500);
+    const recent = [...matched.slice(-10).map(toRecentKey), ...randomKeys];
+    const timeSearch = (options) => {
+      let results = [];
+      const t0 = process.hrtime.bigint();
+      for (let iter = 0; iter < 10; iter++) {
+        database.clearSearchCache();
+        results = database.search(q, 500, options);
+      }
+      return { ms: Number(process.hrtime.bigint() - t0) / 1e6 / 10, results };
+    };
+    const plain = timeSearch(undefined);
+    const boosted = timeSearch({ recent });
+    const recentSet = new Set(recent.map(recentKeyString));
+    const boostedTop = boosted.results
+      .slice(0, 50)
+      .filter((it) => recentSet.has(recentKeyString(toRecentKey(it)))).length;
+    console.log(
+      `     ${q.padEnd(26)} ${plain.ms.toFixed(2).padStart(8)} ms ${boosted.ms.toFixed(2).padStart(8)} ms  ${boostedTop}`
+    );
+  }
+
+  if (lastRestrictedQuery) {
+    const { db, sql, params } = lastRestrictedQuery;
+    const plan = db.exec(`EXPLAIN QUERY PLAN ${sql}`, params);
+    console.log(`\n  -> EXPLAIN QUERY PLAN (restricted search):`);
+    for (const row of plan[0]?.values ?? []) {
+      console.log(`     ${row[row.length - 1]}`);
+    }
   }
 
   // Wielkość pliku bazy na dysku

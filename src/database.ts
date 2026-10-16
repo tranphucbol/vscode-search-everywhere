@@ -710,7 +710,7 @@ function queryQualifiedRows(
         WHEN clean_container = ? OR clean_container LIKE ? ${esc} THEN 2
         ELSE 3
       END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -760,7 +760,7 @@ function queryPatternRows(
         WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 3
         ELSE 4
       END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -821,7 +821,7 @@ function queryCamelHumpsRows(
   const sql = `
     SELECT ${QUERY_COLUMNS},
       CASE WHEN ${tierClause} THEN 1 ELSE 2 END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -861,7 +861,7 @@ function queryFuzzyRows(
   const where = baseWhere ? `${baseWhere} AND ${fuzzyClause}` : `WHERE ${fuzzyClause}`;
   const sql = `
     SELECT ${QUERY_COLUMNS}
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -879,6 +879,12 @@ const SUBSTRING_MIN_THRESHOLD = 50;
 const FUZZY_MIN_THRESHOLD = 10;
 // Room for overloads and a symbol plus its file per recent key, while keeping the result small.
 const RECENT_ROWS_PER_KEY = 4;
+// Without INDEXED BY, SQLite drives the recent-key search through idx_symbols_kind and reads every
+// row of those kinds, which is slower than the unrestricted search (scripts/benchmark.js).
+const SYMBOLS_BY_URI = "symbols INDEXED BY idx_symbols_uri";
+// The FROM source of every search query; search() swaps it only while the synchronous recent-key
+// search runs.
+let symbolsSource = "symbols";
 const searchCache = new Map<string, QuickPickItem[]>();
 
 const bandByTier =
@@ -902,8 +908,13 @@ export function search(
     return main;
   }
   // A recent row the main search cut off is only found by searching the recent items alone.
-  const recentRows = searchItems(query, recent.length * RECENT_ROWS_PER_KEY, options, recent);
-  return boostRecent(main, recentRows, recent, limit);
+  symbolsSource = SYMBOLS_BY_URI;
+  try {
+    const recentRows = searchItems(query, recent.length * RECENT_ROWS_PER_KEY, options, recent);
+    return boostRecent(main, recentRows, recent, limit);
+  } finally {
+    symbolsSource = "symbols";
+  }
 }
 
 function recentKeyString(uri: string, symbolKind: number, name: string): string {
@@ -1082,7 +1093,7 @@ function searchItems(
       ? "symbol_kind ASC, name COLLATE NOCASE ASC"
       : "name COLLATE NOCASE ASC";
     const results = db.exec(
-      `SELECT ${QUERY_COLUMNS} FROM symbols ${baseWhere} ORDER BY ${sortOrder} LIMIT ${limit}`,
+      `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${baseWhere} ORDER BY ${sortOrder} LIMIT ${limit}`,
       params
     );
     if (results && results.length) {
@@ -1127,7 +1138,7 @@ function searchItems(
         const leafResults = db.exec(
           `SELECT ${QUERY_COLUMNS},
             CASE WHEN clean_stem = ? OR clean_name = ? THEN 1 ELSE 2 END AS tier
-          FROM symbols ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
+          FROM ${symbolsSource} ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
           ORDER BY
             ${kindSort}
             tier ASC,
@@ -1155,7 +1166,7 @@ function searchItems(
       const matchClause = `uri LIKE ? ${esc}`;
       const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
       const results = db.exec(
-        `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
+        `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
         [...params, `%${escapeLike(query)}%`]
       );
       if (results && results.length) {
@@ -1186,7 +1197,7 @@ function searchItems(
           WHEN ${nameLikeAny} THEN 2
           ELSE 3
         END AS relevance
-      FROM symbols
+      FROM ${symbolsSource}
       ${stage1Where}
       ORDER BY
         ${kindSort}
@@ -1265,7 +1276,7 @@ function searchItems(
 
       const stage2Sql = `
         SELECT ${QUERY_COLUMNS}
-        FROM symbols
+        FROM ${symbolsSource}
         ${stage2Where}
         ORDER BY
           ${kindSort}

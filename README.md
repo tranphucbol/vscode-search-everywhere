@@ -104,6 +104,8 @@ After the scan is completed, the extension continuously tracks changes in the wo
 
 * CamelHumps: a query with a capital after its first letter, or with `_` or `-` between its parts, matches each part against the start of a word, in order, skipping words in between (e.g. `USI`, `uSerImp` or `SerImp` find `UserServiceImpl`, `HTTPSer` finds `HTTPServer`, `MV` and `max_v` find `MAX_VALUE`). Matches that start at the first word rank above matches that start later. An all-lowercase query of two or more characters also matches one letter per word (`usi` finds `UserServiceImpl`). CamelHumps matches rank after prefix matches and before substring matches. The first start after upgrading fills in the new word columns without reindexing.
 
+* Recently used results first: while you type, files and symbols you opened recently, and open editor tabs, come first among results that match the query equally well. Typing `index` in a monorepo puts the `index.ts` you were just working in above the other `index.ts` files. Recency never beats a better match: an exact match you never opened stays above a recent prefix match. Turn it off with `searchEverywhere.rankRecentItemsHigher`.
+
 * Dedicated output with logs related to triggered actions, scanned directories structure, etc.
 
 * Ability to decide whether the items should be sorted by type
@@ -383,6 +385,11 @@ Default value: `true`
 
 Maximum number of recent items to show when the search query is empty.
 Default value: `10`
+
+* `searchEverywhere.rankRecentItemsHigher`
+
+Ability to show recently opened files and symbols first among equally good matches while typing.
+Default value: `true`
 
 * `searchEverywhere.useFileIconTheme`
 
