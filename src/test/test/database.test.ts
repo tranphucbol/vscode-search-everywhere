@@ -553,6 +553,131 @@ describe("Database", () => {
     });
   });
 
+  describe("CamelHumps", () => {
+    const symbol = (name: string, kind = vscode.SymbolKind.Class): QuickPickItem => ({
+      uri: vscode.Uri.file(`/workspace/src/${name}.ts`),
+      symbolKind: kind,
+      label: `$(symbol-class) ${name}`,
+    });
+    const file = (name: string): QuickPickItem => ({
+      uri: vscode.Uri.file(`/workspace/src/${name}`),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(symbol-file) ${name}`,
+    });
+    const labels = (results: QuickPickItem[]) => results.map((r) => r.label);
+    const words = (name: string, kind?: number) => [
+      database.extractCleanWords(name, kind),
+      database.extractCleanInitials(name, kind),
+    ];
+
+    it("should split names into words at case, digit and separator boundaries", () => {
+      assert.deepEqual(database.splitWords("UserServiceImpl"), ["User", "Service", "Impl"]);
+      assert.deepEqual(database.splitWords("MAX_VALUE"), ["MAX", "VALUE"]);
+      assert.deepEqual(database.splitWords("user-service"), ["user", "service"]);
+      assert.deepEqual(database.splitWords("__init__"), ["init"]);
+      assert.deepEqual(words("UserServiceImpl"), [" user service impl", "usi"]);
+      assert.deepEqual(words("MAX_VALUE"), [" max value", "mv"]);
+      assert.deepEqual(words("Item_1234_ServiceHandler42"), [
+        " item 1234 service handler 42",
+        "i1sh4",
+      ]);
+      assert.deepEqual(words("__init__"), [" init", "i"]);
+      assert.deepEqual(database.splitWords("ÄrgerÖl"), ["Ärger", "Öl"]);
+      assert.deepEqual(database.splitWords("数据Service"), ["数据", "Service"]);
+    });
+
+    it("should split a capital run before its last capital when a lowercase letter follows", () => {
+      assert.deepEqual(words("HTTPServer"), [" http server", "hs"]);
+      assert.deepEqual(words("getHTTPResponse"), [" get http response", "ghr"]);
+      assert.deepEqual(words("XMLHttpRequest"), [" xml http request", "xhr"]);
+      assert.deepEqual(database.splitWords("parseUSI"), ["parse", "USI"]);
+    });
+
+    it("should split files on their stem and drop the extension", () => {
+      assert.deepEqual(words("user-service.ts", vscode.SymbolKind.File), [" user service", "us"]);
+      assert.deepEqual(words("user.service.ts", vscode.SymbolKind.File), [" user service", "us"]);
+      assert.deepEqual(words("user.service", vscode.SymbolKind.Method), [" user service", "us"]);
+      assert.deepEqual(words(".gitignore", vscode.SymbolKind.File), [" gitignore", "g"]);
+    });
+
+    it("should store empty words and initials for a name without letters or digits", () => {
+      assert.deepEqual(words("$"), ["", ""]);
+      assert.deepEqual(words(""), ["", ""]);
+    });
+
+    it("should parse an all-lowercase query of two or more characters as an initials query", () => {
+      for (const query of ["usi", "npe", "i1s"]) {
+        assert.deepEqual(database.parseCamelHumpsQuery(query), {
+          kind: "initials",
+          initials: query,
+        });
+      }
+    });
+
+    it("should not parse single characters, digits only or mixed-case queries as initials", () => {
+      for (const query of ["", "u", "12", "USI", "uSer", "max_v", "usi.x", "src/usi", "us i"]) {
+        assert.notEqual(database.parseCamelHumpsQuery(query)?.kind, "initials");
+      }
+    });
+
+    it("should find a name by the initials of its words", () => {
+      database.insertSymbolsBatch([symbol("UserServiceImpl"), symbol("NullPointerException")]);
+
+      assert.deepEqual(labels(database.search("usi")), ["$(symbol-class) UserServiceImpl"]);
+      assert.deepEqual(labels(database.search("npe")), ["$(symbol-class) NullPointerException"]);
+    });
+
+    it("should rank an exact initials match above an initials prefix match", () => {
+      database.insertSymbolsBatch([symbol("UserServiceImplFactory"), symbol("UserServiceImpl")]);
+      database.insertSymbol(file("user-service-impl-factory.ts"));
+
+      assert.deepEqual(labels(database.search("usi")), [
+        "$(symbol-class) UserServiceImpl",
+        "$(symbol-file) user-service-impl-factory.ts",
+        "$(symbol-class) UserServiceImplFactory",
+      ]);
+    });
+
+    it("should rank initials matches after prefix matches and before substring matches", () => {
+      database.insertSymbolsBatch([
+        symbol("BusinessService"),
+        symbol("UserServiceImpl"),
+        symbol("UsingResolver"),
+      ]);
+
+      assert.deepEqual(labels(database.search("usi")), [
+        "$(symbol-class) UsingResolver",
+        "$(symbol-class) UserServiceImpl",
+        "$(symbol-class) BusinessService",
+      ]);
+    });
+
+    it("should not repeat a stage-1 match in the initials results", () => {
+      database.insertSymbolsBatch([symbol("UsiServiceImpl"), symbol("UserServiceImpl")]);
+
+      assert.deepEqual(labels(database.search("usi")), [
+        "$(symbol-class) UsiServiceImpl",
+        "$(symbol-class) UserServiceImpl",
+      ]);
+    });
+
+    it("should apply symbol kind and ignored-name filters to initials matches", () => {
+      database.insertSymbolsBatch([
+        symbol("UserServiceImpl"),
+        symbol("UserSettingsItem", vscode.SymbolKind.Method),
+        symbol("UnusedSecretInfo"),
+      ]);
+
+      assert.deepEqual(
+        labels(database.search("usi", 500, { symbolKind: vscode.SymbolKind.Method })),
+        ["$(symbol-class) UserSettingsItem"]
+      );
+      const unignored = labels(database.search("usi", 500, { ignoredNames: ["Secret"] }));
+      assert.include(unignored, "$(symbol-class) UserServiceImpl");
+      assert.notInclude(unignored, "$(symbol-class) UnusedSecretInfo");
+    });
+  });
+
   describe("extractCleanName and extractCleanStem", () => {
     it("should extract normalized clean name without punctuation", () => {
       assert.equal(database.extractCleanName("MapService"), "mapservice");
@@ -616,6 +741,101 @@ describe("Database", () => {
         assert.isFalse(database.wasSeededFromTemplate());
         database.insertSymbol({ ...item1, containerName: "Outer.Inner" });
         assert.equal(database.getCount(), 1);
+      } finally {
+        logStub.restore();
+      }
+    });
+
+    const writeVersion1Database = async () => {
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const legacy = new SQL.Database();
+      legacy.run(`CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
+        clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', clean_container TEXT DEFAULT '',
+        symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
+        range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
+        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
+      const rows = [
+        ["file:///workspace/src/UserServiceImpl.ts", "UserServiceImpl", 4],
+        ["file:///workspace/src/map-service.ts", "map-service.ts", 0],
+      ];
+      for (const [uri, name, kind] of rows) {
+        legacy.run(
+          "INSERT INTO symbols (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [uri, name, database.extractCleanName(name as string),
+            database.extractCleanStem(name as string), "", kind, `$(symbol-class) ${name}`]
+        );
+      }
+      legacy.run("PRAGMA user_version = 1");
+      fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
+      legacy.close();
+    };
+
+    const reopenVersion1Database = async () => {
+      database.closeDatabase();
+      await writeVersion1Database();
+      await database.initDatabase(fakeContext);
+    };
+
+    const readSchemaVersion = async () => {
+      database.closeDatabase();
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const saved = new SQL.Database(fs.readFileSync(dbFile));
+      const version = saved.exec("PRAGMA user_version")[0].values[0][0];
+      saved.close();
+      await database.initDatabase(fakeContext);
+      return version;
+    };
+
+    it("should backfill words and initials when migrating from schema version 1", async () => {
+      const logStub = sinon.stub(logger, "log");
+      try {
+        await reopenVersion1Database();
+
+        assert.deepEqual(
+          database.search("usi").map((r) => r.label),
+          ["$(symbol-class) UserServiceImpl"]
+        );
+        assert.deepEqual(
+          database.search("ms").map((r) => r.label),
+          ["$(symbol-class) map-service.ts"]
+        );
+        assert.isTrue(
+          logStub.calledWith("Index schema upgraded; word columns backfilled for 2 rows.")
+        );
+      } finally {
+        logStub.restore();
+      }
+    });
+
+    it("should not empty a version 1 index when migrating to version 2", async () => {
+      const logStub = sinon.stub(logger, "log");
+      try {
+        database.setSeededFromTemplate(true);
+        await reopenVersion1Database();
+
+        assert.equal(database.getCount(), 2);
+        assert.isTrue(database.wasSeededFromTemplate());
+      } finally {
+        logStub.restore();
+        database.setSeededFromTemplate(false);
+      }
+    });
+
+    it("should set the schema version to 2 after migrating", async () => {
+      const logStub = sinon.stub(logger, "log");
+      try {
+        await reopenVersion1Database();
+
+        assert.equal(await readSchemaVersion(), 2);
       } finally {
         logStub.restore();
       }

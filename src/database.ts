@@ -14,7 +14,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 
 const SEARCH_LIMIT = 500;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -260,6 +260,138 @@ export function extractCleanStem(name: string, symbolKind?: number): string {
   return extractCleanName(stem);
 }
 
+const enum CharClass {
+  Separator,
+  Upper,
+  Lower,
+  Caseless,
+  Digit,
+}
+
+const UPPER_REGEX = /\p{Lu}/u;
+const LOWER_REGEX = /\p{Ll}/u;
+const LETTER_REGEX = /\p{L}/u;
+const DIGIT_REGEX = /\p{N}/u;
+
+function classifyChar(ch: string): CharClass {
+  const code = ch.charCodeAt(0);
+  if (code < 128) {
+    if (code >= 97 && code <= 122) {
+      return CharClass.Lower;
+    }
+    if (code >= 65 && code <= 90) {
+      return CharClass.Upper;
+    }
+    if (code >= 48 && code <= 57) {
+      return CharClass.Digit;
+    }
+    return CharClass.Separator;
+  }
+  if (UPPER_REGEX.test(ch)) {
+    return CharClass.Upper;
+  }
+  if (LOWER_REGEX.test(ch)) {
+    return CharClass.Lower;
+  }
+  if (LETTER_REGEX.test(ch)) {
+    return CharClass.Caseless;
+  }
+  return DIGIT_REGEX.test(ch) ? CharClass.Digit : CharClass.Separator;
+}
+
+// keepCapitalRuns follows IntelliJ's NameUtil: "HTTPServer" splits into "HTTP" and "Server".
+// Without it every capital starts a new piece, which is how a query such as "USImpl" is read.
+function splitIntoPieces(text: string, keepCapitalRuns: boolean): string[] {
+  const chars = Array.from(text);
+  const classes = chars.map(classifyChar);
+  const pieces: string[] = [];
+  let current = "";
+  for (let i = 0; i < chars.length; i++) {
+    const cls = classes[i];
+    if (cls === CharClass.Separator) {
+      if (current) {
+        pieces.push(current);
+        current = "";
+      }
+      continue;
+    }
+    const prev = current ? classes[i - 1] : CharClass.Separator;
+    let startsPiece = false;
+    if (current) {
+      if (cls === CharClass.Digit || prev === CharClass.Digit) {
+        startsPiece = cls !== prev;
+      } else if (cls === CharClass.Upper) {
+        startsPiece =
+          prev !== CharClass.Upper ||
+          !keepCapitalRuns ||
+          (i + 1 < chars.length && classes[i + 1] === CharClass.Lower);
+      }
+    }
+    if (startsPiece) {
+      pieces.push(current);
+      current = "";
+    }
+    current += chars[i];
+  }
+  if (current) {
+    pieces.push(current);
+  }
+  return pieces;
+}
+
+export function splitWords(name: string): string[] {
+  return name ? splitIntoPieces(name, true) : [];
+}
+
+function wordsSource(name: string, symbolKind?: number): string {
+  if (symbolKind === 0) {
+    const dotIndex = name.lastIndexOf(".");
+    if (dotIndex > 0) {
+      return name.substring(0, dotIndex);
+    }
+  }
+  return name;
+}
+
+function extractWordColumns(name: string, symbolKind?: number): [string, string] {
+  const words = name ? splitWords(wordsSource(name, symbolKind)) : [];
+  if (!words.length) {
+    return ["", ""];
+  }
+  const cleanWords = " " + words.join(" ").toLowerCase();
+  const cleanInitials = words
+    .map((word) => Array.from(word)[0])
+    .join("")
+    .toLowerCase();
+  return [cleanWords, cleanInitials];
+}
+
+export function extractCleanWords(name: string, symbolKind?: number): string {
+  return extractWordColumns(name, symbolKind)[0];
+}
+
+export function extractCleanInitials(name: string, symbolKind?: number): string {
+  return extractWordColumns(name, symbolKind)[1];
+}
+
+export type CamelHumpsQuery = { kind: "initials"; initials: string };
+
+const INITIALS_QUERY_REGEX = /^[\p{Ll}\p{N}]{2,}$/u;
+
+/**
+ * Returns undefined unless the query is a CamelHumps query. An initials query is two or more
+ * lowercase letters or digits with at least one letter, matched one letter per word.
+ */
+export function parseCamelHumpsQuery(query: string): CamelHumpsQuery | undefined {
+  if (!query) {
+    return undefined;
+  }
+  if (INITIALS_QUERY_REGEX.test(query) && LETTER_REGEX.test(query)) {
+    return { kind: "initials", initials: query };
+  }
+  return undefined;
+}
+
 function createTables(): void {
   if (!db) {
     return;
@@ -272,6 +404,8 @@ function createTables(): void {
       clean_name TEXT DEFAULT '',
       clean_stem TEXT DEFAULT '',
       clean_container TEXT DEFAULT '',
+      clean_words TEXT DEFAULT '',
+      clean_initials TEXT DEFAULT '',
       symbol_kind INTEGER NOT NULL,
       label TEXT NOT NULL,
       description TEXT,
@@ -344,6 +478,9 @@ function createTables(): void {
     "CREATE INDEX IF NOT EXISTS idx_symbols_clean_name ON symbols(clean_name)"
   );
   db.run(
+    "CREATE INDEX IF NOT EXISTS idx_symbols_clean_initials ON symbols(clean_initials COLLATE NOCASE)"
+  );
+  db.run(
     "CREATE INDEX IF NOT EXISTS idx_symbols_kind_name ON symbols(symbol_kind, name COLLATE NOCASE)"
   );
 }
@@ -354,7 +491,8 @@ function getSchemaVersion(): number {
 }
 
 // clean_container cannot be backfilled: the container chain is not stored
-// anywhere in the table, so an older index is emptied and rebuilt instead.
+// anywhere in the table, so a version 0 index is emptied and rebuilt instead.
+// The word columns derive from name and symbol_kind, so version 1 is backfilled in place.
 function migrateSchema(): void {
   const version = getSchemaVersion();
   if (version >= SCHEMA_VERSION) {
@@ -370,7 +508,39 @@ function migrateSchema(): void {
       logger.log("Index schema upgraded; the workspace will be reindexed.");
     }
   }
+  if (version < 2) {
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN clean_words TEXT DEFAULT ''");
+    } catch {}
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN clean_initials TEXT DEFAULT ''");
+    } catch {}
+    backfillWordColumns();
+  }
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+}
+
+function backfillWordColumns(): void {
+  const rows = db.exec("SELECT id, name, symbol_kind FROM symbols");
+  if (!rows || !rows.length) {
+    return;
+  }
+  db.run("BEGIN TRANSACTION");
+  const stmt = db.prepare("UPDATE symbols SET clean_words = ?, clean_initials = ? WHERE id = ?");
+  try {
+    for (const row of rows[0].values) {
+      const name = row[1] as string;
+      const kind = row[2] as number;
+      stmt.run([...extractWordColumns(name, kind), row[0]]);
+    }
+    stmt.free();
+    db.run("COMMIT");
+  } catch (e) {
+    stmt.free();
+    db.run("ROLLBACK");
+    throw e;
+  }
+  logger.log(`Index schema upgraded; word columns backfilled for ${rows[0].values.length} rows.`);
 }
 
 export function insertSymbol(item: QuickPickItem): void {
@@ -381,17 +551,20 @@ export function insertSymbol(item: QuickPickItem): void {
   const name = extractName(item.label);
   const cleanName = extractCleanName(name);
   const cleanStem = extractCleanStem(name, item.symbolKind);
+  const [cleanWords, cleanInitials] = extractWordColumns(name, item.symbolKind);
   db.run(
     `INSERT INTO symbols
-     (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
-      range_start_line, range_start_char, range_end_line, range_end_char)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
+      label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.uri.toString(),
       name,
       cleanName,
       cleanStem,
       extractCleanContainer(item.containerName),
+      cleanWords,
+      cleanInitials,
       item.symbolKind,
       item.label,
       item.description || "",
@@ -412,20 +585,23 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare(`
     INSERT INTO symbols
-    (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label, description, detail,
-     range_start_line, range_start_char, range_end_line, range_end_char)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
+     label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   try {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const name = extractName(item.label);
+      const [cleanWords, cleanInitials] = extractWordColumns(name, item.symbolKind);
       stmt.run([
         item.uri.toString(),
         name,
         extractCleanName(name),
         extractCleanStem(name, item.symbolKind),
         extractCleanContainer(item.containerName),
+        cleanWords,
+        cleanInitials,
         item.symbolKind,
         item.label,
         item.description || "",
@@ -566,6 +742,44 @@ function queryPatternRows(
     `%${ordered}%`,
     ...params,
     ...wordParams,
+  ]);
+  return results && results.length ? results[0].values : [];
+}
+
+// Tier 1: the initials are exactly the query, 2: they start with it. notPrefixed drops the
+// rows stage 1 already returned.
+function queryCamelHumpsRows(
+  camel: CamelHumpsQuery,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number,
+  notPrefixed: string,
+  notPrefixedParams: any[]
+): any[][] {
+  if (!db || limit <= 0) {
+    return [];
+  }
+  const matchClause = `clean_initials LIKE ? AND ${notPrefixed}`;
+  const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+  const sql = `
+    SELECT ${QUERY_COLUMNS},
+      CASE WHEN clean_initials = ? THEN 1 ELSE 2 END AS tier
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      tier ASC,
+      CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const results = db.exec(sql, [
+    camel.initials,
+    ...params,
+    `${camel.initials}%`,
+    ...notPrefixedParams,
   ]);
   return results && results.length ? results[0].values : [];
 }
@@ -843,8 +1057,25 @@ export function search(
       hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
       addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1));
       matchedItems = matchedItems.slice(0, limit);
-    } else {
+    }
+    const notPrefixedParams = [`${cleanLike}%`, `${cleanLike}%`, `${rawLike}%`];
+    let camelRowCount = 0;
+    if (!qualified) {
       addItemsFromRows(stage1Rows);
+      const camel = parseCamelHumpsQuery(query);
+      if (camel) {
+        const camelRows = queryCamelHumpsRows(
+          camel,
+          baseWhere,
+          params,
+          kindSort,
+          limit - matchedItems.length,
+          notPrefixed,
+          notPrefixedParams
+        );
+        camelRowCount = camelRows.length;
+        addItemsFromRows(camelRows);
+      }
     }
 
     // Stage 2: Substring matches if we have space left
@@ -853,6 +1084,7 @@ export function search(
         limit - matchedItems.length,
         SUBSTRING_MIN_THRESHOLD - matchedItems.length
       );
+      const cap = matchedItems.length + remaining;
 
       const stage2Where = baseWhere
         ? `${baseWhere} AND ${nameLikeAny} AND ${notPrefixed}`
@@ -867,7 +1099,7 @@ export function search(
           CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
           LENGTH(name) ASC,
           name COLLATE NOCASE ASC
-        LIMIT ${remaining}
+        LIMIT ${remaining + camelRowCount}
       `;
 
       const stage2Params = [
@@ -875,15 +1107,16 @@ export function search(
         `%${cleanLike}%`,
         `%${cleanLike}%`,
         `%${rawLike}%`,
-        `${cleanLike}%`,
-        `${cleanLike}%`,
-        `${rawLike}%`,
+        ...notPrefixedParams,
       ];
 
+      // Over-fetch by the CamelHumps rows: a row matched there can also be a substring match,
+      // and it only drops out in addItemsFromRows.
       const stage2Results = db.exec(stage2Sql, stage2Params);
       if (stage2Results && stage2Results.length) {
         addItemsFromRows(stage2Results[0].values);
       }
+      matchedItems = matchedItems.slice(0, cap);
     }
 
     // Stage 3: Subsequence / fuzzy matches if:
@@ -1097,4 +1330,8 @@ export const database = {
   parseQualifiedQuery,
   parsePatternQuery,
   splitPathQuery,
+  splitWords,
+  extractCleanWords,
+  extractCleanInitials,
+  parseCamelHumpsQuery,
 };
