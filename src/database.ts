@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { fetchShareCacheAcrossWorktrees } from "./config";
 import { gitService } from "./gitService";
 import { logger } from "./logger";
-import { QuickPickItem } from "./types";
+import { MatchBand, QuickPickItem } from "./types";
 
 let db: any;
 let dbPath: string;
@@ -673,6 +673,15 @@ export interface SearchOptions {
   ignoredNames?: string[];
   sortByKind?: boolean;
   fileUri?: string;
+  recent?: RecentKey[];
+}
+
+// Identifies a recently used item across edits: the line is left out on purpose, so a symbol
+// that moves keeps its history.
+export interface RecentKey {
+  uri: string;
+  symbolKind: number;
+  name: string;
 }
 
 const QUERY_COLUMNS =
@@ -701,7 +710,7 @@ function queryQualifiedRows(
         WHEN clean_container = ? OR clean_container LIKE ? ${esc} THEN 2
         ELSE 3
       END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -751,7 +760,7 @@ function queryPatternRows(
         WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 3
         ELSE 4
       END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -812,7 +821,7 @@ function queryCamelHumpsRows(
   const sql = `
     SELECT ${QUERY_COLUMNS},
       CASE WHEN ${tierClause} THEN 1 ELSE 2 END AS tier
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -852,7 +861,7 @@ function queryFuzzyRows(
   const where = baseWhere ? `${baseWhere} AND ${fuzzyClause}` : `WHERE ${fuzzyClause}`;
   const sql = `
     SELECT ${QUERY_COLUMNS}
-    FROM symbols
+    FROM ${symbolsSource}
     ${where}
     ORDER BY
       ${kindSort}
@@ -868,29 +877,156 @@ function queryFuzzyRows(
 const SEARCH_CACHE_MAX_SIZE = 50;
 const SUBSTRING_MIN_THRESHOLD = 50;
 const FUZZY_MIN_THRESHOLD = 10;
+// Room for overloads and a symbol plus its file per recent key, while keeping the result small.
+const RECENT_ROWS_PER_KEY = 4;
+// Without INDEXED BY, SQLite drives the recent-key search through idx_symbols_kind and reads every
+// row of those kinds, which is slower than the unrestricted search (scripts/benchmark.js).
+const SYMBOLS_BY_URI = "symbols INDEXED BY idx_symbols_uri";
+// The FROM source of every search query; search() swaps it only while the synchronous recent-key
+// search runs.
+let symbolsSource = "symbols";
 const searchCache = new Map<string, QuickPickItem[]>();
+
+const bandByTier =
+  (...bands: MatchBand[]) =>
+  (row: any[]): MatchBand =>
+    bands[(row[9] as number) - 1] ?? bands[bands.length - 1];
 
 export function clearSearchCache(): void {
   searchCache.clear();
 }
 
+// Without recent keys the cached array itself is returned; callers must not reorder it in place.
 export function search(
   query: string,
   limit: number = SEARCH_LIMIT,
   options?: SearchOptions
+): QuickPickItem[] {
+  const main = searchItems(query, limit, options);
+  const recent = options?.recent;
+  if (!recent || !recent.length) {
+    return main;
+  }
+  // A recent row the main search cut off is only found by searching the recent items alone.
+  symbolsSource = SYMBOLS_BY_URI;
+  try {
+    const recentRows = searchItems(query, recent.length * RECENT_ROWS_PER_KEY, options, recent);
+    return boostRecent(main, recentRows, recent, limit);
+  } finally {
+    symbolsSource = "symbols";
+  }
+}
+
+function recentKeyString(uri: string, symbolKind: number, name: string): string {
+  return `${uri}\u0000${symbolKind}\u0000${name}`;
+}
+
+function itemIdentity(item: QuickPickItem): string {
+  return `${item.uri.toString()}#${item.symbolKind}#${item.label}#${item.range?.start.line ?? 0}#${item.range?.start.character ?? 0}`;
+}
+
+interface RecentEntry {
+  item: QuickPickItem;
+  rank: number;
+}
+
+// Recency only reorders within a match band (docs/decisions/002). Relies on main being in
+// non-decreasing band order when it is not sorted by kind.
+function boostRecent(
+  main: QuickPickItem[],
+  recentRows: QuickPickItem[],
+  recent: RecentKey[],
+  limit: number
+): QuickPickItem[] {
+  const ranks = new Map<string, number>();
+  recent.forEach((key, index) => {
+    const id = recentKeyString(key.uri, key.symbolKind, key.name);
+    if (!ranks.has(id)) {
+      ranks.set(id, index);
+    }
+  });
+  const rankOf = (item: QuickPickItem) =>
+    ranks.get(recentKeyString(item.uri.toString(), item.symbolKind, extractName(item.label)));
+  const bandIndex = (item: QuickPickItem) => (item.matchBand ?? 3) - 1;
+
+  const recentByBand: RecentEntry[][] = [[], [], [], []];
+  const restByBand: QuickPickItem[][] = [[], [], [], []];
+  const seen = new Set<string>();
+  let recentCount = 0;
+
+  for (const item of main) {
+    seen.add(itemIdentity(item));
+    const rank = rankOf(item);
+    if (rank === undefined) {
+      restByBand[bandIndex(item)].push(item);
+    } else {
+      recentByBand[bandIndex(item)].push({ item, rank });
+      recentCount++;
+    }
+  }
+  for (const item of recentRows) {
+    // A fuzzy hit is too loose to promote into a list the main search filled.
+    if (item.matchBand === 4) {
+      continue;
+    }
+    const id = itemIdentity(item);
+    const rank = rankOf(item);
+    if (seen.has(id) || rank === undefined) {
+      continue;
+    }
+    seen.add(id);
+    recentByBand[bandIndex(item)].push({ item, rank });
+    recentCount++;
+  }
+  if (!recentCount) {
+    return main;
+  }
+
+  const result: QuickPickItem[] = [];
+  for (let band = 0; band < 4; band++) {
+    recentByBand[band].sort((a, b) => a.rank - b.rank);
+    for (const entry of recentByBand[band]) {
+      result.push(entry.item);
+    }
+    result.push(...restByBand[band]);
+  }
+  return result.slice(0, limit);
+}
+
+function searchItems(
+  query: string,
+  limit: number,
+  options?: SearchOptions,
+  onlyKeys?: RecentKey[]
 ): QuickPickItem[] {
   if (!db) {
     return [];
   }
 
   // Fast-path: Check LRU search cache
-  const cacheKey = `${query}|${limit}|${options?.symbolKind ?? ""}|${options?.sortByKind ? "1" : "0"}|${options?.fileUri ?? ""}|${options?.allowedKinds?.join(",") ?? ""}|${options?.ignoredKinds?.join(",") ?? ""}|${options?.ignoredNames?.join(",") ?? ""}`;
+  let cacheKey = `${query}|${limit}|${options?.symbolKind ?? ""}|${options?.sortByKind ? "1" : "0"}|${options?.fileUri ?? ""}|${options?.allowedKinds?.join(",") ?? ""}|${options?.ignoredKinds?.join(",") ?? ""}|${options?.ignoredNames?.join(",") ?? ""}`;
+  if (onlyKeys) {
+    cacheKey += `|recent:${onlyKeys.map((key) => recentKeyString(key.uri, key.symbolKind, key.name)).join("\u0001")}`;
+  }
   if (searchCache.has(cacheKey)) {
     return searchCache.get(cacheKey)!;
   }
 
   const conditions: string[] = [];
   const params: any[] = [];
+
+  if (onlyKeys && onlyKeys.length) {
+    // The plain uri list lets SQLite read only these files' rows through idx_symbols_uri.
+    const uris = [...new Set(onlyKeys.map((key) => key.uri))];
+    conditions.push(`uri IN (${uris.map(() => "?").join(", ")})`);
+    params.push(...uris);
+    conditions.push(
+      `(uri, symbol_kind, name) IN (VALUES ${onlyKeys.map(() => "(?, ?, ?)").join(", ")})`
+    );
+    for (const key of onlyKeys) {
+      params.push(key.uri, key.symbolKind, key.name);
+    }
+  }
 
   if (options) {
     if (options.fileUri) {
@@ -936,12 +1072,14 @@ export function search(
   let matchedItems: QuickPickItem[] = [];
   const seenKeys = new Set<string>();
 
-  const addItemsFromRows = (rows: any[][]) => {
+  const addItemsFromRows = (rows: any[][], band: MatchBand | ((row: any[]) => MatchBand)) => {
     for (const row of rows) {
       const key = `${row[0]}#${row[1]}#${row[2]}#${row[5]}#${row[6]}`;
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
-        matchedItems.push(rowToQuickPickItem(row));
+        const item = rowToQuickPickItem(row);
+        item.matchBand = typeof band === "function" ? band(row) : band;
+        matchedItems.push(item);
       }
     }
   };
@@ -955,16 +1093,16 @@ export function search(
       ? "symbol_kind ASC, name COLLATE NOCASE ASC"
       : "name COLLATE NOCASE ASC";
     const results = db.exec(
-      `SELECT ${QUERY_COLUMNS} FROM symbols ${baseWhere} ORDER BY ${sortOrder} LIMIT ${limit}`,
+      `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${baseWhere} ORDER BY ${sortOrder} LIMIT ${limit}`,
       params
     );
     if (results && results.length) {
-      addItemsFromRows(results[0].values);
+      addItemsFromRows(results[0].values, 3);
     }
   } else if (pattern) {
     const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
     const patternRows = queryPatternRows(pattern, baseWhere, params, kindSort, limit, esc);
-    addItemsFromRows(patternRows);
+    addItemsFromRows(patternRows, bandByTier(1, 2, 3, 3));
 
     if (
       !patternRows.some((row) => row[9] === 1) &&
@@ -980,7 +1118,8 @@ export function search(
       // Over-fetch: unlike the plain search, ordered matches are not excluded in SQL and
       // only drop out in addItemsFromRows.
       addItemsFromRows(
-        queryFuzzyRows(pattern.joined, undefined, baseWhere, params, kindSort, cap, esc)
+        queryFuzzyRows(pattern.joined, undefined, baseWhere, params, kindSort, cap, esc),
+        4
       );
       matchedItems = matchedItems.slice(0, cap);
     }
@@ -997,25 +1136,28 @@ export function search(
       if (cleanLeaf) {
         const leafPrefix = `${escapeLike(cleanLeaf)}%`;
         const leafResults = db.exec(
-          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
+          `SELECT ${QUERY_COLUMNS},
+            CASE WHEN clean_stem = ? OR clean_name = ? THEN 1 ELSE 2 END AS tier
+          FROM ${symbolsSource} ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
           ORDER BY
             ${kindSort}
-            CASE WHEN clean_stem = ? OR clean_name = ? THEN 0 ELSE 1 END ASC,
+            tier ASC,
             CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
             LENGTH(name) ASC,
             name COLLATE NOCASE ASC
           LIMIT ${limit}`,
-          [...dirParams, leafPrefix, leafPrefix, cleanLeaf, cleanLeaf]
+          [cleanLeaf, cleanLeaf, ...dirParams, leafPrefix, leafPrefix]
         );
         if (leafResults && leafResults.length) {
-          addItemsFromRows(leafResults[0].values);
+          addItemsFromRows(leafResults[0].values, bandByTier(1, 2));
         }
       }
 
       const qualifiedLeaf = parseQualifiedQuery(leaf);
       if (qualifiedLeaf) {
         addItemsFromRows(
-          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length, esc)
+          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length, esc),
+          2
         );
       }
     }
@@ -1024,11 +1166,11 @@ export function search(
       const matchClause = `uri LIKE ? ${esc}`;
       const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
       const results = db.exec(
-        `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
+        `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
         [...params, `%${escapeLike(query)}%`]
       );
       if (results && results.length) {
-        addItemsFromRows(results[0].values);
+        addItemsFromRows(results[0].values, 3);
       }
       matchedItems = matchedItems.slice(0, limit);
     }
@@ -1055,7 +1197,7 @@ export function search(
           WHEN ${nameLikeAny} THEN 2
           ELSE 3
         END AS relevance
-      FROM symbols
+      FROM ${symbolsSource}
       ${stage1Where}
       ORDER BY
         ${kindSort}
@@ -1086,7 +1228,7 @@ export function search(
     const qualified = parseQualifiedQuery(query);
     if (qualified) {
       // An exact name match (e.g. the file "user.service.ts") still outranks qualified members.
-      addItemsFromRows(stage1Rows.filter((row) => row[9] === 1));
+      addItemsFromRows(stage1Rows.filter((row) => row[9] === 1), 1);
       const qualifiedRows = queryQualifiedRows(
         qualified,
         baseWhere,
@@ -1095,15 +1237,15 @@ export function search(
         limit - matchedItems.length,
         esc
       );
-      addItemsFromRows(qualifiedRows);
+      addItemsFromRows(qualifiedRows, bandByTier(1, 2, 2));
       hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
-      addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1));
+      addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1), 2);
       matchedItems = matchedItems.slice(0, limit);
     }
     const notPrefixedParams = [`${cleanLike}%`, `${cleanLike}%`, `${rawLike}%`];
     let camelRowCount = 0;
     if (!qualified) {
-      addItemsFromRows(stage1Rows);
+      addItemsFromRows(stage1Rows, bandByTier(1, 2));
       const camel = parseCamelHumpsQuery(query);
       if (camel) {
         const camelRows = queryCamelHumpsRows(
@@ -1116,7 +1258,7 @@ export function search(
           notPrefixedParams
         );
         camelRowCount = camelRows.length;
-        addItemsFromRows(camelRows);
+        addItemsFromRows(camelRows, bandByTier(2, 3));
       }
     }
 
@@ -1134,7 +1276,7 @@ export function search(
 
       const stage2Sql = `
         SELECT ${QUERY_COLUMNS}
-        FROM symbols
+        FROM ${symbolsSource}
         ${stage2Where}
         ORDER BY
           ${kindSort}
@@ -1156,7 +1298,7 @@ export function search(
       // and it only drops out in addItemsFromRows.
       const stage2Results = db.exec(stage2Sql, stage2Params);
       if (stage2Results && stage2Results.length) {
-        addItemsFromRows(stage2Results[0].values);
+        addItemsFromRows(stage2Results[0].values, 3);
       }
       matchedItems = matchedItems.slice(0, cap);
     }
@@ -1176,7 +1318,8 @@ export function search(
         SUBSTRING_MIN_THRESHOLD - matchedItems.length
       );
       addItemsFromRows(
-        queryFuzzyRows(cleanQuery, query, baseWhere, params, kindSort, remaining, esc)
+        queryFuzzyRows(cleanQuery, query, baseWhere, params, kindSort, remaining, esc),
+        4
       );
     }
   }

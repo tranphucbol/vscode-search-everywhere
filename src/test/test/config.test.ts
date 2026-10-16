@@ -219,4 +219,16 @@ describe("Config", () => {
       );
     });
   });
+
+  describe("fetchRankRecentItemsHigher", () => {
+    it("should return rankRecentItemsHigher setting", () => {
+      const section = "searchEverywhere";
+      const key = "rankRecentItemsHigher";
+
+      assert.equal(
+        config.fetchRankRecentItemsHigher(),
+        configuration[section][key]
+      );
+    });
+  });
 });

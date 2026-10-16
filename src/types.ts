@@ -69,6 +69,9 @@ export interface ItemsFilterPhrases {
   [symbolKind: number]: string;
 }
 
+// 1 exact, 2 strong (prefix, anchored), 3 weak (substring, later word, any order), 4 fuzzy.
+export type MatchBand = 1 | 2 | 3 | 4;
+
 export interface QuickPickItem extends vscode.QuickPickItem {
   uri: vscode.Uri;
   symbolKind: number;
@@ -76,6 +79,7 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   isHelp?: boolean;
   targetPosition?: vscode.Position;
   containerName?: string;
+  matchBand?: MatchBand;
   // Declared here because @types/vscode is pinned to 1.64:
   // iconPath was finalized in VS Code 1.81, resourceUri in VS Code 1.108.
   iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon;

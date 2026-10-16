@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../cache";
 import { recentItems } from "../../recentItems";
@@ -21,6 +22,16 @@ describe("RecentItems", () => {
     } as any;
     cache.initCache(mockContext);
   });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  const stubOpenEditors = (uris: vscode.Uri[]) => {
+    sinon
+      .stub(vscode.window, "tabGroups" as any)
+      .get(() => ({ all: [{ tabs: uris.map((uri) => ({ input: { uri } })) }] }));
+  };
 
   it("should add item and retrieve it via getRecentItems", () => {
     const item: QuickPickItem = {
@@ -124,5 +135,56 @@ describe("RecentItems", () => {
     assert.equal(recentItems.getRecentItems(10).length, 1);
     recentItems.clearRecentItems();
     assert.equal(recentItems.getRecentItems(10).length, 0);
+  });
+
+  it("should return recent keys from history before open editors", () => {
+    const symbolUri = vscode.Uri.file("/test/src/mapService.ts");
+    const openUri = vscode.Uri.file("/test/src/open.ts");
+    recentItems.addRecentItem({ label: "MapService", uri: symbolUri, symbolKind: 5 });
+    stubOpenEditors([openUri]);
+
+    assert.deepEqual(recentItems.getRecentKeys(), [
+      { uri: symbolUri.toString(), symbolKind: 5, name: "MapService" },
+      { uri: openUri.toString(), symbolKind: 0, name: "open.ts" },
+    ]);
+  });
+
+  it("should return recent keys with the icon prefix removed from the name", () => {
+    recentItems.addRecentItem({
+      label: "$(symbol-class)  MapService",
+      uri: vscode.Uri.file("/test/src/mapService.ts"),
+      symbolKind: 5,
+    });
+    stubOpenEditors([]);
+
+    assert.equal(recentItems.getRecentKeys()[0].name, "MapService");
+  });
+
+  it("should not repeat an open editor already in the history", () => {
+    const uri = vscode.Uri.file("/test/src/open.ts");
+    recentItems.addRecentItem({ label: "$(file)  open.ts", uri, symbolKind: 0 });
+    stubOpenEditors([uri, uri]);
+
+    assert.deepEqual(recentItems.getRecentKeys(), [
+      { uri: uri.toString(), symbolKind: 0, name: "open.ts" },
+    ]);
+  });
+
+  it("should stop recent keys at the limit", () => {
+    for (let i = 0; i < 5; i++) {
+      recentItems.addRecentItem({
+        label: `File${i}.ts`,
+        uri: vscode.Uri.file(`/test/file${i}.ts`),
+        symbolKind: 0,
+      });
+    }
+    stubOpenEditors([vscode.Uri.file("/test/open.ts")]);
+
+    const keys = recentItems.getRecentKeys(3);
+    assert.deepEqual(
+      keys.map((key) => key.name),
+      ["File4.ts", "File3.ts", "File2.ts"]
+    );
+    assert.equal(recentItems.getRecentKeys(6).length, 6);
   });
 });

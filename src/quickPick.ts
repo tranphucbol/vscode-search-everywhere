@@ -4,6 +4,7 @@ import {
   fetchHelpPhrase,
   fetchItemsFilter,
   fetchItemsFilterPhrases,
+  fetchRankRecentItemsHigher,
   fetchRecentItemsLimit,
   fetchShouldHighlightSymbol,
   fetchShouldItemsBeSorted,
@@ -624,6 +625,9 @@ function loadItems() {
     ignoredKinds: itemsFilter.ignoredKinds,
     ignoredNames: itemsFilter.ignoredNames,
     fileUri: fileScopeUri,
+    recent: fetchRankRecentItemsHigher()
+      ? recentItems.getRecentKeys()
+      : undefined,
   });
   const nameQuery = cleanQuery.includes("/")
     ? database.splitPathQuery(cleanQuery).leaf

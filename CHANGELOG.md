@@ -3,6 +3,12 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### 🕘 Recently Used Results First
+- While typing, recently opened files and symbols, and open editor tabs, come first among results that match the query equally well (exact, prefix, substring, fuzzy). Typing `index` puts the `index.ts` you were just working in above the other `index.ts` files.
+- Recency never beats a better match: an exact match you never opened stays above a recent prefix match.
+- Added `searchEverywhere.rankRecentItemsHigher` (default `true`) to turn it off.
+- No reindex is needed.
+
 ### 🎨 File Icon Theme Support
 - Added `searchEverywhere.useFileIconTheme` (default `false`) to show file results with icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme). Symbols keep their built-in icons.
 - Requires VS Code 1.108 or newer; older versions automatically fall back to the built-in icon.

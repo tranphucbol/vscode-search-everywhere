@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { database } from "../../database";
+import { database, RecentKey } from "../../database";
 import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
 
@@ -800,6 +800,349 @@ describe("Database", () => {
       database.insertSymbolsBatch([symbol("UserServiceImpl")]);
 
       assert.notInclude(labels(database.search("Foo.SerImp")), "$(symbol-class) UserServiceImpl");
+    });
+  });
+
+  describe("match bands", () => {
+    const symbol = (
+      name: string,
+      file = `/workspace/src/${name}.ts`,
+      containerName?: string,
+      line = 0,
+      kind: number = vscode.SymbolKind.Class
+    ): QuickPickItem => ({
+      uri: vscode.Uri.file(file),
+      symbolKind: kind,
+      label: `$(symbol-class) ${name}`,
+      containerName,
+      range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 1, 0)),
+    });
+    const file = (path: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+    });
+    const bandsOf = (results: QuickPickItem[]) =>
+      Object.fromEntries(results.map((r) => [r.label.replace(/^\$\([^)]*\)\s*/, ""), r.matchBand]));
+    const assertNonDecreasingBands = (query: string) => {
+      const results = database.search(query);
+      assert.isNotEmpty(results, query);
+      for (let i = 0; i < results.length; i++) {
+        assert.isDefined(results[i].matchBand, `${query}: ${results[i].label}`);
+        if (i > 0) {
+          assert.isAtLeast(results[i].matchBand!, results[i - 1].matchBand!, `${query}: ${results[i].label}`);
+        }
+      }
+    };
+
+    const save = symbol("save", "/workspace/src/UserService.ts", "UserService", 6, vscode.SymbolKind.Method);
+    const saveAll = symbol("saveAll", "/workspace/src/UserService.ts", "UserService", 8, vscode.SymbolKind.Method);
+    const chainSave = symbol("save", "/workspace/src/Impl.ts", "UserServiceImpl.Helper", 4, vscode.SymbolKind.Method);
+    const find = symbol("find", "/workspace/src/models/User.ts", "User", 2, vscode.SymbolKind.Method);
+
+    beforeEach(() => {
+      database.insertSymbolsBatch([
+        symbol("Handler"),
+        symbol("HandlerFactory"),
+        symbol("myhandlerx"),
+        symbol("UserServiceImpl"),
+        symbol("userservice"),
+        symbol("MyUserService"),
+        symbol("ServiceUser"),
+        save,
+        saveAll,
+        chainSave,
+        find,
+        file("/workspace/src/models/User.ts"),
+        file("/workspace/src/models/UserProfile.ts"),
+        file("/workspace/src/user.service.ts"),
+      ]);
+    });
+
+    it("should tag exact, prefix, substring and fuzzy matches with bands 1 to 4", () => {
+      const handler = bandsOf(database.search("handler"));
+      assert.equal(handler["Handler"], 1);
+      assert.equal(handler["HandlerFactory"], 2);
+      assert.equal(handler["myhandlerx"], 3);
+      assert.equal(bandsOf(database.search("hndlr"))["Handler"], 4);
+      assert.equal(bandsOf(database.search("usi"))["UserServiceImpl"], 2);
+      assert.equal(bandsOf(database.search("ServImpl"))["UserServiceImpl"], 3);
+    });
+
+    it("should tag qualified members with bands 1 and 2", () => {
+      const results = database.search("UserService.save");
+      const bandOf = (item: QuickPickItem) =>
+        results.find(
+          (r) => r.uri.path === item.uri.path && r.range?.start.line === item.range?.start.line
+        )?.matchBand;
+      assert.equal(bandOf(save), 1);
+      assert.equal(bandOf(saveAll), 2);
+      assert.equal(bandOf(chainSave), 2);
+      assert.equal(bandsOf(database.search("user.service.ts"))["user.service.ts"], 1);
+    });
+
+    it("should tag pattern matches by their tier", () => {
+      const results = bandsOf(database.search("user service"));
+      assert.equal(results["userservice"], 1);
+      assert.equal(results["UserServiceImpl"], 2);
+      assert.equal(results["MyUserService"], 3);
+      assert.equal(results["ServiceUser"], 3);
+      assert.equal(bandsOf(database.search("usr svc"))["userservice"], 4);
+    });
+
+    it("should tag path query matches by leaf match", () => {
+      const leaf = bandsOf(database.search("src/models/User"));
+      assert.equal(leaf["User.ts"], 1);
+      assert.equal(leaf["UserProfile.ts"], 2);
+      assert.equal(leaf["find"], 3);
+      assert.equal(bandsOf(database.search("models/User.find"))["find"], 2);
+      assert.equal(bandsOf(database.search("src/models/"))["find"], 3);
+    });
+
+    it("should tag empty query listings with band 3", () => {
+      assert.isTrue(database.search("").every((r) => r.matchBand === 3));
+    });
+
+    it("should return plain query results in non-decreasing band order", () => {
+      for (const query of ["handler", "hndlr", "usi", "us", "ServImpl", "user", "save"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return qualified query results in non-decreasing band order", () => {
+      for (const query of ["UserService.save", "UserService.", "user.service.ts", "User.find"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return pattern query results in non-decreasing band order", () => {
+      for (const query of ["user service", "service user", "usr svc", "user*impl"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return path query results in non-decreasing band order", () => {
+      for (const query of ["src/models/User", "models/User.find", "src/models/", "workspace/src"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+  });
+
+  describe("recent ranking", () => {
+    const sym = (
+      name: string,
+      file: string,
+      kind: number = vscode.SymbolKind.Function,
+      line = 0,
+      containerName?: string
+    ): QuickPickItem => ({
+      uri: vscode.Uri.file(file),
+      symbolKind: kind,
+      label: `$(symbol-function) ${name}`,
+      containerName,
+      range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 1, 0)),
+    });
+    const fileItem = (path: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+    });
+    const keyFor = (item: QuickPickItem): RecentKey => ({
+      uri: item.uri.toString(),
+      symbolKind: item.symbolKind,
+      name: database.extractName(item.label),
+    });
+    const id = (item: QuickPickItem) => `${item.uri.path}:${item.range?.start.line ?? 0}`;
+    const ids = (results: QuickPickItem[]) => results.map(id);
+
+    const aIndex = fileItem("/workspace/a/index.ts");
+    const bIndex = fileItem("/workspace/b/index.ts");
+    const cIndex = fileItem("/workspace/c/index.ts");
+
+    it("should return a recently used item before other items of the same band", () => {
+      database.insertSymbolsBatch([aIndex, bIndex, cIndex]);
+      const main = ids(database.search("index"));
+      const boosted = ids(database.search("index", 500, { recent: [keyFor(bIndex)] }));
+      assert.deepEqual(boosted, [id(bIndex), ...main.filter((it) => it !== id(bIndex))]);
+    });
+
+    it("should keep an exact match above a recently used prefix match", () => {
+      const user = fileItem("/workspace/src/user.ts");
+      const impl = fileItem("/workspace/src/UserServiceImpl.ts");
+      database.insertSymbolsBatch([
+        user,
+        fileItem("/workspace/src/users.ts"),
+        fileItem("/workspace/src/userApi.ts"),
+        impl,
+      ]);
+      const results = ids(database.search("user", 500, { recent: [keyFor(impl)] }));
+      assert.deepEqual(results.slice(0, 2), [id(user), id(impl)]);
+    });
+
+    it("should order several recently used items by recency within a band", () => {
+      database.insertSymbolsBatch([aIndex, bIndex, cIndex]);
+      const results = database.search("index", 500, {
+        recent: [keyFor(cIndex), keyFor(aIndex)],
+      });
+      assert.deepEqual(ids(results), [id(cIndex), id(aIndex), id(bIndex)]);
+    });
+
+    it("should include a recently used match the result limit would cut off", () => {
+      const user = fileItem("/workspace/src/user.ts");
+      const impl = fileItem("/workspace/src/UserServiceImpl.ts");
+      database.insertSymbolsBatch([
+        user,
+        fileItem("/workspace/src/users.ts"),
+        fileItem("/workspace/src/userA.ts"),
+        fileItem("/workspace/src/userApi.ts"),
+        impl,
+      ]);
+      assert.notInclude(ids(database.search("user", 3)), id(impl));
+
+      const results = ids(database.search("user", 3, { recent: [keyFor(impl)] }));
+      assert.deepEqual(results.slice(0, 2), [id(user), id(impl)]);
+      assert.lengthOf(results, 3);
+    });
+
+    it("should include a recently used substring match after the substring cap", () => {
+      const handler = fileItem("/workspace/src/handler.ts");
+      const requestHandler = sym("requestHandler", "/workspace/src/request.ts");
+      const fillers = Array.from({ length: 60 }, (_, i) =>
+        sym(`ahandler${i}`, `/workspace/src/fill${i}.ts`)
+      );
+      database.insertSymbolsBatch([handler, requestHandler, ...fillers]);
+      assert.notInclude(ids(database.search("handler")), id(requestHandler));
+
+      const results = database.search("handler", 500, { recent: [keyFor(requestHandler)] });
+      assert.deepEqual(ids(results).slice(0, 2), [id(handler), id(requestHandler)]);
+      assert.equal(results[1].matchBand, 3);
+    });
+
+    it("should not pull in a recently used item that only matches by subsequence", () => {
+      const rmv = fileItem("/workspace/src/rmv.ts");
+      const remove = sym("remove", "/workspace/src/list.ts");
+      database.insertSymbolsBatch([rmv, remove]);
+      const results = database.search("rmv", 500, { recent: [keyFor(remove)] });
+      assert.deepEqual(ids(results), [id(rmv)]);
+    });
+
+    it("should reorder a recently used fuzzy match the main search already returned", () => {
+      const remove = sym("remove", "/workspace/src/list.ts", vscode.SymbolKind.Function, 1);
+      const removeAll = sym("removeAll", "/workspace/src/list.ts", vscode.SymbolKind.Function, 5);
+      database.insertSymbolsBatch([remove, removeAll]);
+      assert.deepEqual(ids(database.search("rmv")), [id(remove), id(removeAll)]);
+
+      const results = database.search("rmv", 500, { recent: [keyFor(removeAll)] });
+      assert.deepEqual(ids(results), [id(removeAll), id(remove)]);
+    });
+
+    it("should match recent items by uri, kind and name regardless of line", () => {
+      const runA1 = sym("run", "/workspace/src/z.ts", vscode.SymbolKind.Function, 3);
+      const runA2 = sym("run", "/workspace/src/z.ts", vscode.SymbolKind.Function, 9);
+      const runB = sym("run", "/workspace/src/a.ts", vscode.SymbolKind.Function, 1);
+      database.insertSymbolsBatch([runB, runA1, runA2]);
+      const movedKey = keyFor(sym("run", "/workspace/src/z.ts", vscode.SymbolKind.Function, 40));
+
+      const results = ids(database.search("run", 500, { recent: [movedKey] }));
+      assert.sameMembers(results.slice(0, 2), [id(runA1), id(runA2)]);
+      assert.equal(results[2], id(runB));
+    });
+
+    it("should boost recently used members in qualified, pattern and path queries", () => {
+      const find = sym("find", "/workspace/src/UserService.ts", vscode.SymbolKind.Method, 2, "UserService");
+      const filter = sym("filter", "/workspace/src/UserService.ts", vscode.SymbolKind.Method, 6, "UserService");
+      const api = sym("UserServiceApi", "/workspace/src/api.ts", vscode.SymbolKind.Class);
+      const impl = sym("UserServiceImpl", "/workspace/src/impl.ts", vscode.SymbolKind.Class);
+      const modelsUser = fileItem("/workspace/src/models/User.ts");
+      const userA = fileItem("/workspace/src/models/UserA.ts");
+      const profile = fileItem("/workspace/src/models/UserProfile.ts");
+      database.insertSymbolsBatch([find, filter, api, impl, modelsUser, userA, profile]);
+
+      assert.deepEqual(ids(database.search("UserService.f")).slice(0, 2), [id(find), id(filter)]);
+      assert.deepEqual(
+        ids(database.search("UserService.f", 500, { recent: [keyFor(filter)] })).slice(0, 2),
+        [id(filter), id(find)]
+      );
+
+      assert.deepEqual(ids(database.search("user service")).slice(0, 2), [id(api), id(impl)]);
+      assert.deepEqual(
+        ids(database.search("user service", 500, { recent: [keyFor(impl)] })).slice(0, 2),
+        [id(impl), id(api)]
+      );
+
+      assert.deepEqual(ids(database.search("src/models/User")).slice(0, 3), [
+        id(modelsUser),
+        id(userA),
+        id(profile),
+      ]);
+      assert.deepEqual(
+        ids(database.search("src/models/User", 500, { recent: [keyFor(profile)] })).slice(0, 3),
+        [id(modelsUser), id(profile), id(userA)]
+      );
+    });
+
+    it("should apply symbol kind and file scope filters to recently used items", () => {
+      const impl = sym("UserServiceImpl", "/workspace/src/impl.ts", vscode.SymbolKind.Class);
+      const userFn = sym("user", "/workspace/src/fn.ts");
+      const runA = sym("run", "/workspace/src/a.ts", vscode.SymbolKind.Function, 1);
+      const runB = sym("run", "/workspace/src/b.ts", vscode.SymbolKind.Function, 1);
+      database.insertSymbolsBatch([impl, userFn, runA, runB]);
+
+      const byKind = database.search("user", 500, {
+        symbolKind: vscode.SymbolKind.Function,
+        recent: [keyFor(impl)],
+      });
+      assert.deepEqual(ids(byKind), [id(userFn)]);
+
+      const byFile = database.search("run", 500, {
+        fileUri: "/workspace/src/b.ts",
+        recent: [keyFor(runA)],
+      });
+      assert.deepEqual(ids(byFile), [id(runB)]);
+    });
+
+    it("should not exceed the limit after pulling in recent items", () => {
+      const recent = Array.from({ length: 6 }, (_, i) =>
+        fileItem(`/workspace/src/userLongRecentName${i}.ts`)
+      );
+      database.insertSymbolsBatch([
+        fileItem("/workspace/src/user.ts"),
+        fileItem("/workspace/src/users.ts"),
+        fileItem("/workspace/src/userA.ts"),
+        ...recent,
+      ]);
+      const results = database.search("user", 4, { recent: recent.map(keyFor) });
+      assert.lengthOf(results, 4);
+      assert.deepEqual(ids(results).slice(1), recent.slice(0, 3).map(id));
+    });
+
+    it("should return the cached result unchanged when no recent items are given", () => {
+      database.insertSymbolsBatch([aIndex, bIndex, cIndex]);
+      const main = database.search("index");
+      assert.strictEqual(database.search("index", 500, { recent: [] }), main);
+      assert.strictEqual(database.search("index", 500, {}), main);
+    });
+
+    it("should not modify the cached main result when boosting", () => {
+      database.insertSymbolsBatch([aIndex, bIndex, cIndex]);
+      const main = database.search("index");
+      const before = ids(main);
+      const last = main[main.length - 1];
+
+      const boosted = database.search("index", 500, { recent: [keyFor(last)] });
+      assert.notStrictEqual(boosted, main);
+      assert.equal(id(boosted[0]), id(last));
+      assert.deepEqual(ids(main), before);
+      assert.strictEqual(database.search("index"), main);
+    });
+
+    it("should reflect a changed recent list without clearing the search cache", () => {
+      database.insertSymbolsBatch([aIndex, bIndex, cIndex]);
+      const main = database.search("index");
+      assert.equal(id(database.search("index", 500, { recent: [keyFor(bIndex)] })[0]), id(bIndex));
+      assert.equal(id(database.search("index", 500, { recent: [keyFor(cIndex)] })[0]), id(cIndex));
+      assert.equal(id(database.search("index", 500, { recent: [keyFor(bIndex)] })[0]), id(bIndex));
+      assert.strictEqual(database.search("index"), main);
     });
   });
 

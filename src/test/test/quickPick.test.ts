@@ -134,6 +134,36 @@ describe("QuickPick", () => {
 
       assert.deepEqual(quickPick.getControl().items, items);
     });
+
+    it("should pass recent keys to the database search when rankRecentItemsHigher is on", () => {
+      const { searchStub, recentKeys } = setups.loadItems.setupForRecentKeys(
+        "index",
+        true
+      );
+      quickPick.loadItems();
+
+      assert.equal(searchStub.calledOnce, true);
+      assert.deepEqual(searchStub.firstCall.args[2].recent, recentKeys);
+    });
+
+    it("should not pass recent keys when rankRecentItemsHigher is off", () => {
+      const { searchStub, getRecentKeysStub } =
+        setups.loadItems.setupForRecentKeys("index", false);
+      quickPick.loadItems();
+
+      assert.equal(searchStub.calledOnce, true);
+      assert.isUndefined(searchStub.firstCall.args[2].recent);
+      assert.equal(getRecentKeysStub.called, false);
+    });
+
+    it("should not pass recent keys for the empty-query recent list", () => {
+      const { searchStub, getRecentKeysStub } =
+        setups.loadItems.setupForRecentKeys("", true);
+      quickPick.loadItems();
+
+      assert.equal(searchStub.called, false);
+      assert.equal(getRecentKeysStub.called, false);
+    });
   });
 
   describe("loadHelpItems", () => {
