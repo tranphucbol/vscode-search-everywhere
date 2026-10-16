@@ -19,7 +19,13 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - Space-separated words match in any order: `impl user` and `service impl` both find `UserServiceImpl`. Every word must match; names with the words in order rank first.
 - `*` matches any run of characters between two parts of a word, in order: `user*impl` finds `UserServiceImpl` but `impl*user` does not. A query of only `*` lists everything.
 - When few names contain the words, the words are also matched as a subsequence (`user ctrl` finds `UserController`).
-- Fixed `%` and `_` in a query, in `ignoredNames` and in file paths acting as SQL wildcards; they now match literally (`Item_1234` no longer matches `ItemX1234`).
+- Fixed `%` and `_` in a query, in `ignoredNames` and in file paths acting as SQL wildcards; they now match literally (`Item_1234` no longer matches `Item11234`).
+
+### 🐫 CamelHumps Search
+- A query with a capital after its first letter, or with `_` or `-` between its parts, matches each part against the start of a word, in order, skipping words in between: `USI`, `uSerImp` and `SerImp` find `UserServiceImpl`, `HTTPSer` finds `HTTPServer`, `MV` and `max_v` find `MAX_VALUE`. Matches that start at the first word rank first.
+- An all-lowercase query of two or more characters also matches one letter per word: `usi` finds `UserServiceImpl`. This changes the ranking of lowercase queries: names whose initials match now come after prefix matches and before substring matches.
+- CamelHumps matches rank after prefix matches and before substring matches. Results of a mixed-case or `_`/`-` query stay in the list even when VS Code's own filter would hide them.
+- The index gained word and initials columns. The first start after upgrading fills them in from the stored names without reindexing; run `Search everywhere: Reload` if results written by an older version still look incomplete.
 
 ## [3.2.0] - 2026-10-05
 ### 🔍 In-File Scope Search, Split Editor & Remote Development Fixes

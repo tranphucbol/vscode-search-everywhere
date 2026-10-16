@@ -100,7 +100,9 @@ After the scan is completed, the extension continuously tracks changes in the wo
 
 * Multi-word search: space-separated words match in any order (e.g. `impl user` or `service impl` finds `UserServiceImpl`). Every word must match; exact and in-order matches rank first.
 
-* Wildcards: `*` matches any run of characters within a word, in order (e.g. `user*impl` finds `UserServiceImpl`). `?` is not a wildcard, and `%` and `_` always match literally. Queries containing `/` use the directory search above instead of multi-word and `*` matching.
+* Wildcards: `*` matches any run of characters within a word, in order (e.g. `user*impl` finds `UserServiceImpl`). `?` is not a wildcard, and `%` and `_` are never SQL wildcards. Queries containing `/` use the directory search above instead of multi-word and `*` matching.
+
+* CamelHumps: a query with a capital after its first letter, or with `_` or `-` between its parts, matches each part against the start of a word, in order, skipping words in between (e.g. `USI`, `uSerImp` or `SerImp` find `UserServiceImpl`, `HTTPSer` finds `HTTPServer`, `MV` and `max_v` find `MAX_VALUE`). Matches that start at the first word rank above matches that start later. An all-lowercase query of two or more characters also matches one letter per word (`usi` finds `UserServiceImpl`). CamelHumps matches rank after prefix matches and before substring matches. The first start after upgrading fills in the new word columns without reindexing.
 
 * Dedicated output with logs related to triggered actions, scanned directories structure, etc.
 
