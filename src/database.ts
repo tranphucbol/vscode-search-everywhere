@@ -374,13 +374,24 @@ export function extractCleanInitials(name: string, symbolKind?: number): string 
   return extractWordColumns(name, symbolKind)[1];
 }
 
-export type CamelHumpsQuery = { kind: "initials"; initials: string };
+export type CamelHumpsQuery =
+  | { kind: "initials"; initials: string }
+  /** One LIKE pattern per reading, anchored at the first word, e.g. " u% ser% imp%". */
+  | { kind: "words"; patterns: string[] };
 
 const INITIALS_QUERY_REGEX = /^[\p{Ll}\p{N}]{2,}$/u;
+const CAPITAL_AFTER_FIRST_REGEX = /^.\P{Lu}*\p{Lu}/su;
+const JOINED_PIECES_REGEX = /[\p{L}\p{N}][_-][\p{L}\p{N}]/u;
+
+function toWordsPattern(pieces: string[]): string {
+  return " " + pieces.map((piece) => piece.toLowerCase()).join("% ") + "%";
+}
 
 /**
  * Returns undefined unless the query is a CamelHumps query. An initials query is two or more
- * lowercase letters or digits with at least one letter, matched one letter per word.
+ * lowercase letters or digits with at least one letter, matched one letter per word. A words
+ * query has a capital after its first character or a `_` or `-` between pieces; each piece
+ * matches the start of a word, in order. Qualified, pattern and path queries are neither.
  */
 export function parseCamelHumpsQuery(query: string): CamelHumpsQuery | undefined {
   if (!query) {
@@ -389,7 +400,25 @@ export function parseCamelHumpsQuery(query: string): CamelHumpsQuery | undefined
   if (INITIALS_QUERY_REGEX.test(query) && LETTER_REGEX.test(query)) {
     return { kind: "initials", initials: query };
   }
-  return undefined;
+  if (
+    query.includes("/") ||
+    !(CAPITAL_AFTER_FIRST_REGEX.test(query) || JOINED_PIECES_REGEX.test(query)) ||
+    parsePatternQuery(query) ||
+    parseQualifiedQuery(query)
+  ) {
+    return undefined;
+  }
+  // Reading B may be a single piece: "USI" read as "usi" finds parseUSIField.
+  const readingA = splitIntoPieces(query, false);
+  if (readingA.length < 2) {
+    return undefined;
+  }
+  const patterns = [toWordsPattern(readingA)];
+  const readingB = toWordsPattern(splitIntoPieces(query, true));
+  if (readingB !== patterns[0]) {
+    patterns.push(readingB);
+  }
+  return { kind: "words", patterns };
 }
 
 function createTables(): void {
@@ -746,8 +775,9 @@ function queryPatternRows(
   return results && results.length ? results[0].values : [];
 }
 
-// Tier 1: the initials are exactly the query, 2: they start with it. notPrefixed drops the
-// rows stage 1 already returned.
+// Initials: tier 1 when they are exactly the query, 2 when they start with it. Words: tier 1
+// when the first piece matches the first word, 2 when it matches a later one. notPrefixed
+// drops the rows stage 1 already returned.
 function queryCamelHumpsRows(
   camel: CamelHumpsQuery,
   baseWhere: string,
@@ -760,11 +790,28 @@ function queryCamelHumpsRows(
   if (!db || limit <= 0) {
     return [];
   }
-  const matchClause = `clean_initials LIKE ? AND ${notPrefixed}`;
-  const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
+  let tierClause: string;
+  let tierParams: string[];
+  let matchClause: string;
+  let matchParams: string[];
+  if (camel.kind === "initials") {
+    tierClause = "clean_initials = ?";
+    tierParams = [camel.initials];
+    matchClause = "clean_initials LIKE ?";
+    matchParams = [`${camel.initials}%`];
+  } else {
+    const likeAny = `(${camel.patterns.map(() => "clean_words LIKE ?").join(" OR ")})`;
+    tierClause = likeAny;
+    tierParams = camel.patterns;
+    matchClause = likeAny;
+    matchParams = camel.patterns.map((pattern) => `%${pattern}`);
+  }
+  const where = baseWhere
+    ? `${baseWhere} AND ${matchClause} AND ${notPrefixed}`
+    : `WHERE ${matchClause} AND ${notPrefixed}`;
   const sql = `
     SELECT ${QUERY_COLUMNS},
-      CASE WHEN clean_initials = ? THEN 1 ELSE 2 END AS tier
+      CASE WHEN ${tierClause} THEN 1 ELSE 2 END AS tier
     FROM symbols
     ${where}
     ORDER BY
@@ -775,12 +822,7 @@ function queryCamelHumpsRows(
       name COLLATE NOCASE ASC
     LIMIT ${limit}
   `;
-  const results = db.exec(sql, [
-    camel.initials,
-    ...params,
-    `${camel.initials}%`,
-    ...notPrefixedParams,
-  ]);
+  const results = db.exec(sql, [...tierParams, ...params, ...matchParams, ...notPrefixedParams]);
   return results && results.length ? results[0].values : [];
 }
 

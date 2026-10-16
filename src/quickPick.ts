@@ -168,7 +168,8 @@ function withQueryOverrides(
 ): QuickPickItem[] {
   // Clone so cached database results are not mutated; alwaysShow keeps VS Code
   // from hiding items whose label does not contain the ":line" suffix, the
-  // "Class." qualifier, or the words of a multi-word or "*" query.
+  // "Class." qualifier, the words of a multi-word or "*" query, or the pieces of a
+  // CamelHumps words query such as "uSerImp".
   return items.map((item) =>
     item.kind === vscode.QuickPickItemKind.Separator
       ? item
@@ -630,7 +631,8 @@ function loadItems() {
   const needsOverrides =
     !!lineSuffix.position ||
     !!database.parseQualifiedQuery(nameQuery) ||
-    !!database.parsePatternQuery(cleanQuery);
+    !!database.parsePatternQuery(cleanQuery) ||
+    database.parseCamelHumpsQuery(cleanQuery)?.kind === "words";
   const dbResults = needsOverrides
     ? withQueryOverrides(searchResults, lineSuffix.position)
     : searchResults;

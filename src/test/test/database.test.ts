@@ -138,11 +138,11 @@ describe("Database", () => {
         label: `$(symbol-variable) ${name}`,
       });
       database.clearAll();
-      database.insertSymbolsBatch([symbol("Item_1234"), symbol("ItemX1234")]);
+      database.insertSymbolsBatch([symbol("Item_1234"), symbol("Item11234")]);
 
       const results = database.search("Item_1234").map((r) => r.label);
       assert.include(results, "$(symbol-variable) Item_1234");
-      assert.notInclude(results, "$(symbol-variable) ItemX1234");
+      assert.notInclude(results, "$(symbol-variable) Item11234");
     });
 
     it("should treat % in a query as a literal character", () => {
@@ -675,6 +675,131 @@ describe("Database", () => {
       const unignored = labels(database.search("usi", 500, { ignoredNames: ["Secret"] }));
       assert.include(unignored, "$(symbol-class) UserServiceImpl");
       assert.notInclude(unignored, "$(symbol-class) UnusedSecretInfo");
+    });
+
+    it("should parse a query with a capital after its first character as a words query", () => {
+      assert.deepEqual(database.parseCamelHumpsQuery("uSerImp"), {
+        kind: "words",
+        patterns: [" u% ser% imp%"],
+      });
+      assert.deepEqual(database.parseCamelHumpsQuery("SerImp"), {
+        kind: "words",
+        patterns: [" ser% imp%"],
+      });
+      assert.deepEqual(database.parseCamelHumpsQuery("MV"), {
+        kind: "words",
+        patterns: [" m% v%", " mv%"],
+      });
+      for (const query of ["User", "usi", "item12", "U"]) {
+        assert.notEqual(database.parseCamelHumpsQuery(query)?.kind, "words");
+      }
+    });
+
+    it("should parse a lowercase query with _ or - between pieces as a words query", () => {
+      assert.deepEqual(database.parseCamelHumpsQuery("max_v"), {
+        kind: "words",
+        patterns: [" max% v%"],
+      });
+      assert.deepEqual(database.parseCamelHumpsQuery("user-serv"), {
+        kind: "words",
+        patterns: [" user% serv%"],
+      });
+      assert.deepEqual(database.parseCamelHumpsQuery("MAX_V"), {
+        kind: "words",
+        patterns: [" m% a% x% v%", " max% v%"],
+      });
+      assert.isUndefined(database.parseCamelHumpsQuery("_max"));
+    });
+
+    it("should build a second reading that keeps a capital run together", () => {
+      const patterns = (query: string) =>
+        (database.parseCamelHumpsQuery(query) as { patterns: string[] }).patterns;
+
+      assert.deepEqual(patterns("USI"), [" u% s% i%", " usi%"]);
+      assert.deepEqual(patterns("USImpl"), [" u% s% impl%", " us% impl%"]);
+      assert.deepEqual(patterns("HTTPSrv"), [" h% t% t% p% srv%", " http% srv%"]);
+      assert.deepEqual(patterns("getHTTP"), [" get% h% t% t% p%", " get% http%"]);
+      assert.deepEqual(patterns("uSerImp"), [" u% ser% imp%"]);
+    });
+
+    it("should not parse qualified, pattern or path queries as words queries", () => {
+      for (const query of ["User.SerImp", "User#SerImp", "User::SerImp", "Ser Imp", "Ser*Imp", "src/SerImp"]) {
+        assert.isUndefined(database.parseCamelHumpsQuery(query));
+      }
+    });
+
+    it("should match each piece at the start of a word in order", () => {
+      database.insertSymbolsBatch([symbol("UserServiceImpl"), symbol("NullPointerException")]);
+
+      assert.deepEqual(labels(database.search("uSerImp")), ["$(symbol-class) UserServiceImpl"]);
+      assert.deepEqual(labels(database.search("USImpl")), ["$(symbol-class) UserServiceImpl"]);
+      assert.deepEqual(labels(database.search("NPE")), ["$(symbol-class) NullPointerException"]);
+      assert.notInclude(labels(database.search("SerUImp")), "$(symbol-class) UserServiceImpl");
+    });
+
+    it("should skip words between pieces", () => {
+      database.insertSymbolsBatch([symbol("UImp"), symbol("UserServiceImpl"), symbol("MAX_VALUE"), symbol("remove")]);
+
+      assert.deepEqual(labels(database.search("uImp")), [
+        "$(symbol-class) UImp",
+        "$(symbol-class) UserServiceImpl",
+      ]);
+      // "remove" still follows as a subsequence match, but not through the words stage.
+      assert.deepEqual(labels(database.search("MV")), [
+        "$(symbol-class) MAX_VALUE",
+        "$(symbol-class) remove",
+      ]);
+      assert.deepEqual(labels(database.search("max_v")), ["$(symbol-class) MAX_VALUE"]);
+    });
+
+    it("should not match pieces that fall inside a word", () => {
+      database.insertSymbolsBatch([symbol("SerImp"), symbol("UserxImportant"), symbol("UserServiceImpl")]);
+
+      assert.deepEqual(labels(database.search("SerImp")), [
+        "$(symbol-class) SerImp",
+        "$(symbol-class) UserServiceImpl",
+      ]);
+    });
+
+    it("should match an acronym through the capital-run reading", () => {
+      database.insertSymbolsBatch([
+        symbol("HTTPResp"),
+        symbol("getHTTPAsyncResponse"),
+        symbol("XMLHttpRequest"),
+        symbol("parseUSIField"),
+      ]);
+
+      assert.deepEqual(labels(database.search("HTTPResp")), [
+        "$(symbol-class) HTTPResp",
+        "$(symbol-class) getHTTPAsyncResponse",
+      ]);
+      assert.deepEqual(labels(database.search("XHR")), ["$(symbol-class) XMLHttpRequest"]);
+      assert.include(labels(database.search("USI")), "$(symbol-class) parseUSIField");
+    });
+
+    it("should rank matches from the first word above matches from a later word", () => {
+      database.insertSymbolsBatch([symbol("UserServiceImpl"), symbol("SerializerImplementation")]);
+
+      assert.deepEqual(labels(database.search("SerImp")), [
+        "$(symbol-class) SerializerImplementation",
+        "$(symbol-class) UserServiceImpl",
+      ]);
+    });
+
+    it("should rank words matches after prefix matches and before substring matches", () => {
+      database.insertSymbolsBatch([symbol("ParseUser"), symbol("UnusedService"), symbol("UserService")]);
+
+      assert.deepEqual(labels(database.search("uSer")), [
+        "$(symbol-class) UserService",
+        "$(symbol-class) UnusedService",
+        "$(symbol-class) ParseUser",
+      ]);
+    });
+
+    it("should not run the words stage for a qualified query", () => {
+      database.insertSymbolsBatch([symbol("UserServiceImpl")]);
+
+      assert.notInclude(labels(database.search("Foo.SerImp")), "$(symbol-class) UserServiceImpl");
     });
   });
 
