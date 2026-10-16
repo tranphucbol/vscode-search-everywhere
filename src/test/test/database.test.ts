@@ -803,6 +803,131 @@ describe("Database", () => {
     });
   });
 
+  describe("match bands", () => {
+    const symbol = (
+      name: string,
+      file = `/workspace/src/${name}.ts`,
+      containerName?: string,
+      line = 0,
+      kind: number = vscode.SymbolKind.Class
+    ): QuickPickItem => ({
+      uri: vscode.Uri.file(file),
+      symbolKind: kind,
+      label: `$(symbol-class) ${name}`,
+      containerName,
+      range: new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 1, 0)),
+    });
+    const file = (path: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+    });
+    const bandsOf = (results: QuickPickItem[]) =>
+      Object.fromEntries(results.map((r) => [r.label.replace(/^\$\([^)]*\)\s*/, ""), r.matchBand]));
+    const assertNonDecreasingBands = (query: string) => {
+      const results = database.search(query);
+      assert.isNotEmpty(results, query);
+      for (let i = 0; i < results.length; i++) {
+        assert.isDefined(results[i].matchBand, `${query}: ${results[i].label}`);
+        if (i > 0) {
+          assert.isAtLeast(results[i].matchBand!, results[i - 1].matchBand!, `${query}: ${results[i].label}`);
+        }
+      }
+    };
+
+    const save = symbol("save", "/workspace/src/UserService.ts", "UserService", 6, vscode.SymbolKind.Method);
+    const saveAll = symbol("saveAll", "/workspace/src/UserService.ts", "UserService", 8, vscode.SymbolKind.Method);
+    const chainSave = symbol("save", "/workspace/src/Impl.ts", "UserServiceImpl.Helper", 4, vscode.SymbolKind.Method);
+    const find = symbol("find", "/workspace/src/models/User.ts", "User", 2, vscode.SymbolKind.Method);
+
+    beforeEach(() => {
+      database.insertSymbolsBatch([
+        symbol("Handler"),
+        symbol("HandlerFactory"),
+        symbol("myhandlerx"),
+        symbol("UserServiceImpl"),
+        symbol("userservice"),
+        symbol("MyUserService"),
+        symbol("ServiceUser"),
+        save,
+        saveAll,
+        chainSave,
+        find,
+        file("/workspace/src/models/User.ts"),
+        file("/workspace/src/models/UserProfile.ts"),
+        file("/workspace/src/user.service.ts"),
+      ]);
+    });
+
+    it("should tag exact, prefix, substring and fuzzy matches with bands 1 to 4", () => {
+      const handler = bandsOf(database.search("handler"));
+      assert.equal(handler["Handler"], 1);
+      assert.equal(handler["HandlerFactory"], 2);
+      assert.equal(handler["myhandlerx"], 3);
+      assert.equal(bandsOf(database.search("hndlr"))["Handler"], 4);
+      assert.equal(bandsOf(database.search("usi"))["UserServiceImpl"], 2);
+      assert.equal(bandsOf(database.search("ServImpl"))["UserServiceImpl"], 3);
+    });
+
+    it("should tag qualified members with bands 1 and 2", () => {
+      const results = database.search("UserService.save");
+      const bandOf = (item: QuickPickItem) =>
+        results.find(
+          (r) => r.uri.path === item.uri.path && r.range?.start.line === item.range?.start.line
+        )?.matchBand;
+      assert.equal(bandOf(save), 1);
+      assert.equal(bandOf(saveAll), 2);
+      assert.equal(bandOf(chainSave), 2);
+      assert.equal(bandsOf(database.search("user.service.ts"))["user.service.ts"], 1);
+    });
+
+    it("should tag pattern matches by their tier", () => {
+      const results = bandsOf(database.search("user service"));
+      assert.equal(results["userservice"], 1);
+      assert.equal(results["UserServiceImpl"], 2);
+      assert.equal(results["MyUserService"], 3);
+      assert.equal(results["ServiceUser"], 3);
+      assert.equal(bandsOf(database.search("usr svc"))["userservice"], 4);
+    });
+
+    it("should tag path query matches by leaf match", () => {
+      const leaf = bandsOf(database.search("src/models/User"));
+      assert.equal(leaf["User.ts"], 1);
+      assert.equal(leaf["UserProfile.ts"], 2);
+      assert.equal(leaf["find"], 3);
+      assert.equal(bandsOf(database.search("models/User.find"))["find"], 2);
+      assert.equal(bandsOf(database.search("src/models/"))["find"], 3);
+    });
+
+    it("should tag empty query listings with band 3", () => {
+      assert.isTrue(database.search("").every((r) => r.matchBand === 3));
+    });
+
+    it("should return plain query results in non-decreasing band order", () => {
+      for (const query of ["handler", "hndlr", "usi", "us", "ServImpl", "user", "save"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return qualified query results in non-decreasing band order", () => {
+      for (const query of ["UserService.save", "UserService.", "user.service.ts", "User.find"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return pattern query results in non-decreasing band order", () => {
+      for (const query of ["user service", "service user", "usr svc", "user*impl"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+
+    it("should return path query results in non-decreasing band order", () => {
+      for (const query of ["src/models/User", "models/User.find", "src/models/", "workspace/src"]) {
+        assertNonDecreasingBands(query);
+      }
+    });
+  });
+
   describe("extractCleanName and extractCleanStem", () => {
     it("should extract normalized clean name without punctuation", () => {
       assert.equal(database.extractCleanName("MapService"), "mapservice");
