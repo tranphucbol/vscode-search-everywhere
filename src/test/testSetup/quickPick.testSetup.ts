@@ -2,7 +2,9 @@ import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
+import { database } from "../../database";
 import { quickPick } from "../../quickPick";
+import { recentItems } from "../../recentItems";
 import { Icons } from "../../types";
 import { utils } from "../../utils";
 import { getQuickPickOnDidChangeValueEventListeners } from "../util/eventMockFactory";
@@ -445,6 +447,52 @@ export const getTestSetups = () => {
         ];
 
         return itemsWithSeparator;
+      },
+
+      setupForRecentKeys: (query: string, rankRecentItemsHigher: boolean) => {
+        const control = vscode.window.createQuickPick<vscode.QuickPickItem>();
+        control.value = query;
+        const recentKeys = [{ uri: "file:///a.ts", symbolKind: 0, name: "a" }];
+        const [, , , , , , , searchStub, getRecentKeysStub] = stubMultiple(
+          [
+            { object: quickPick, method: "getControl", returns: control },
+            {
+              object: quickPick,
+              method: "getShouldUseItemsFilterPhrases",
+              returns: false,
+            },
+            {
+              object: quickPick,
+              method: "getShouldItemsBeSorted",
+              returns: false,
+            },
+            {
+              object: config,
+              method: "fetchRankRecentItemsHigher",
+              returns: rankRecentItemsHigher,
+            },
+            {
+              object: config,
+              method: "fetchShowRecentItemsOnEmptyQuery",
+              returns: true,
+            },
+            {
+              object: recentItems,
+              method: "getRecentItems",
+              returns: [getQpItem()],
+            },
+            { object: database, method: "isReady", returns: true },
+            { object: database, method: "search", returns: [] },
+            {
+              object: recentItems,
+              method: "getRecentKeys",
+              returns: recentKeys,
+            },
+          ],
+          sandbox
+        );
+
+        return { searchStub, getRecentKeysStub, recentKeys };
       },
     },
 

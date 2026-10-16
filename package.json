@@ -200,6 +200,11 @@
           "default": 10,
           "description": "Maximum number of recent items to show when search input is empty."
         },
+        "searchEverywhere.rankRecentItemsHigher": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show recently opened files and symbols first among equally good matches while typing."
+        },
         "searchEverywhere.useFileIconTheme": {
           "type": "boolean",
           "default": false,

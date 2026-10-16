@@ -88,6 +88,10 @@ const keys = {
     name: "recentItemsLimit",
     value: 10,
   },
+  rankRecentItemsHigher: {
+    name: "rankRecentItemsHigher",
+    value: true,
+  },
   useFileIconTheme: {
     name: "useFileIconTheme",
     value: false,
@@ -261,6 +265,13 @@ export function fetchRecentItemsLimit(): number {
   return get(
     keys.recentItemsLimit.name,
     keys.recentItemsLimit.value
+  );
+}
+
+export function fetchRankRecentItemsHigher(): boolean {
+  return get(
+    keys.rankRecentItemsHigher.name,
+    keys.rankRecentItemsHigher.value
   );
 }
 

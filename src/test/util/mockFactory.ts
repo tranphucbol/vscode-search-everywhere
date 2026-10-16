@@ -70,6 +70,7 @@ export const getConfiguration = (): { [key: string]: any } => {
       excludeMode: ExcludeMode.SearchEverywhere,
       shouldWorkspaceDataBeCached: true,
       useFileIconTheme: true,
+      rankRecentItemsHigher: false,
     },
     customSection: {
       exclude: ["**/customFolder/**"],
