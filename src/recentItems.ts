@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { getRecentItems as getStoredRecentItems, updateRecentItems, clearRecentItems as clearStoredRecentItems } from "./cache";
 import { dataConverter } from "./dataConverter";
-import { extractName } from "./database";
+import { extractName, RecentKey } from "./database";
 import { QuickPickItem } from "./types";
 import { utils } from "./utils";
 
@@ -18,6 +18,7 @@ export interface StoredRecentItem {
 }
 
 const MAX_STORED_ITEMS = 50;
+export const RECENT_BOOST_LIMIT = 100;
 
 function getItemKey(
   uri: string,
@@ -138,36 +139,7 @@ export function getRecentItems(limit: number = 10): QuickPickItem[] {
 
   // Supplement ONLY with physically open editor tabs (no background LS documents)
   if (result.length < limit) {
-    const openUris: vscode.Uri[] = [];
-
-    // 1. Preferred: real tabs visible in editor tab bars (VS Code >= 1.67)
-    const tabGroups = (vscode.window as any).tabGroups;
-    const isDocumentUri = (u: any): boolean => {
-      if (!(u instanceof vscode.Uri)) {
-        return false;
-      }
-      return !["output", "debug", "vscode-terminal", "git", "walkThrough"].includes(u.scheme);
-    };
-
-    if (tabGroups && Array.isArray(tabGroups.all)) {
-      for (const group of tabGroups.all) {
-        if (group && Array.isArray(group.tabs)) {
-          for (const tab of group.tabs) {
-            const inputUri = (tab?.input as any)?.uri;
-            if (isDocumentUri(inputUri)) {
-              openUris.push(inputUri);
-            }
-          }
-        }
-      }
-    } else if (vscode.window.visibleTextEditors) {
-      // 2. Fallback: only actively visible text editors
-      for (const editor of vscode.window.visibleTextEditors) {
-        if (editor?.document?.uri && isDocumentUri(editor.document.uri)) {
-          openUris.push(editor.document.uri);
-        }
-      }
-    }
+    const openUris = getOpenEditorUris();
 
     for (const uri of openUris) {
       if (result.length >= limit) {
@@ -188,6 +160,66 @@ export function getRecentItems(limit: number = 10): QuickPickItem[] {
   return result;
 }
 
+// Only physically open editor tabs, no background language server documents.
+function getOpenEditorUris(): vscode.Uri[] {
+  const openUris: vscode.Uri[] = [];
+  const isDocumentUri = (u: any): boolean => {
+    if (!(u instanceof vscode.Uri)) {
+      return false;
+    }
+    return !["output", "debug", "vscode-terminal", "git", "walkThrough"].includes(u.scheme);
+  };
+
+  // tabGroups needs VS Code >= 1.67; older hosts only expose the visible editors.
+  const tabGroups = (vscode.window as any).tabGroups;
+  if (tabGroups && Array.isArray(tabGroups.all)) {
+    for (const group of tabGroups.all) {
+      if (group && Array.isArray(group.tabs)) {
+        for (const tab of group.tabs) {
+          const inputUri = (tab?.input as any)?.uri;
+          if (isDocumentUri(inputUri)) {
+            openUris.push(inputUri);
+          }
+        }
+      }
+    }
+  } else if (vscode.window.visibleTextEditors) {
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (editor?.document?.uri && isDocumentUri(editor.document.uri)) {
+        openUris.push(editor.document.uri);
+      }
+    }
+  }
+  return openUris;
+}
+
+// Stored history first (most recent first), then open editor tabs as files.
+export function getRecentKeys(limit: number = RECENT_BOOST_LIMIT): RecentKey[] {
+  const keys: RecentKey[] = [];
+  const seen = new Set<string>();
+  const add = (key: RecentKey) => {
+    const id = `${key.uri}#${key.symbolKind}#${key.name}`;
+    if (keys.length < limit && !seen.has(id)) {
+      seen.add(id);
+      keys.push(key);
+    }
+  };
+
+  for (const it of getStoredRecentItems<StoredRecentItem>()) {
+    if (keys.length >= limit) {
+      return keys;
+    }
+    add({ uri: it.uri, symbolKind: it.symbolKind, name: extractName(it.label) });
+  }
+  for (const uri of getOpenEditorUris()) {
+    if (keys.length >= limit) {
+      break;
+    }
+    add({ uri: uri.toString(), symbolKind: 0, name: utils.getNameFromUri(uri) });
+  }
+  return keys;
+}
+
 export function clearRecentItems(): void {
   clearStoredRecentItems();
 }
@@ -195,5 +227,6 @@ export function clearRecentItems(): void {
 export const recentItems = {
   addRecentItem,
   getRecentItems,
+  getRecentKeys,
   clearRecentItems,
 };
