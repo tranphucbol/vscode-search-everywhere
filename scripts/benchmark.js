@@ -106,6 +106,11 @@ async function runBenchmark(itemCount = 50000) {
     "Handler Service",
     "Serv*42",
     "xyz notfound",
+    "SerHan",
+    "ISH",
+    "HTTPSrv",
+    "i1s",
+    "ish",
   ];
   const t0OldSearch = Date.now();
   let oldMatches = 0;

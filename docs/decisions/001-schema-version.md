@@ -9,6 +9,10 @@ The SQLite index records its schema version in `PRAGMA user_version` (`SCHEMA_VE
 deletes every row, marks the database as not seeded from the template, and sets the new version. The
 workspace is then reindexed as on a first start.
 
+Amended for version 2: the word columns `clean_words` and `clean_initials` derive from `name` and
+`symbol_kind`, so a version 1 database keeps its rows and `migrateSchema` backfills the new columns in
+place. Only the step from version 0 still clears the index.
+
 ## Rationale
 
 Columns added before (`clean_name`, `clean_stem`) were introduced with a `try/catch` around
@@ -23,8 +27,8 @@ which `ALTER` statements failed.
 
 ## Consequences
 
-- Every bump of `SCHEMA_VERSION` costs existing users one full reindex, including databases copied from the
+- A bump that clears rows costs existing users one full reindex, including databases copied from the
   shared worktree cache, which arrive with the old version and are cleared on open.
-- Columns that can be derived from stored data may still be backfilled in SQL; bump the version only when
-  rows cannot be repaired in place.
+- Bump the version to run a one-time migration; rows that can be derived from stored columns are
+  backfilled, the rest are cleared and reindexed.
 - The cleared database is logged, so a slow first start after an upgrade is explainable from the output.

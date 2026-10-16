@@ -547,9 +547,21 @@ describe("QuickPick", () => {
     });
 
     it("should not set alwaysShow for an unqualified query", () => {
-      const { loaded } = loadWithQuery("UserService");
+      const { loaded } = loadWithQuery("User");
 
       assert.isUndefined(loaded.alwaysShow);
+    });
+
+    it("should keep CamelHumps results visible with alwaysShow", () => {
+      const { loaded, searchStub } = loadWithQuery("uSerImp");
+
+      assert.equal(searchStub.firstCall.args[0], "uSerImp");
+      assert.isTrue(loaded.alwaysShow);
+      assert.isTrue(loadWithQuery("max_v").loaded.alwaysShow);
+    });
+
+    it("should not set alwaysShow for an initials query", () => {
+      assert.isUndefined(loadWithQuery("usi").loaded.alwaysShow);
     });
 
     it("should combine a qualified query with a line suffix", () => {
@@ -577,7 +589,7 @@ describe("QuickPick", () => {
     });
 
     it("should not set alwaysShow for a single word with trailing space", () => {
-      assert.isUndefined(loadWithQuery("UserService ").loaded.alwaysShow);
+      assert.isUndefined(loadWithQuery("User ").loaded.alwaysShow);
     });
   });
 
