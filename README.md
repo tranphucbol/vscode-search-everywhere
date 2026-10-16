@@ -98,6 +98,10 @@ After the scan is completed, the extension continuously tracks changes in the wo
 
 * Directory + name: a query with `/` matches the part after the last `/` against names inside that directory (e.g. `src/models/User` or `models/User.find`), then falls back to matching the path.
 
+* Multi-word search: space-separated words match in any order (e.g. `impl user` or `service impl` finds `UserServiceImpl`). Every word must match; exact and in-order matches rank first.
+
+* Wildcards: `*` matches any run of characters within a word, in order (e.g. `user*impl` finds `UserServiceImpl`). `?` is not a wildcard, and `%` and `_` always match literally. Queries containing `/` use the directory search above instead of multi-word and `*` matching.
+
 * Dedicated output with logs related to triggered actions, scanned directories structure, etc.
 
 * Ability to decide whether the items should be sorted by type

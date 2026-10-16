@@ -165,6 +165,19 @@ export function extractCleanContainer(container?: string): string {
     .join(".");
 }
 
+const LIKE_ESCAPE = "ESCAPE '\\'";
+const LIKE_SPECIAL_CHARS = /[\\%_]/;
+
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+// The three-argument like() made every search about 9% slower in scripts/benchmark.js,
+// so the ESCAPE clause is only added when escapeLike actually changed the text.
+function likeEscape(value: string): string {
+  return LIKE_SPECIAL_CHARS.test(value) ? LIKE_ESCAPE : "";
+}
+
 const QUALIFIER_REGEX = /\.|#|::/g;
 
 export interface QualifiedQuery {
@@ -189,6 +202,40 @@ export function parseQualifiedQuery(query: string): QualifiedQuery | undefined {
     return undefined;
   }
   return { container, member };
+}
+
+export interface PatternQuery {
+  /** Escaped LIKE fragments, one per word, with `*` gaps turned into `%`, e.g. "user%impl". */
+  words: string[];
+  /** The cleaned words concatenated without escaping, e.g. "userimpl". */
+  joined: string;
+}
+
+/**
+ * Returns undefined unless the query is a pattern query: no `/`, and either a `*` or at
+ * least two whitespace-separated words. A query of only `*` yields no words.
+ */
+export function parsePatternQuery(query: string): PatternQuery | undefined {
+  if (!query || query.includes("/")) {
+    return undefined;
+  }
+  const rawWords = query.split(/\s+/).filter((word) => word);
+  if (rawWords.length < 2 && !query.includes("*")) {
+    return undefined;
+  }
+  const words: string[] = [];
+  let joined = "";
+  for (const rawWord of rawWords) {
+    const pieces = rawWord
+      .split("*")
+      .map(extractCleanName)
+      .filter((piece) => piece);
+    if (pieces.length) {
+      words.push(pieces.map(escapeLike).join("%"));
+      joined += pieces.join("");
+    }
+  }
+  return { words, joined };
 }
 
 export interface PathQuery {
@@ -411,7 +458,7 @@ export function deleteByUriPrefix(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  db.run("DELETE FROM symbols WHERE uri LIKE ?", [uriPath + "%"]);
+  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, [escapeLike(uriPath) + "%"]);
 }
 
 export interface SearchOptions {
@@ -433,20 +480,20 @@ function queryQualifiedRows(
   baseWhere: string,
   params: any[],
   kindSort: string,
-  limit: number
+  limit: number,
+  esc: string
 ): any[][] {
   if (!db || limit <= 0) {
     return [];
   }
   const { container, member } = qualified;
-  const matchClause =
-    "symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? AND clean_container LIKE ?";
+  const matchClause = `symbol_kind != 0 AND clean_container != '' AND clean_name LIKE ? ${esc} AND clean_container LIKE ? ${esc}`;
   const where = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
   const sql = `
     SELECT ${QUERY_COLUMNS},
       CASE
-        WHEN (clean_container = ? OR clean_container LIKE ?) AND clean_name = ? THEN 1
-        WHEN clean_container = ? OR clean_container LIKE ? THEN 2
+        WHEN (clean_container = ? OR clean_container LIKE ? ${esc}) AND clean_name = ? THEN 1
+        WHEN clean_container = ? OR clean_container LIKE ? ${esc} THEN 2
         ELSE 3
       END AS tier
     FROM symbols
@@ -458,7 +505,7 @@ function queryQualifiedRows(
       name COLLATE NOCASE ASC
     LIMIT ${limit}
   `;
-  const immediateParent = `%.${container}`;
+  const immediateParent = `%.${escapeLike(container)}`;
   const results = db.exec(sql, [
     container,
     immediateParent,
@@ -466,13 +513,105 @@ function queryQualifiedRows(
     container,
     immediateParent,
     ...params,
-    `${member}%`,
-    `%${container}%`,
+    `${escapeLike(member)}%`,
+    `%${escapeLike(container)}%`,
   ]);
   return results && results.length ? results[0].values : [];
 }
 
+// Every word must occur in clean_stem or clean_name. Tier 1: the joined words are the whole
+// name, 2: the words appear in order from the start, 3: in order anywhere, 4: any order.
+function queryPatternRows(
+  pattern: PatternQuery,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number,
+  esc: string
+): any[][] {
+  if (!db || limit <= 0 || !pattern.words.length) {
+    return [];
+  }
+  const { words, joined } = pattern;
+  const wordClause = words
+    .map(() => `(clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})`)
+    .join(" AND ");
+  const where = baseWhere ? `${baseWhere} AND ${wordClause}` : `WHERE ${wordClause}`;
+  const ordered = words.join("%");
+  const sql = `
+    SELECT ${QUERY_COLUMNS},
+      CASE
+        WHEN clean_stem = ? OR clean_name = ? THEN 1
+        WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 2
+        WHEN clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} THEN 3
+        ELSE 4
+      END AS tier
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      tier ASC,
+      CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const wordParams = words.flatMap((word) => [`%${word}%`, `%${word}%`]);
+  const results = db.exec(sql, [
+    joined,
+    joined,
+    `${ordered}%`,
+    `${ordered}%`,
+    `%${ordered}%`,
+    `%${ordered}%`,
+    ...params,
+    ...wordParams,
+  ]);
+  return results && results.length ? results[0].values : [];
+}
+
+// Subsequence matches that are not already substring matches of the query. rawQuery also
+// excludes substring matches on the raw name; pattern queries have no single raw form.
+function queryFuzzyRows(
+  cleanQuery: string,
+  rawQuery: string | undefined,
+  baseWhere: string,
+  params: any[],
+  kindSort: string,
+  limit: number,
+  esc: string
+): any[][] {
+  if (!db || limit <= 0) {
+    return [];
+  }
+  const fuzzyPattern = "%" + cleanQuery.split("").map(escapeLike).join("%") + "%";
+  const cleanSubstring = `%${escapeLike(cleanQuery)}%`;
+  const exclusions = [`clean_stem NOT LIKE ? ${esc}`, `clean_name NOT LIKE ? ${esc}`];
+  const exclusionParams = [cleanSubstring, cleanSubstring];
+  if (rawQuery !== undefined) {
+    exclusions.push(`name NOT LIKE ? ${esc}`);
+    exclusionParams.push(`%${escapeLike(rawQuery)}%`);
+  }
+  const fuzzyClause = `(clean_stem LIKE ? ${esc} OR name LIKE ? ${esc}) AND ${exclusions.join(" AND ")}`;
+  const where = baseWhere ? `${baseWhere} AND ${fuzzyClause}` : `WHERE ${fuzzyClause}`;
+  const sql = `
+    SELECT ${QUERY_COLUMNS}
+    FROM symbols
+    ${where}
+    ORDER BY
+      ${kindSort}
+      CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
+      LENGTH(name) ASC,
+      name COLLATE NOCASE ASC
+    LIMIT ${limit}
+  `;
+  const results = db.exec(sql, [...params, fuzzyPattern, fuzzyPattern, ...exclusionParams]);
+  return results && results.length ? results[0].values : [];
+}
+
 const SEARCH_CACHE_MAX_SIZE = 50;
+const SUBSTRING_MIN_THRESHOLD = 50;
+const FUZZY_MIN_THRESHOLD = 10;
 const searchCache = new Map<string, QuickPickItem[]>();
 
 export function clearSearchCache(): void {
@@ -528,14 +667,15 @@ export function search(
     if (options.ignoredNames && options.ignoredNames.length > 0) {
       for (const ign of options.ignoredNames) {
         if (ign) {
-          conditions.push("name NOT LIKE ?");
-          params.push(`%${ign}%`);
+          conditions.push(`name NOT LIKE ? ${likeEscape(ign)}`);
+          params.push(`%${escapeLike(ign)}%`);
         }
       }
     }
   }
 
   const baseWhere = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const esc = likeEscape(query);
 
   let matchedItems: QuickPickItem[] = [];
   const seenKeys = new Set<string>();
@@ -550,7 +690,9 @@ export function search(
     }
   };
 
-  if (!query) {
+  const pattern = parsePatternQuery(query);
+
+  if (!query || (pattern && !pattern.words.length)) {
     const sortOrder = options?.fileUri
       ? "range_start_line ASC, range_start_char ASC"
       : options?.sortByKind
@@ -563,19 +705,43 @@ export function search(
     if (results && results.length) {
       addItemsFromRows(results[0].values);
     }
+  } else if (pattern) {
+    const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+    const patternRows = queryPatternRows(pattern, baseWhere, params, kindSort, limit, esc);
+    addItemsFromRows(patternRows);
+
+    if (
+      !patternRows.some((row) => row[9] === 1) &&
+      matchedItems.length < FUZZY_MIN_THRESHOLD &&
+      matchedItems.length < limit &&
+      pattern.joined.length >= 2
+    ) {
+      const remaining = Math.min(
+        limit - matchedItems.length,
+        SUBSTRING_MIN_THRESHOLD - matchedItems.length
+      );
+      const cap = matchedItems.length + remaining;
+      // Over-fetch: unlike the plain search, ordered matches are not excluded in SQL and
+      // only drop out in addItemsFromRows.
+      addItemsFromRows(
+        queryFuzzyRows(pattern.joined, undefined, baseWhere, params, kindSort, cap, esc)
+      );
+      matchedItems = matchedItems.slice(0, cap);
+    }
   } else if (query.includes("/")) {
     const { dir, leaf } = splitPathQuery(query);
     const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
 
     if (leaf) {
-      const dirClause = "uri LIKE ?";
+      const dirClause = `uri LIKE ? ${esc}`;
       const dirWhere = baseWhere ? `${baseWhere} AND ${dirClause}` : `WHERE ${dirClause}`;
-      const dirParams = [...params, `%${dir}/%`];
+      const dirParams = [...params, `%${escapeLike(dir)}/%`];
       const cleanLeaf = extractCleanName(leaf);
 
       if (cleanLeaf) {
+        const leafPrefix = `${escapeLike(cleanLeaf)}%`;
         const leafResults = db.exec(
-          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? OR clean_name LIKE ?)
+          `SELECT ${QUERY_COLUMNS} FROM symbols ${dirWhere} AND (clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc})
           ORDER BY
             ${kindSort}
             CASE WHEN clean_stem = ? OR clean_name = ? THEN 0 ELSE 1 END ASC,
@@ -583,7 +749,7 @@ export function search(
             LENGTH(name) ASC,
             name COLLATE NOCASE ASC
           LIMIT ${limit}`,
-          [...dirParams, `${cleanLeaf}%`, `${cleanLeaf}%`, cleanLeaf, cleanLeaf]
+          [...dirParams, leafPrefix, leafPrefix, cleanLeaf, cleanLeaf]
         );
         if (leafResults && leafResults.length) {
           addItemsFromRows(leafResults[0].values);
@@ -593,17 +759,17 @@ export function search(
       const qualifiedLeaf = parseQualifiedQuery(leaf);
       if (qualifiedLeaf) {
         addItemsFromRows(
-          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length)
+          queryQualifiedRows(qualifiedLeaf, dirWhere, dirParams, kindSort, limit - matchedItems.length, esc)
         );
       }
     }
 
     if (matchedItems.length < limit) {
-      const matchClause = "uri LIKE ?";
+      const matchClause = `uri LIKE ? ${esc}`;
       const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
       const results = db.exec(
         `SELECT ${QUERY_COLUMNS} FROM symbols ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
-        [...params, `%${query}%`]
+        [...params, `%${escapeLike(query)}%`]
       );
       if (results && results.length) {
         addItemsFromRows(results[0].values);
@@ -612,21 +778,25 @@ export function search(
     }
   } else {
     const cleanQuery = extractCleanName(query);
+    const cleanLike = escapeLike(cleanQuery);
+    const rawLike = escapeLike(query);
     const kindSort = options?.sortByKind ? "symbol_kind ASC, " : "";
+    const nameLikeAny = `(clean_stem LIKE ? ${esc} OR clean_name LIKE ? ${esc} OR name LIKE ? ${esc})`;
+    const notPrefixed = `clean_stem NOT LIKE ? ${esc} AND clean_name NOT LIKE ? ${esc} AND name NOT LIKE ? ${esc}`;
 
     // Stage 1: Exact and Prefix matches on clean_stem, clean_name, or name
     // Ranked by relevance:
     // 1: Exact match on stem / clean_name / raw name
     // 2: Prefix match on stem / clean_name / raw name
     const stage1Where = baseWhere
-      ? `${baseWhere} AND (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)`
-      : `WHERE (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)`;
+      ? `${baseWhere} AND ${nameLikeAny}`
+      : `WHERE ${nameLikeAny}`;
 
     const stage1Sql = `
       SELECT ${QUERY_COLUMNS},
         CASE
           WHEN clean_stem = ? OR clean_name = ? OR name = ? COLLATE NOCASE THEN 1
-          WHEN clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ? THEN 2
+          WHEN ${nameLikeAny} THEN 2
           ELSE 3
         END AS relevance
       FROM symbols
@@ -644,13 +814,13 @@ export function search(
       cleanQuery,
       cleanQuery,
       query,
-      `${cleanQuery}%`,
-      `${cleanQuery}%`,
-      `${query}%`,
+      `${cleanLike}%`,
+      `${cleanLike}%`,
+      `${rawLike}%`,
       ...params,
-      `${cleanQuery}%`,
-      `${cleanQuery}%`,
-      `${query}%`,
+      `${cleanLike}%`,
+      `${cleanLike}%`,
+      `${rawLike}%`,
     ];
 
     const stage1Results = db.exec(stage1Sql, stage1Params);
@@ -666,7 +836,8 @@ export function search(
         baseWhere,
         params,
         kindSort,
-        limit - matchedItems.length
+        limit - matchedItems.length,
+        esc
       );
       addItemsFromRows(qualifiedRows);
       hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
@@ -677,7 +848,6 @@ export function search(
     }
 
     // Stage 2: Substring matches if we have space left
-    const SUBSTRING_MIN_THRESHOLD = 50;
     if (matchedItems.length < SUBSTRING_MIN_THRESHOLD && matchedItems.length < limit) {
       const remaining = Math.min(
         limit - matchedItems.length,
@@ -685,10 +855,8 @@ export function search(
       );
 
       const stage2Where = baseWhere
-        ? `${baseWhere} AND (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`
-        : `WHERE (clean_stem LIKE ? OR clean_name LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`;
+        ? `${baseWhere} AND ${nameLikeAny} AND ${notPrefixed}`
+        : `WHERE ${nameLikeAny} AND ${notPrefixed}`;
 
       const stage2Sql = `
         SELECT ${QUERY_COLUMNS}
@@ -704,12 +872,12 @@ export function search(
 
       const stage2Params = [
         ...params,
-        `%${cleanQuery}%`,
-        `%${cleanQuery}%`,
-        `%${query}%`,
-        `${cleanQuery}%`,
-        `${cleanQuery}%`,
-        `${query}%`,
+        `%${cleanLike}%`,
+        `%${cleanLike}%`,
+        `%${rawLike}%`,
+        `${cleanLike}%`,
+        `${cleanLike}%`,
+        `${rawLike}%`,
       ];
 
       const stage2Results = db.exec(stage2Sql, stage2Params);
@@ -722,7 +890,6 @@ export function search(
     // - No exact matches were found in Stage 1 (!hasExactMatch)
     // - Direct matches are few (< FUZZY_MIN_THRESHOLD)
     // - Query length >= 2
-    const FUZZY_MIN_THRESHOLD = 10;
     if (
       !hasExactMatch &&
       matchedItems.length < FUZZY_MIN_THRESHOLD &&
@@ -733,39 +900,9 @@ export function search(
         limit - matchedItems.length,
         SUBSTRING_MIN_THRESHOLD - matchedItems.length
       );
-      const fuzzyPattern = "%" + cleanQuery.split("").join("%") + "%";
-
-      const stage3Where = baseWhere
-        ? `${baseWhere} AND (clean_stem LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`
-        : `WHERE (clean_stem LIKE ? OR name LIKE ?)
-           AND clean_stem NOT LIKE ? AND clean_name NOT LIKE ? AND name NOT LIKE ?`;
-
-      const stage3Sql = `
-        SELECT ${QUERY_COLUMNS}
-        FROM symbols
-        ${stage3Where}
-        ORDER BY
-          ${kindSort}
-          CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
-          LENGTH(name) ASC,
-          name COLLATE NOCASE ASC
-        LIMIT ${remaining}
-      `;
-
-      const stage3Params = [
-        ...params,
-        fuzzyPattern,
-        fuzzyPattern,
-        `%${cleanQuery}%`,
-        `%${cleanQuery}%`,
-        `%${query}%`,
-      ];
-
-      const stage3Results = db.exec(stage3Sql, stage3Params);
-      if (stage3Results && stage3Results.length) {
-        addItemsFromRows(stage3Results[0].values);
-      }
+      addItemsFromRows(
+        queryFuzzyRows(cleanQuery, query, baseWhere, params, kindSort, remaining, esc)
+      );
     }
   }
 
@@ -956,6 +1093,8 @@ export const database = {
   extractCleanName,
   extractCleanStem,
   extractCleanContainer,
+  escapeLike,
   parseQualifiedQuery,
+  parsePatternQuery,
   splitPathQuery,
 };
