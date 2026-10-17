@@ -41,14 +41,16 @@ Run these from the repository root.
   attaches it to a GitHub release. Running it by hand with `check-publishing` prints the
   identity's Marketplace ID (it must be a Contributor member of the publisher), verifies publish
   rights on both registries and creates the Open VSX namespace if it is missing
+- `npm run check:cycles` - `madge` fails on any import cycle in `src/`
 - `node scripts/benchmark.js` - the search benchmark against a mocked `vscode`; it loads
-  `dist/database.js`, so compile first
+  `dist/database/`, so compile first
 
 ## Verify
 
 Run these before considering a change done:
 
 - `npm run compile`
+- `npm run check:cycles`
 - `npm test`
 - for a change to `src/` that a user can see (the quick pick, keys, indexing, settings), the
   `local-testing` skill in `.agents/skills/local-testing/`: it runs the extension in a real VS
@@ -59,25 +61,35 @@ Run these before considering a change done:
 
 ```
 src/extension.ts            activation; registers the commands and wires the modules
-src/controller.ts           the command handlers: search, reload, open to the side, file scope
-src/quickPick.ts            the QuickPick UI: query parsing (filter phrases, `:line`), item
-                            loading, buttons, file-scope navigation, opening an item
-src/database.ts             the SQLite index: schema, B-tree indexes, the tiered search query,
-                            the LRU result cache
-src/dataService.ts          finds files and asks VS Code for each file's document symbols
-src/dataConverter.ts        turns files and symbols into QuickPickItems (label, detail, icon)
-src/workspace*.ts           indexing, incremental updates and removals on file events
-src/actionProcessor*.ts     the serial queue of rebuild/update/remove actions; coalesces
-                            queued duplicates before running the next one
-src/cache.ts                workspaceState persistence; config snapshot, unsaved URIs
-src/gitService.ts           repository fingerprint and modified files for the shared
-                            worktree cache
-src/recentItems.ts          recent items and open editors shown on an empty query
-src/config.ts               every `searchEverywhere.*` setting is read here
-src/patternProvider.ts      include/exclude globs, including the gitignore mode
-src/types.ts                shared types; declares fields newer than the pinned @types/vscode
-src/test/test/              one `<module>.test.ts` per module
-src/test/testSetup/         the stubs and fixtures each suite wires up
+src/commands/controller.ts  the command handlers: search, reload, open to the side, file scope
+src/quickPick/              the QuickPick UI. quickPick.ts holds the lifecycle and event
+                            handlers and the `quickPick` facade the controller calls; state.ts
+                            the shared session state; query (filter phrases, `:line`,
+                            hand-off), itemLoader, liveResults, categories, title, fileScope,
+                            open, preview, positions, copy, help, handOff, itemDecoration,
+                            recentItems
+src/database/               the SQLite index. index.ts is the `database` facade; state.ts the
+                            connection and dirty flags; schema (version, migrations), store
+                            (writes, file state), search (tiered query, LRU cache), queryText
+                            (query parsing), secondary (test/generated code), persistence
+                            (file, shared worktree template)
+src/indexing/               workspace (event wiring), workspaceIndexer (full index),
+                            workspaceUpdater/Remover (incremental), workspaceReconciler (sync
+                            with disk), fileWatcher, actionProcessor (the serial queue of
+                            rebuild/update/remove actions; coalesces queued duplicates)
+src/symbols/                dataService finds files and asks VS Code for document symbols;
+                            dataConverter turns them into QuickPickItems; liveSymbols asks the
+                            workspace symbol provider; reference builds copy references
+src/platform/               config (every `searchEverywhere.*` setting is read here), presets,
+                            cache (workspaceState: config snapshot, unsaved URIs), logger,
+                            gitService (fingerprint, modified files for the shared worktree
+                            cache), patternProvider (include/exclude globs, gitignore mode)
+src/shared/                 no feature imports: types (declares fields newer than the pinned
+                            @types/vscode), events (every EventEmitter), async, glob, paths,
+                            collections, messages, vscodeVersion, workspaceFolders
+src/test/<folder>/          `<module>.test.ts` and `<module>.testSetup.ts` side by side,
+                            mirroring `src/<folder>/`
+src/test/fixtures/          recorded language server symbols
 src/test/util/              mock and stub factories shared by the suites
 scripts/                    publish.js, benchmark.js
 .agents/skills/             project skills; local-testing drives a real VS Code
@@ -88,17 +100,22 @@ docs/plans/                 working implementation plans; only the template is t
 ## Conventions
 
 - `engines.vscode` is `^1.64.0` and `@types/vscode` is pinned to `1.64.0`. A newer API is
-  feature-detected at runtime and declared in `src/types.ts` (see `iconPath` and
+  feature-detected at runtime and declared in `src/shared/types.ts` (see `iconPath` and
   `resourceUri`); it must degrade on older hosts rather than raise the floor silently.
 - A new setting goes in `package.json` `contributes.configuration`, gets a `fetch*` reader in
-  `src/config.ts`, and is documented in the README settings list in the same change.
+  `src/platform/config.ts`, and is documented in the README settings list in the same change.
 - A database schema change invalidates every cached index, including the shared worktree cache;
   say how existing users get a reindex.
 - Keep the search path cheap: it runs on every keystroke against indexes of millions of rows.
-  Measure with `scripts/benchmark.js` when touching `src/database.ts`.
-- Add focused coverage for changed behaviour in the module's `src/test/test/*.test.ts`, with
-  setup in the matching `src/test/testSetup/*.testSetup.ts`. Test names follow the existing
-  `it("should …")` form.
+  Measure with `scripts/benchmark.js` when touching `src/database/`.
+- A new module goes in the feature folder that owns it; `shared/` is for code with no feature
+  imports. Modules export one object (`export const quickPick = { … }`) and call their own
+  functions through it, so tests can stub them with sinon. When a feature folder needs shared
+  mutable state across its files, it lives in that folder's `state.ts`, which keeps imports
+  acyclic.
+- Add focused coverage for changed behaviour in `src/test/<folder>/<module>.test.ts`, with
+  setup in the matching `<module>.testSetup.ts` next to it. Stub what a test reads rather than
+  relying on state another suite left behind. Test names follow the existing `it("should …")` form.
 - Match surrounding TypeScript style and keep changes scoped. Avoid speculative abstractions and
   unrelated refactors.
 

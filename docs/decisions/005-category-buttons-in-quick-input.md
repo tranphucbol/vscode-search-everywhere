@@ -13,9 +13,9 @@ It is now `Search Everywhere` or `Search Everywhere · <category>`.
 
 The buttons are `QuickInputButton`s:
 
-- On VS Code 1.109 and later (`utils.supportsQuickInputButtonToggle()`) they use
+- On VS Code 1.109 and later (`vscodeVersion.supportsQuickInputButtonToggle()`) they use
   `location: Inline` (2) and `toggle: { checked }`, and exactly one is checked. `location` and
-  `toggle` are declared on `CategoryButton` in `src/types.ts` because `@types/vscode` is pinned to
+  `toggle` are declared on `CategoryButton` in `src/shared/types.ts` because `@types/vscode` is pinned to
   1.64.
 - Before 1.109 they are plain title-bar buttons, and the active one shows the `check` icon in place
   of its own.
