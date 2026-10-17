@@ -71,6 +71,11 @@ const stubFetchingItems = (sandbox: sinon.SinonSandbox) => {
         method: "executeCommand",
         returns: Promise.resolve(getDocumentSymbolItemSingleLineArray(1)),
       },
+      {
+        object: vscode.workspace,
+        method: "openTextDocument",
+        returns: Promise.resolve({ languageId: "typescript" }),
+      },
     ],
     sandbox
   );
