@@ -100,6 +100,9 @@ worktrees and local clones of the same repository share one cache.
   `Search Everywhere` for All, `Search Everywhere · Types` for Types. After a click the keyboard
   focus is on the results list, where arrows, `enter` and `alt + arrow` keys work; click the input
   to type again. Categories are configurable with `searchEverywhere.categories`.
+
+  ![Categories](img/categories.gif)
+
 - **Filter phrases**: map a phrase to a single item type with
   `searchEverywhere.itemsFilterPhrases` (none by default). When a phrase is used by both, the
   category wins. Type the help phrase (`?`, `searchEverywhere.helpPhrase`) to list the categories
