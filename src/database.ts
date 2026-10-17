@@ -123,7 +123,7 @@ export async function initDatabase(
                 }
               }
 
-              const data = db.export();
+              const data = exportDatabase();
               fs.writeFileSync(dbPath, Buffer.from(data));
 
               seededFromTemplate = true;
@@ -144,7 +144,12 @@ export async function initDatabase(
     }
   }
 
-  // Performance PRAGMAs for SQLite WASM
+  applyConnectionPragmas();
+
+  createTables();
+}
+
+function applyConnectionPragmas(): void {
   try {
     db.run("PRAGMA synchronous = OFF;");
     db.run("PRAGMA journal_mode = MEMORY;");
@@ -153,8 +158,15 @@ export async function initDatabase(
   } catch {
     // Ignore PRAGMA errors on in-memory databases
   }
+}
 
-  createTables();
+// sql.js closes and reopens the connection to export it, which puts every PRAGMA back to its
+// default (sql-wasm-debug.js, Database.export); without re-applying them search reads through
+// a 2 MB page cache for the rest of the session.
+function exportDatabase(): Uint8Array {
+  const data = db.export();
+  applyConnectionPragmas();
+  return data;
 }
 
 export function extractName(label: string): string {
@@ -1597,7 +1609,7 @@ export function isEmpty(): boolean {
 export function persistToFile(): void {
   if (db && dbPath) {
     try {
-      const data = db.export();
+      const data = exportDatabase();
       const buffer = Buffer.from(data);
       fs.writeFileSync(dbPath, buffer);
 

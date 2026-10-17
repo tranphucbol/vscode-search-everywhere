@@ -1497,6 +1497,30 @@ describe("Database", () => {
     });
   });
 
+  describe("persistence", () => {
+    const loadSqlJs = () =>
+      require("sql.js")({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+
+    it("should keep cache_size and temp_store after an export", async () => {
+      const SQL = await loadSqlJs();
+      const exportSpy = sinon.spy(SQL.Database.prototype, "export");
+      try {
+        database.insertSymbol(item1);
+        await database.persistToFile();
+
+        assert.isTrue(exportSpy.calledOnce);
+        const connection = exportSpy.thisValues[0];
+        assert.equal(connection.exec("PRAGMA cache_size")[0].values[0][0], -64000);
+        assert.equal(connection.exec("PRAGMA temp_store")[0].values[0][0], 2);
+      } finally {
+        exportSpy.restore();
+      }
+    });
+  });
+
   describe("deleteByUri", () => {
     it("should delete symbol by exact uri", () => {
       database.insertSymbolsBatch([item1, item2, item3]);
