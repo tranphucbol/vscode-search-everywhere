@@ -193,6 +193,11 @@
           "default": true,
           "description": "Put the last workspace query back, selected, when the search is opened again. Typing replaces it. A non-empty editor selection still wins when shouldSearchSelection is on."
         },
+        "searchEverywhere.handOffPrefixes": {
+          "type": "boolean",
+          "default": true,
+          "description": "A query typed with > as its first character opens the VS Code command palette, and one starting with % opens VS Code's text search, with the rest of the query. A category or filter phrase starting with the same character still wins."
+        },
         "searchEverywhere.exclude": {
           "type": "array",
           "default": [

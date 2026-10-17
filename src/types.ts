@@ -86,6 +86,8 @@ export interface ItemsFilterPhrases {
   [symbolKind: number]: string;
 }
 
+export type HandOffTarget = "commands" | "text";
+
 // 1 exact, 2 strong (prefix, anchored), 3 weak (substring, later word, any order), 4 fuzzy.
 export type MatchBand = 1 | 2 | 3 | 4;
 

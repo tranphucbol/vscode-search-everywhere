@@ -134,6 +134,10 @@ const keys = {
     name: "restoreLastQuery",
     value: true,
   },
+  handOffPrefixes: {
+    name: "handOffPrefixes",
+    value: true,
+  },
   indexNamesOnly: {
     name: "indexNamesOnly",
     value:
@@ -333,6 +337,10 @@ export function fetchPreviewOnSelect(): boolean {
 
 export function fetchRestoreLastQuery(): boolean {
   return get(keys.restoreLastQuery.name, keys.restoreLastQuery.value);
+}
+
+export function fetchHandOffPrefixes(): boolean {
+  return get(keys.handOffPrefixes.name, keys.handOffPrefixes.value);
 }
 
 export function fetchIndexNamesOnly(): string {
