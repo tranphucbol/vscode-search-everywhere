@@ -2,7 +2,7 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
-## [Unreleased]
+## [0.0.1] - 2026-10-17
 ### 🕘 Recently Used Results First
 - While typing, recently opened files and symbols, and open editor tabs, come first among results that match the query equally well (exact, prefix, substring, fuzzy). Typing `index` puts the `index.ts` you were just working in above the other `index.ts` files.
 - Recency never beats a better match: an exact match you never opened stays above a recent prefix match.
