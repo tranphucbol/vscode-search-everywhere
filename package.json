@@ -303,6 +303,7 @@
     "gulp-string-replacer": "^1.2.2",
     "istanbul": "^0.4.5",
     "mocha": "^10.8.2",
+    "playwright-core": "^1.64.1",
     "remap-istanbul": "^0.13.0",
     "rimraf": "^3.0.2",
     "sinon": "^9.2.4",

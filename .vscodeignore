@@ -3,6 +3,7 @@
 .github/**
 docs/**
 gdb/**
+.agents/**
 img/**
 !img/logo.png
 AGENTS.md
