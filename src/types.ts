@@ -82,6 +82,12 @@ export interface CategoryButton extends vscode.QuickInputButton {
   toggle?: { checked: boolean };
 }
 
+export interface LibraryButton extends vscode.QuickInputButton {
+  includeLibraries: true;
+  location?: number;
+  toggle?: { checked: boolean };
+}
+
 export interface ItemsFilterPhrases {
   [symbolKind: number]: string;
 }

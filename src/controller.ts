@@ -442,6 +442,10 @@ function previousCategory(): void {
   quickPick.isInitialized() && quickPick.cycleCategory(-1);
 }
 
+function toggleIncludeLibraries(): void {
+  quickPick.isInitialized() && quickPick.toggleIncludeLibraries();
+}
+
 export const controller = {
   shouldIndexOnQuickPickOpen,
   shouldLoadDataFromCacheOnQuickPickOpen,
@@ -469,6 +473,7 @@ export const controller = {
   copyLocation,
   nextCategory,
   previousCategory,
+  toggleIncludeLibraries,
   startup,
   reload,
   handleWillProcessing,

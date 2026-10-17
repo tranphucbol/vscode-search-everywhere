@@ -28,6 +28,7 @@ import {
   CategoryButton,
   HandOffTarget,
   ItemsFilterPhrases,
+  LibraryButton,
   QuickPickItem,
 } from "./types";
 import { utils } from "./utils";
@@ -59,7 +60,11 @@ const LIVE_SYMBOLS_DELAY_MS = 200;
 const MIN_LIVE_SYMBOLS_QUERY_LENGTH = 2;
 const NOT_INDEXED_SEPARATOR = "Not indexed yet";
 const LIBRARIES_SEPARATOR = "Libraries";
+const LIBRARY_ICON = "library";
+const INCLUDE_LIBRARIES_SHORTCUT =
+  process.platform === "darwin" ? "⌥⌘P" : "Ctrl+Alt+P";
 
+let includeLibraries = false;
 let liveSymbolsSequence = 0;
 let liveSymbolsTimer: ReturnType<typeof setTimeout> | undefined;
 let liveSymbolsPending = false;
@@ -223,24 +228,61 @@ function buildCategoryButtons(active?: Category): CategoryButton[] {
   });
 }
 
+function buildLibraryButton(checked: boolean): LibraryButton {
+  const tooltip = `Include libraries · ${INCLUDE_LIBRARIES_SHORTCUT}`;
+  return utils.supportsQuickInputButtonToggle()
+    ? {
+        includeLibraries: true,
+        iconPath: new vscode.ThemeIcon(LIBRARY_ICON),
+        tooltip,
+        location: INLINE_BUTTON_LOCATION,
+        toggle: { checked },
+      }
+    : {
+        includeLibraries: true,
+        iconPath: new vscode.ThemeIcon(checked ? ACTIVE_ICON : LIBRARY_ICON),
+        tooltip,
+      };
+}
+
 function updateTitle(category?: Category, forceButtons = false): void {
   const control = quickPick.getControl();
   if (!control || fileScopeUri) {
     return;
   }
   const categories = quickPick.getCategories() || [];
-  const title =
-    quickPick.getShouldUseItemsFilterPhrases() && categories.length
-      ? category
-        ? `Search Everywhere · ${category.name}`
-        : "Search Everywhere"
-      : undefined;
+  const showCategories =
+    quickPick.getShouldUseItemsFilterPhrases() && categories.length > 0;
+  const title = [
+    "Search Everywhere",
+    showCategories && category ? category.name : "",
+    includeLibraries ? "including libraries" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   // loadItems runs on every keystroke; redrawing unchanged buttons there is wasted work.
   if (control.title === title && !forceButtons) {
     return;
   }
   control.title = title;
-  control.buttons = title ? buildCategoryButtons(category) : [];
+  control.buttons = [
+    ...(showCategories ? buildCategoryButtons(category) : []),
+    buildLibraryButton(includeLibraries),
+  ];
+}
+
+function getIncludeLibraries(): boolean {
+  return includeLibraries;
+}
+
+function toggleIncludeLibraries(): void {
+  const control = quickPick.getControl();
+  if (!control || fileScopeUri) {
+    return;
+  }
+  includeLibraries = !includeLibraries;
+  updateTitle(resolveFilterPhrase(control.value || "").category, true);
+  quickPick.loadItems();
 }
 
 export function ensureUri(uri: any): vscode.Uri {
@@ -696,6 +738,7 @@ function handleDidHide() {
     void restoreEditorBeforeShow(editorBeforeShow);
   }
   isVisible = false;
+  includeLibraries = false;
   previewShown = false;
   itemAccepted = false;
   editorBeforeShow = undefined;
@@ -745,18 +788,21 @@ async function handleDidTriggerButton(button: vscode.QuickInputButton) {
     return;
   }
   const categoryIndex = (button as CategoryButton).categoryIndex;
-  if (typeof categoryIndex !== "number") {
+  if ((button as LibraryButton).includeLibraries) {
+    toggleIncludeLibraries();
+  } else if (typeof categoryIndex !== "number") {
     return;
-  }
-  const control = quickPick.getControl();
-  const categories = quickPick.getCategories() || [];
-  const { category } = resolveFilterPhrase(control?.value || "");
-  const activeIndex = category ? categories.indexOf(category) : -1;
-  if (categoryIndex === activeIndex) {
-    // VS Code has already unchecked the toggle that was clicked.
-    updateTitle(category, true);
   } else {
-    selectCategory(categoryIndex);
+    const control = quickPick.getControl();
+    const categories = quickPick.getCategories() || [];
+    const { category } = resolveFilterPhrase(control?.value || "");
+    const activeIndex = category ? categories.indexOf(category) : -1;
+    if (categoryIndex === activeIndex) {
+      // VS Code has already unchecked the toggle that was clicked.
+      updateTitle(category, true);
+    } else {
+      selectCategory(categoryIndex);
+    }
   }
   if (utils.supportsQuickInputButtonToggle()) {
     // A clicked inline toggle keeps keyboard focus, and the extension API cannot focus the
@@ -1036,6 +1082,7 @@ function show(): void {
   if (!isVisible) {
     rememberActiveEditor();
     isVisible = true;
+    includeLibraries = false;
   }
   updateTitle(resolveFilterPhrase(control.value || "").category);
   control.show();
@@ -1170,7 +1217,7 @@ function scheduleLiveSymbols(
   const includeWorkspace =
     fetchSearchLanguageServersWhileIndexing() &&
     isIndexIncomplete(hasIndexResults);
-  if (!includeWorkspace) {
+  if (!includeWorkspace && !includeLibraries) {
     return;
   }
 
@@ -1181,7 +1228,7 @@ function scheduleLiveSymbols(
     const live = await liveSymbols.fetchLiveSymbols({
       query,
       includeWorkspace,
-      includeLibraries: false,
+      includeLibraries,
       symbolKinds,
     });
     if (sequence !== liveSymbolsSequence || !isVisible) {
@@ -1562,7 +1609,10 @@ export const quickPick = {
   cycleCategory,
   selectCategory,
   buildCategoryButtons,
+  buildLibraryButton,
   updateTitle,
+  toggleIncludeLibraries,
+  getIncludeLibraries,
   disposeOnDidChangeValueEventListeners,
   invalidateSymbolCache,
   mergeLiveSymbols,

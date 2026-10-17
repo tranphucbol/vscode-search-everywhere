@@ -39,6 +39,10 @@ export function previousCategory() {
   controller.previousCategory();
 }
 
+export function toggleIncludeLibraries() {
+  controller.toggleIncludeLibraries();
+}
+
 export async function reload() {
   await controller.reload();
 }
@@ -90,6 +94,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "searchEverywhere.previousCategory",
       previousCategory
+    ),
+    vscode.commands.registerCommand(
+      "searchEverywhere.toggleIncludeLibraries",
+      toggleIncludeLibraries
     ),
     vscode.commands.registerCommand(
       "searchEverywhere.reload",

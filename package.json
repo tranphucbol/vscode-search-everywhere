@@ -34,6 +34,7 @@
     "onCommand:searchEverywhere.copyLocation",
     "onCommand:searchEverywhere.nextCategory",
     "onCommand:searchEverywhere.previousCategory",
+    "onCommand:searchEverywhere.toggleIncludeLibraries",
     "onCommand:searchEverywhere.reload",
     "onCommand:searchEverywhere.clearSharedCache"
   ],
@@ -360,6 +361,10 @@
         "title": "Search everywhere: Previous Category"
       },
       {
+        "command": "searchEverywhere.toggleIncludeLibraries",
+        "title": "Search everywhere: Include libraries"
+      },
+      {
         "command": "searchEverywhere.reload",
         "title": "Search everywhere: Reload"
       },
@@ -373,6 +378,12 @@
         "command": "searchEverywhere.search",
         "key": "ctrl+alt+p",
         "mac": "alt+cmd+p"
+      },
+      {
+        "command": "searchEverywhere.toggleIncludeLibraries",
+        "key": "ctrl+alt+p",
+        "mac": "alt+cmd+p",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
       },
       {
         "command": "searchEverywhere.searchCurrentFile",

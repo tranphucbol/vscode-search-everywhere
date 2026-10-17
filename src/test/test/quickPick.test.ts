@@ -5,7 +5,7 @@ import * as config from "../../config";
 import { database } from "../../database";
 import { ensureUri, parseLineSuffix, quickPick } from "../../quickPick";
 import { recentItems } from "../../recentItems";
-import { CategoryButton } from "../../types";
+import { CategoryButton, LibraryButton } from "../../types";
 import { utils } from "../../utils";
 import { getTestSetups } from "../testSetup/quickPick.testSetup";
 import {
@@ -911,7 +911,14 @@ describe("QuickPick", () => {
       quickPick.loadItems();
     };
 
-    const buttons = () => control.buttons as CategoryButton[];
+    const buttons = () =>
+      (control.buttons as CategoryButton[]).filter(
+        (button) => typeof button.categoryIndex === "number"
+      );
+    const libraryButton = () =>
+      (control.buttons as LibraryButton[]).find(
+        (button) => button.includeLibraries
+      );
     const buttonFor = (tooltip: string) =>
       buttons().find((button) => button.tooltip === tooltip)!;
     const checked = () =>
@@ -1035,11 +1042,12 @@ describe("QuickPick", () => {
       assert.deepEqual(checked(), ["Types (@@) · Tab"]);
     });
 
-    it("should show no category buttons when filter phrases are off", () => {
+    it("should show the library button when filter phrases are off", () => {
       open("order", { phrases: false });
 
-      assert.isUndefined(control.title);
-      assert.deepEqual(control.buttons, []);
+      assert.equal(control.title, "Search Everywhere");
+      assert.deepEqual(buttons(), []);
+      assert.match(libraryButton()?.tooltip || "", /^Include libraries · /);
     });
   });
 
