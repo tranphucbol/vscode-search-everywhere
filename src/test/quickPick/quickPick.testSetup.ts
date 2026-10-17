@@ -4,6 +4,10 @@ import * as config from "../../platform/config";
 import { dataConverter } from "../../symbols/dataConverter";
 import { database } from "../../database";
 import { quickPick } from "../../quickPick/quickPick";
+import { quickPickState } from "../../quickPick/state";
+import { itemLoader } from "../../quickPick/itemLoader";
+import { opener } from "../../quickPick/open";
+import { handOff } from "../../quickPick/handOff";
 import { recentItems } from "../../quickPick/recentItems";
 import { Icons } from "../../shared/types";
 import { vscodeVersion } from "../../shared/vscodeVersion";
@@ -23,7 +27,7 @@ function stubControl(sandbox: sinon.SinonSandbox) {
   stubMultiple(
     [
       {
-        object: quickPick,
+        object: quickPickState,
         method: "getControl",
         returns: quickPickInner,
       },
@@ -92,7 +96,7 @@ export const getTestSetups = () => {
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getOnDidChangeValueEventListeners",
               returns: [],
             },
@@ -133,7 +137,7 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getOnDidChangeValueEventListeners",
               returns: [],
             },
@@ -194,12 +198,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getOnDidChangeValueEventListeners",
               callsFake: () => listeners,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "setOnDidChangeValueEventListeners",
               callsFake: (
                 newOnDidChangeValueEventListeners: vscode.Disposable[]
@@ -223,12 +227,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getOnDidChangeValueEventListeners",
               callsFake: () => listeners,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "setOnDidChangeValueEventListeners",
               callsFake: (
                 newOnDidChangeValueEventListeners: vscode.Disposable[]
@@ -280,22 +284,22 @@ export const getTestSetups = () => {
               method: "fetchConfig",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getCategories",
               returns: [],
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHelpPhrase",
               returns: "?",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHandOffPrefixes",
               returns: false,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getItemsFilterPhrases",
               returns: {
                 "0": "$$",
@@ -326,7 +330,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: quickPickInner,
             },
@@ -339,7 +343,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: undefined,
               returnsIsUndefined: true,
@@ -361,7 +365,7 @@ export const getTestSetups = () => {
               method: "show",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: quickPickInner,
             },
@@ -383,12 +387,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getItems",
               returns: items,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldItemsBeSorted",
               returns: false,
             },
@@ -412,12 +416,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getItems",
               returns: items,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldItemsBeSorted",
               returns: true,
             },
@@ -465,14 +469,14 @@ export const getTestSetups = () => {
         const recentKeys = [{ uri: "file:///a.ts", symbolKind: 0, name: "a" }];
         const [, , , , , , , searchStub, getRecentKeysStub] = stubMultiple(
           [
-            { object: quickPick, method: "getControl", returns: control },
+            { object: quickPickState, method: "getControl", returns: control },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: false,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldItemsBeSorted",
               returns: false,
             },
@@ -513,7 +517,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHelpItems",
               returns: helpItems,
             },
@@ -547,7 +551,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: false,
             },
@@ -561,12 +565,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHelpPhrase",
               returns: "?",
             },
@@ -580,12 +584,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHelpPhrase",
               returns: "",
             },
@@ -601,7 +605,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getItems",
               returns: getQpItems(),
             },
@@ -616,7 +620,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: quickPick,
+              object: itemLoader,
               method: "loadItems",
             },
           ],
@@ -628,16 +632,16 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: quickPick,
+              object: itemLoader,
               method: "loadHelpItems",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getHelpPhrase",
               returns: "?",
             },
@@ -669,7 +673,7 @@ export const getTestSetups = () => {
               method: "openTextDocument",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: quickPickInner,
             },
@@ -714,7 +718,7 @@ export const getTestSetups = () => {
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: quickPickInner,
             },
@@ -736,21 +740,21 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: quickPick,
+              object: itemLoader,
               method: "loadItems",
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getShouldUseItemsFilterPhrases",
               returns: true,
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getItemsFilterPhrases",
               returns: { 0: "$$", 1: "@@" },
             },
             {
-              object: quickPick,
+              object: quickPickState,
               method: "getControl",
               returns: quickPickInner,
             },
@@ -824,32 +828,32 @@ export const getTestSetups = () => {
                   quickTextSearch ? ["workbench.action.quickTextSearch"] : []
                 ),
               },
-              { object: quickPick, method: "loadItems" },
-              { object: quickPick, method: "loadHelpItems" },
-              { object: quickPick, method: "getControl", returns: control },
+              { object: itemLoader, method: "loadItems" },
+              { object: itemLoader, method: "loadHelpItems" },
+              { object: quickPickState, method: "getControl", returns: control },
               {
-                object: quickPick,
+                object: quickPickState,
                 method: "getHandOffPrefixes",
                 returns: handOffPrefixes,
               },
               {
-                object: quickPick,
+                object: handOff,
                 method: "supportsQuickTextSearch",
                 returns: Promise.resolve(quickTextSearch),
               },
               {
-                object: quickPick,
+                object: quickPickState,
                 method: "getShouldUseItemsFilterPhrases",
                 returns: true,
               },
-              { object: quickPick, method: "getHelpPhrase", returns: "?" },
+              { object: quickPickState, method: "getHelpPhrase", returns: "?" },
               {
-                object: quickPick,
+                object: quickPickState,
                 method: "getCategories",
                 returns: [{ name: "Types", phrase: ">>", kinds: [4] }],
               },
               {
-                object: quickPick,
+                object: quickPickState,
                 method: "getItemsFilterPhrases",
                 returns: { 11: "ff" },
               },
@@ -878,7 +882,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: quickPick,
+              object: opener,
               method: "openItem",
             },
           ],

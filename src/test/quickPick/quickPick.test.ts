@@ -5,7 +5,13 @@ import * as config from "../../platform/config";
 import { database } from "../../database";
 import { dataConverter } from "../../symbols/dataConverter";
 import { liveSymbols } from "../../symbols/liveSymbols";
-import { ensureUri, parseLineSuffix, quickPick } from "../../quickPick/quickPick";
+import { quickPick } from "../../quickPick/quickPick";
+import { parseLineSuffix } from "../../quickPick/query";
+import { ensureUri } from "../../shared/paths";
+import { quickPickState } from "../../quickPick/state";
+import { itemLoader } from "../../quickPick/itemLoader";
+import { opener } from "../../quickPick/open";
+import { handOff } from "../../quickPick/handOff";
 import { recentItems } from "../../quickPick/recentItems";
 import { CategoryButton, LibraryButton, QuickPickItem } from "../../shared/types";
 import { vscodeVersion } from "../../shared/vscodeVersion";
@@ -44,14 +50,14 @@ describe("QuickPick", () => {
       setups.init.setupForRegisteringTwoEventListenersWhenDebounceEnabled();
       quickPick.init();
 
-      assert.equal(quickPick.getOnDidChangeValueEventListeners().length, 1);
+      assert.equal(quickPickState.getOnDidChangeValueEventListeners().length, 1);
     });
 
     it("should register one event listener if shouldUseDebounce returns false", () => {
       setups.init.setupForRegisteringOneEventListenerWhenDebounceDisabled();
       quickPick.init();
 
-      assert.equal(quickPick.getOnDidChangeValueEventListeners().length, 1);
+      assert.equal(quickPickState.getOnDidChangeValueEventListeners().length, 1);
     });
   });
 
@@ -60,7 +66,7 @@ describe("QuickPick", () => {
       setups.reloadSortingSettings.setupForSettingSortingEnabled();
       quickPick.reloadSortingSettings();
 
-      assert.equal(quickPick.getShouldItemsBeSorted(), true);
+      assert.equal(quickPickState.getShouldItemsBeSorted(), true);
     });
 
     it("should set sortByLabel on quickPick control to have separators between items", () => {
@@ -76,14 +82,14 @@ describe("QuickPick", () => {
       setups.reloadOnDidChangeValueEventListener.setupForRegisteringOneListenerWhenDebounceDisabled();
       quickPick.reloadOnDidChangeValueEventListener();
 
-      assert.equal(quickPick.getOnDidChangeValueEventListeners().length, 1);
+      assert.equal(quickPickState.getOnDidChangeValueEventListeners().length, 1);
     });
 
     it("should dispose existing event listeners and register one event listener if shouldUseDebounce returns true", () => {
       setups.reloadOnDidChangeValueEventListener.setupForRegisteringTwoListenersWhenDebounceEnabled();
       quickPick.reloadOnDidChangeValueEventListener();
 
-      assert.equal(quickPick.getOnDidChangeValueEventListeners().length, 1);
+      assert.equal(quickPickState.getOnDidChangeValueEventListeners().length, 1);
     });
   });
 
@@ -105,7 +111,7 @@ describe("QuickPick", () => {
       const qpHelpItems = setups.reload.setupForFetchingHelpData();
       quickPick.reload();
 
-      assert.deepEqual(quickPick.getHelpItems(), qpHelpItems);
+      assert.deepEqual(quickPickState.getHelpItems(), qpHelpItems);
     });
   });
 
@@ -190,13 +196,13 @@ describe("QuickPick", () => {
     it("should items be set", () => {
       quickPick.setItems(getQpItems());
 
-      assert.equal(quickPick.getItems().length, 2);
+      assert.equal(quickPickState.getItems().length, 2);
     });
 
     it("should items have assigned buttons property", () => {
       quickPick.setItems(getQpItems());
 
-      assert.deepEqual(quickPick.getItems()[0].buttons, [
+      assert.deepEqual(quickPickState.getItems()[0].buttons, [
         {
           iconPath: new vscode.ThemeIcon("arrow-right"),
           tooltip: "Search symbols in this file",
@@ -221,7 +227,7 @@ describe("QuickPick", () => {
       const fileItem = getQpItem("/./fake/", 1, false, true);
       quickPick.setItems([fileItem]);
 
-      const item = quickPick.getItems()[0];
+      const item = quickPickState.getItems()[0];
       assert.equal(item.label, "fake-1.ts");
       assert.equal(item.iconPath, vscode.ThemeIcon.File);
       assert.equal(item.resourceUri?.toString(), fileItem.uri.toString());
@@ -232,7 +238,7 @@ describe("QuickPick", () => {
       const symbolItem = getQpItem("/./fake/", 1, false, false, false, 4);
       quickPick.setItems([symbolItem]);
 
-      const item = quickPick.getItems()[0];
+      const item = quickPickState.getItems()[0];
       assert.equal(item.label, "$(symbol-class)  fake-1.ts");
       assert.isUndefined(item.iconPath);
       assert.isUndefined(item.resourceUri);
@@ -243,7 +249,7 @@ describe("QuickPick", () => {
       const fileItem = getQpItem("/./fake/", 1, false, true);
       quickPick.setItems([fileItem]);
 
-      const item = quickPick.getItems()[0];
+      const item = quickPickState.getItems()[0];
       assert.equal(item.label, "$(symbol-file)  fake-1.ts");
       assert.isUndefined(item.iconPath);
       assert.isUndefined(item.resourceUri);
@@ -254,7 +260,7 @@ describe("QuickPick", () => {
       const fileItem = getQpItem("/./fake/", 1, false, true);
       quickPick.setItems([fileItem]);
 
-      const item = quickPick.getItems()[0];
+      const item = quickPickState.getItems()[0];
       assert.equal(item.label, "$(symbol-file)  fake-1.ts");
       assert.isUndefined(item.iconPath);
       assert.isUndefined(item.resourceUri);
@@ -268,7 +274,7 @@ describe("QuickPick", () => {
       fetchUseFileIconThemeStub.returns(false);
       quickPick.setItems([fileItem]);
 
-      const item = quickPick.getItems()[0];
+      const item = quickPickState.getItems()[0];
       assert.equal(item.label, "$(symbol-file)  fake-1.ts");
       assert.isUndefined(item.iconPath);
       assert.isUndefined(item.resourceUri);
@@ -284,7 +290,7 @@ describe("QuickPick", () => {
       quickPick.setItems([symbolItem]);
 
       assert.equal(
-        quickPick.getItems()[0].label,
+        quickPickState.getItems()[0].label,
         "$(symbol-function)  fake-1.ts"
       );
     });
@@ -295,7 +301,7 @@ describe("QuickPick", () => {
       symbolItem.label = "$(variable-group)  fake-1.ts";
       quickPick.setItems([symbolItem]);
 
-      assert.equal(quickPick.getItems()[0].label, "fake-1.ts");
+      assert.equal(quickPickState.getItems()[0].label, "fake-1.ts");
     });
   });
 
@@ -361,10 +367,10 @@ describe("QuickPick", () => {
 
   describe("setOnDidChangeValueEventListeners", () => {
     it("should set new array of onDidChangeValueEventListeners", () => {
-      quickPick.setOnDidChangeValueEventListeners(
+      quickPickState.setOnDidChangeValueEventListeners(
         getQuickPickOnDidChangeValueEventListeners(2)
       );
-      assert.equal(quickPick.getOnDidChangeValueEventListeners().length, 2);
+      assert.equal(quickPickState.getOnDidChangeValueEventListeners().length, 2);
     });
   });
 
@@ -488,7 +494,7 @@ describe("QuickPick", () => {
 
     it("should call loadItems immediately upon navigateIntoFile without waiting for background indexing", async () => {
       const qpItem = getQpItems()[0];
-      const loadItemsSpy = sinon.spy(quickPick, "loadItems");
+      const loadItemsSpy = sinon.spy(itemLoader, "loadItems");
 
       await quickPick.navigateIntoFile(qpItem);
       assert.isTrue(loadItemsSpy.called);
@@ -501,7 +507,7 @@ describe("QuickPick", () => {
   describe("openToTheSide", () => {
     it("should open active item beside and hide control", async () => {
       const qpItem = getQpItems()[0];
-      const openItemStub = sinon.stub(quickPick, "openItem").resolves();
+      const openItemStub = sinon.stub(opener, "openItem").resolves();
       const hideStub = sinon.stub(quickPick.getControl(), "hide");
 
       await quickPick.openToTheSide(qpItem);
@@ -525,12 +531,12 @@ describe("QuickPick", () => {
       const symbolItem = getQpItemWithNamePosition();
       quickPick.setItems([getQpItem(), symbolItem]);
 
-      quickPick.getItems().forEach((item) => {
+      quickPickState.getItems().forEach((item) => {
         const buttons = item.buttons!;
         const lastIcon = buttons[buttons.length - 1].iconPath;
         assert.equal((lastIcon as vscode.ThemeIcon).id, "copy");
       });
-      assert.equal(quickPick.getItems()[1].buttons!.length, 2);
+      assert.equal(quickPickState.getItems()[1].buttons!.length, 2);
     });
 
     it("should copy the reference when the copy button is clicked", async () => {
@@ -611,9 +617,9 @@ describe("QuickPick", () => {
       control.value = "Foo.java:5";
       const item = getQpItems()[0];
       const sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(false);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(database, "isReady").returns(true);
       const searchStub = sandbox.stub(database, "search").returns([item]);
 
@@ -636,9 +642,9 @@ describe("QuickPick", () => {
       const item = { ...getQpItems()[0] };
       delete item.alwaysShow;
       const sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(false);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(database, "isReady").returns(true);
       const searchStub = sandbox.stub(database, "search").returns([item]);
 
@@ -729,15 +735,15 @@ describe("QuickPick", () => {
         item.description = options.description;
       }
       const sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(true);
       sandbox
-        .stub(quickPick, "getItemsFilterPhrases")
+        .stub(quickPickState, "getItemsFilterPhrases")
         .returns(options.phrases ?? { 4: "@@" });
       sandbox
-        .stub(quickPick, "getCategories")
+        .stub(quickPickState, "getCategories")
         .returns(options.categories ?? []);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(database, "isReady").returns(true);
       const searchStub = sandbox.stub(database, "search").returns([item]);
 
@@ -844,11 +850,11 @@ describe("QuickPick", () => {
       const control = vscode.window.createQuickPick<any>();
       control.value = query;
       const sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
-      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({});
-      sandbox.stub(quickPick, "getCategories").returns(categories);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPickState, "getItemsFilterPhrases").returns({});
+      sandbox.stub(quickPickState, "getCategories").returns(categories);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(database, "isReady").returns(true);
       const searchStub = sandbox.stub(database, "search").returns([]);
 
@@ -898,13 +904,13 @@ describe("QuickPick", () => {
       control = vscode.window.createQuickPick<any>();
       control.value = query;
       sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getControl").returns(control);
       sandbox
-        .stub(quickPick, "getShouldUseItemsFilterPhrases")
+        .stub(quickPickState, "getShouldUseItemsFilterPhrases")
         .returns(options.phrases ?? true);
-      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({});
-      sandbox.stub(quickPick, "getCategories").returns(categories);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getItemsFilterPhrases").returns({});
+      sandbox.stub(quickPickState, "getCategories").returns(categories);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox
         .stub(vscodeVersion, "supportsQuickInputButtonToggle")
         .returns(options.toggles ?? true);
@@ -1103,9 +1109,9 @@ describe("QuickPick", () => {
       clock = sandbox.useFakeTimers();
       control = vscode.window.createQuickPick<any>();
       sandbox.stub(control, "show");
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(false);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(vscode.commands, "executeCommand").resolves();
       sandbox
         .stub(config, "fetchSearchLanguageServersWhileIndexing")
@@ -1274,8 +1280,8 @@ describe("QuickPick", () => {
       previewOnSelect = true;
       control = vscode.window.createQuickPick<any>();
       sandbox.stub(control, "show");
-      sandbox.stub(quickPick, "getControl").returns(control);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(false);
       sandbox
         .stub(config, "fetchPreviewOnSelect")
         .callsFake(() => previewOnSelect);
@@ -1370,7 +1376,7 @@ describe("QuickPick", () => {
     });
 
     it("should remember the workspace query when hidden from a file scope", async () => {
-      sandbox.stub(quickPick, "loadItems");
+      sandbox.stub(itemLoader, "loadItems");
       quickPick.show();
       control.value = "Server.Start";
 
@@ -1480,18 +1486,18 @@ describe("QuickPick", () => {
   describe("help items", () => {
     it("should list categories before one-kind phrases in help", () => {
       const sandbox = sinon.createSandbox();
-      sandbox.stub(quickPick, "getHelpPhrase").returns("?");
+      sandbox.stub(quickPickState, "getHelpPhrase").returns("?");
       sandbox
-        .stub(quickPick, "getCategories")
+        .stub(quickPickState, "getCategories")
         .returns([{ name: "Types", phrase: "@@", kinds: [4, 10] }]);
-      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({ 11: "ff" });
-      sandbox.stub(quickPick, "getHandOffPrefixes").returns(false);
-      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
-      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPickState, "getItemsFilterPhrases").returns({ 11: "ff" });
+      sandbox.stub(quickPickState, "getHandOffPrefixes").returns(false);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(quickPick, "fetchConfig");
 
       quickPick.reload();
-      const labels = quickPick.getHelpItems().map((item) => item.label);
+      const labels = quickPickState.getHelpItems().map((item) => item.label);
       sandbox.restore();
 
       assert.deepEqual(labels, [
@@ -1604,7 +1610,7 @@ describe("QuickPick", () => {
       } finally {
         (quickPick.fetchConfig as sinon.SinonStub).restore();
       }
-      const labels = quickPick.getHelpItems().map((item) => item.label);
+      const labels = quickPickState.getHelpItems().map((item) => item.label);
 
       assert.deepEqual(labels, [
         "? Type >> for limit results to Types only (Tab)",
@@ -1623,7 +1629,7 @@ describe("QuickPick", () => {
       } finally {
         (quickPick.fetchConfig as sinon.SinonStub).restore();
       }
-      const row = quickPick
+      const row = quickPickState
         .getHelpItems()
         .find((item) => item.handOff === "commands");
       sinon.stub(control, "selectedItems").value([row]);
