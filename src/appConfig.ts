@@ -3,5 +3,6 @@ export const appConfig = {
   configCacheKey: "config",
   notSaveUriPathsKey: "notSavedUris",
   recentItemsKey: "recentItems",
+  indexedConfigKey: "indexedConfig",
   globPattern: "**/*",
 };

@@ -8,13 +8,20 @@ import {
   clear,
   clearConfig,
   clearNotSavedUriPaths as clearNotSavedUriPathsFromCache,
+  getIndexedConfig,
   getNotSavedUriPaths as getNotSavedUriPathsFromCache,
   updateNotSavedUriPaths,
 } from "./cache";
-import { fetchExcludeMode, fetchSecondaryCode } from "./config";
+import {
+  fetchExcludeMode,
+  fetchIndexedConfigSnapshot,
+  fetchSecondaryCode,
+} from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
+import { logger } from "./logger";
+import { isRootMarker, markerFileGlob, refreshPresets } from "./presets";
 import {
   Action,
   ActionTrigger,
@@ -65,7 +72,33 @@ async function handleDidChangeWorkspaceFolders(
 ) {
   if (utils.hasWorkspaceChanged(event)) {
     utils.setWorkspaceFoldersCommonPath();
+    await refreshPresets();
+    await workspace.reloadConfig();
     await workspace.index(ActionTrigger.WorkspaceFoldersChange);
+  }
+}
+
+async function handleDidChangeMarkerFile(uri: vscode.Uri) {
+  if (isRootMarker(uri) && (await refreshPresets())) {
+    await workspace.reloadConfig();
+    onWillReindexOnConfigurationChangeEventEmitter.fire();
+    await workspace.index(ActionTrigger.ConfigurationChange);
+  }
+}
+
+async function reloadConfig() {
+  clearConfig();
+  await dataService.fetchConfig();
+  dataConverter.fetchConfig();
+}
+
+function clearIndexBuiltWithOtherConfig() {
+  const indexedConfig = getIndexedConfig();
+  if (indexedConfig && indexedConfig !== fetchIndexedConfigSnapshot()) {
+    logger.log(
+      "Language presets or index settings changed since the last index; the workspace will be reindexed."
+    );
+    database.clearAll();
   }
 }
 
@@ -203,6 +236,9 @@ function shouldReindexOnConfigurationChange(
 
 async function init() {
   utils.setWorkspaceFoldersCommonPath();
+  clearConfig();
+  await refreshPresets();
+  clearIndexBuiltWithOtherConfig();
   await dataService.fetchConfig();
   dataConverter.fetchConfig();
   workspace.registerEventListeners();
@@ -258,6 +294,15 @@ function registerEventListeners(): void {
 
   vscode.workspace.onDidSaveTextDocument(handleDidSaveTextDocument);
 
+  const markerWatcher = vscode.workspace.createFileSystemWatcher(
+    markerFileGlob,
+    false,
+    true,
+    false
+  );
+  markerWatcher.onDidCreate(workspace.handleDidChangeMarkerFile);
+  markerWatcher.onDidDelete(workspace.handleDidChangeMarkerFile);
+
   onDidProcessing(handleDidActionProcessorProcessing);
   onWillProcessing(handleWillActionProcessorProcessing);
   onWillExecuteAction(handleWillActionProcessorExecuteAction);
@@ -293,6 +338,8 @@ const defaultSection = "searchEverywhere";
 export const workspace = {
   init,
   index,
+  reloadConfig,
+  handleDidChangeMarkerFile,
   registerEventListeners,
   getData,
   getNotSavedUris,

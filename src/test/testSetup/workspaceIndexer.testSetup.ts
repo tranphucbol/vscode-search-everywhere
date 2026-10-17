@@ -277,6 +277,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -328,6 +332,10 @@ export const getTestSetups = () => {
             {
               object: logger,
               method: "logStructure",
+            },
+            {
+              object: logger,
+              method: "log",
             },
           ],
           sandbox
@@ -382,6 +390,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -430,6 +442,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -449,6 +465,10 @@ export const getTestSetups = () => {
             {
               object: logger,
               method: "logStructure",
+            },
+            {
+              object: logger,
+              method: "log",
             },
             {
               object: dataServiceEventsEmitter,

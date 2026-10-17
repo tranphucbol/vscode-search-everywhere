@@ -242,6 +242,19 @@
           ],
           "description": "Globs, matched against the workspace-relative path, of test, mock and generated files. Their items stay searchable but rank after other items of the same match quality and are tagged `· test` or `· generated`. Changing it does not reindex."
         },
+        "searchEverywhere.languagePresets": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Detect Go (go.mod, go.work) and Java (pom.xml, build.gradle, build.gradle.kts, settings.gradle) at each workspace folder root and fill include, exclude and itemsFilter.ignoredKinds you have not set yourself.",
+            "Use the contributed defaults for include, exclude and itemsFilter."
+          ],
+          "default": "auto",
+          "description": "Fill include, exclude and itemsFilter with values suited to the Go or Java project found at a workspace folder root, wherever you have not set them at any level."
+        },
         "searchEverywhere.excludeMode": {
           "type": "string",
           "enum": [

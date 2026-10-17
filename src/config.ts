@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { getConfigByKey, updateConfigByKey } from "./cache";
+import { effectiveValue, getActivePresets, PresetKey } from "./presets";
 import {
   Category,
   ExcludeMode,
@@ -144,6 +145,10 @@ const keys = {
       "**/*.{test,spec}.{ts,tsx,js,jsx}",
     ],
   },
+  languagePresets: {
+    name: "languagePresets",
+    value: "auto",
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -165,6 +170,28 @@ function get<T>(key: string, defaultValue: T, customSection?: string): T {
     updateConfigByKey(cacheKey, value);
   }
   return value as T;
+}
+
+function getUserValue<T>(key: string): T | undefined {
+  const inspected = vscode.workspace
+    .getConfiguration(defaultSection)
+    .inspect<T>(key);
+  if (!inspected) {
+    return undefined;
+  }
+  return inspected.workspaceFolderValue !== undefined
+    ? inspected.workspaceFolderValue
+    : inspected.workspaceValue !== undefined
+    ? inspected.workspaceValue
+    : inspected.globalValue;
+}
+
+function withPresets<T>(key: PresetKey, value: T): T {
+  const presets = getActivePresets();
+  if (!presets.length || fetchLanguagePresets() !== "auto") {
+    return value;
+  }
+  return effectiveValue(key, getUserValue<T>(key), presets);
 }
 
 function getFilesExclude(): string[] {
@@ -212,7 +239,10 @@ export function fetchShouldExcludeVariables(): boolean {
 }
 
 export function fetchItemsFilter(): ItemsFilter {
-  const filter = get(keys.itemsFilter.name, keys.itemsFilter.value);
+  const filter = withPresets(
+    "itemsFilter",
+    get(keys.itemsFilter.name, keys.itemsFilter.value)
+  );
   const shouldExcludeProperties = fetchShouldExcludeProperties();
   const shouldExcludeVariables = fetchShouldExcludeVariables();
 
@@ -294,11 +324,28 @@ export function fetchSecondaryCode(): string[] {
 }
 
 export function fetchExclude(): string[] {
-  return get(keys.exclude.name, keys.exclude.value);
+  return withPresets("exclude", get(keys.exclude.name, keys.exclude.value));
 }
 
 export function fetchInclude(): string {
-  return get(keys.include.name, keys.include.value);
+  return withPresets("include", get(keys.include.name, keys.include.value));
+}
+
+/**
+ * The effective settings an index was built with, as a string to compare
+ * against the next start: a preset appearing or going away changes it.
+ */
+export function fetchIndexedConfigSnapshot(): string {
+  return JSON.stringify({
+    presets: fetchLanguagePresets() === "auto" ? getActivePresets() : [],
+    include: fetchInclude(),
+    exclude: fetchExclude(),
+    itemsFilter: fetchItemsFilter(),
+  });
+}
+
+export function fetchLanguagePresets(): string {
+  return get(keys.languagePresets.name, keys.languagePresets.value);
 }
 
 export function fetchFilesAndSearchExclude(): string[] {

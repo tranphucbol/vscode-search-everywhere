@@ -25,6 +25,36 @@ describe("Workspace", () => {
   afterEach(() => setups.afterEach());
 
   describe("init", () => {
+    it("should clear an index built with other effective settings", async () => {
+      const [clearAllStub] = setups.init.setupForComparingIndexedConfig(
+        '{"presets":[]}',
+        '{"presets":["go"]}'
+      );
+      await workspace.init();
+
+      assert.equal(clearAllStub.calledOnce, true);
+    });
+
+    it("should keep an index built with the same effective settings", async () => {
+      const [clearAllStub] = setups.init.setupForComparingIndexedConfig(
+        '{"presets":["go"]}',
+        '{"presets":["go"]}'
+      );
+      await workspace.init();
+
+      assert.equal(clearAllStub.called, false);
+    });
+
+    it("should keep an index that has no recorded settings", async () => {
+      const [clearAllStub] = setups.init.setupForComparingIndexedConfig(
+        undefined,
+        '{"presets":["go"]}'
+      );
+      await workspace.init();
+
+      assert.equal(clearAllStub.called, false);
+    });
+
     it("should utils.setWorkspaceFoldersCommonPath method be invoked", async () => {
       const [setWorkspaceFoldersCommonPathStub] =
         setups.init.setupForInvokingSetWorkspaceFoldersCommonPath();
@@ -289,6 +319,41 @@ describe("Workspace", () => {
       );
 
       assert.equal(registerActionStub.calledOnce, false);
+    });
+  });
+
+  describe("handleDidChangeMarkerFile", () => {
+    it("should reindex when a marker file is added", async () => {
+      const [indexStub, reloadConfigStub] =
+        setups.handleDidChangeMarkerFile.setupForMarkerFile(true, true);
+
+      await workspace.handleDidChangeMarkerFile(vscode.Uri.file("/ws/go.mod"));
+
+      assert.equal(reloadConfigStub.calledOnce, true);
+      assert.deepEqual(indexStub.firstCall.args, [
+        ActionTrigger.ConfigurationChange,
+      ]);
+    });
+
+    it("should not reindex when the detected presets did not change", async () => {
+      const [indexStub] =
+        setups.handleDidChangeMarkerFile.setupForMarkerFile(true, false);
+
+      await workspace.handleDidChangeMarkerFile(vscode.Uri.file("/ws/go.mod"));
+
+      assert.equal(indexStub.called, false);
+    });
+
+    it("should ignore marker files below a folder root", async () => {
+      const [indexStub, , , refreshPresetsStub] =
+        setups.handleDidChangeMarkerFile.setupForMarkerFile(false, true);
+
+      await workspace.handleDidChangeMarkerFile(
+        vscode.Uri.file("/ws/tools/go.mod")
+      );
+
+      assert.equal(refreshPresetsStub.called, false);
+      assert.equal(indexStub.called, false);
     });
   });
 

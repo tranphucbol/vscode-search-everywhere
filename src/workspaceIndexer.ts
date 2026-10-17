@@ -2,12 +2,19 @@ import { performance } from "perf_hooks";
 import * as vscode from "vscode";
 import { actionProcessor } from "./actionProcessor";
 import * as cache from "./cache";
-import { fetchShouldDisplayNotificationInStatusBar } from "./config";
+import {
+  fetchExclude,
+  fetchInclude,
+  fetchIndexedConfigSnapshot,
+  fetchLanguagePresets,
+  fetchShouldDisplayNotificationInStatusBar,
+} from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
 import { onDidItemIndexed } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
+import { getActivePresets } from "./presets";
 import { Action, ActionType, QuickPickItem, WorkspaceData } from "./types";
 import { utils } from "./utils";
 
@@ -126,6 +133,8 @@ async function indexWorkspace(
   }>
 ): Promise<WorkspaceData> {
   database.clearAll();
+  logEffectiveConfig();
+  cache.updateIndexedConfig(fetchIndexedConfigSnapshot());
 
   let batch: QuickPickItem[] = [];
   const BATCH_SIZE = 2500;
@@ -149,6 +158,15 @@ async function indexWorkspace(
   database.schedulePersist();
 
   return data;
+}
+
+function logEffectiveConfig() {
+  const presets =
+    fetchLanguagePresets() === "auto" ? getActivePresets() : [];
+  logger.log(
+    `Indexing with presets: ${presets.length ? presets.join(", ") : "none"}; ` +
+      `include: ${fetchInclude()}; exclude: ${fetchExclude().join(", ")}`
+  );
 }
 
 function resetProgress() {
