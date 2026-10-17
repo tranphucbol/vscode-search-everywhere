@@ -14,6 +14,12 @@ let persistTimer: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 let seedMeta: SeedMeta | undefined;
+let dirty = false;
+let persistInFlight: Promise<void> | undefined;
+let persistPending = false;
+// Bumped by closeDatabase so a background save that outlives its connection does not rename
+// its file over the newer one written on shutdown.
+let dbGeneration = 0;
 
 export interface SeedMeta {
   commit?: string;
@@ -21,6 +27,11 @@ export interface SeedMeta {
 }
 
 const SEARCH_LIMIT = 500;
+const PERSIST_DEBOUNCE_MS = 10000;
+const TEMP_SUFFIX = ".tmp";
+// The shutdown save may run while a background save still writes TEMP_SUFFIX.
+const EXIT_TEMP_SUFFIX = ".exit.tmp";
+const CORRUPT_SUFFIX = ".corrupt";
 const SCHEMA_VERSION = 5;
 
 export async function initDatabase(
@@ -73,11 +84,24 @@ export async function initDatabase(
     dbPath = path.join(storagePath, "search-everywhere-index.db");
   }
 
+  dirty = false;
+  if (dbPath) {
+    removeLeftoverTempFiles();
+  }
+
   if (dbPath && fs.existsSync(dbPath)) {
     try {
       const fileBuffer = fs.readFileSync(dbPath);
       db = new sqlJs.Database(fileBuffer);
+      // SQLite reads the header lazily, so a damaged file only fails on the first query.
+      db.exec("SELECT count(*) FROM sqlite_master");
     } catch {
+      if (db) {
+        try {
+          db.close();
+        } catch {}
+      }
+      moveCorruptFileAside();
       db = new sqlJs.Database();
     }
   } else {
@@ -123,8 +147,8 @@ export async function initDatabase(
                 }
               }
 
-              const data = exportDatabase();
-              fs.writeFileSync(dbPath, Buffer.from(data));
+              markDirty();
+              writeIndexFileSync();
 
               seededFromTemplate = true;
               seeded = true;
@@ -510,6 +534,7 @@ function createTables(): void {
         }
         stmt.free();
         db.run("COMMIT");
+        markDirty();
       }
     }
   } catch {}
@@ -572,6 +597,7 @@ function migrateSchema(): void {
   if (version >= SCHEMA_VERSION) {
     return;
   }
+  markDirty();
   if (version < 1) {
     try {
       db.run("ALTER TABLE symbols ADD COLUMN clean_container TEXT DEFAULT ''");
@@ -607,6 +633,7 @@ export function insertSymbol(item: QuickPickItem): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   const name = extractName(item.label);
   const cleanName = extractCleanName(name);
   const cleanStem = extractCleanStem(name, item.symbolKind);
@@ -643,6 +670,7 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare(`
     INSERT INTO symbols
@@ -697,6 +725,7 @@ export function deleteByUri(uriPath: string): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   db.run("DELETE FROM symbols WHERE uri = ?", [uriPath]);
   db.run("DELETE FROM file_state WHERE uri = ?", [uriPath]);
 }
@@ -706,6 +735,7 @@ export function deleteByUriPrefix(uriPath: string): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   const prefix = [escapeLike(uriPath) + "%"];
   db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
   db.run(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
@@ -720,6 +750,7 @@ export function upsertFileStates(entries: Array<[uri: string, state: FileState]>
   if (!db || !entries.length) {
     return;
   }
+  markDirty();
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare("INSERT OR REPLACE INTO file_state (uri, mtime, size) VALUES (?, ?, ?)");
   try {
@@ -770,7 +801,11 @@ export function getIndexedUris(): string[] {
 }
 
 export function clearFileStates(): void {
-  db && db.run("DELETE FROM file_state");
+  if (!db) {
+    return;
+  }
+  markDirty();
+  db.run("DELETE FROM file_state");
 }
 
 export function hasFileStateBaseline(): boolean {
@@ -841,6 +876,7 @@ export function recomputeSecondary(globs: string[]): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   updateSecondaryColumn(globs);
   schedulePersist();
 }
@@ -1586,6 +1622,7 @@ function rowToQuickPickItem(row: any[]): QuickPickItem {
 export function clearAll(): void {
   if (db) {
     clearSearchCache();
+    markDirty();
     db.run("DELETE FROM symbols");
     db.run("DELETE FROM file_state");
   }
@@ -1606,56 +1643,178 @@ export function isEmpty(): boolean {
   return getCount() === 0;
 }
 
-export function persistToFile(): void {
-  if (db && dbPath) {
-    try {
-      const data = exportDatabase();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(dbPath, buffer);
+function markDirty(): void {
+  dirty = true;
+}
 
-      if (
-        fetchShareCacheAcrossWorktrees() &&
-        extensionContext &&
-        extensionContext.globalStorageUri
-      ) {
-        const workspaceFolder =
-          vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-        if (workspaceFolder) {
-          gitService
-            .getRepoFingerprint(workspaceFolder.uri.fsPath)
-            .then(async (fingerprint) => {
-              if (fingerprint && extensionContext) {
-                const rootPath = workspaceFolder.uri.fsPath;
-                const commit = await gitService.getHeadCommit(rootPath);
-                const dirtyPaths = await gitService.getWorkingTreePaths(rootPath);
-                const globalDir = extensionContext.globalStorageUri.fsPath;
-                if (!fs.existsSync(globalDir)) {
-                  fs.mkdirSync(globalDir, { recursive: true });
-                }
-                const templateDbPath = path.join(globalDir, `repo-${fingerprint}.db`);
-                const templateMetaPath = path.join(globalDir, `repo-${fingerprint}.json`);
-                fs.writeFileSync(templateDbPath, buffer);
-                fs.writeFileSync(
-                  templateMetaPath,
-                  JSON.stringify({
-                    fingerprint,
-                    templateRootUri: workspaceFolder.uri.toString(),
-                    symbolCount: getCount(),
-                    lastUpdated: Date.now(),
-                    commit,
-                    dirtyPaths,
-                  })
-                );
-              }
-            })
-            .catch(() => {
-              // Non-critical background task
-            });
-        }
-      }
+function removeLeftoverTempFiles(): void {
+  for (const suffix of [TEMP_SUFFIX, EXIT_TEMP_SUFFIX]) {
+    try {
+      fs.unlinkSync(dbPath + suffix);
     } catch {
-      // silently fail — non-critical
+      // Usually absent; nothing else to do when it cannot be removed.
     }
+  }
+}
+
+function moveCorruptFileAside(): void {
+  try {
+    fs.renameSync(dbPath, dbPath + CORRUPT_SUFFIX);
+  } catch (error) {
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    logger.log(`Failed to move the unreadable index file aside: ${error}`);
+  }
+  logger.log("Index file could not be read; it was moved aside and the workspace will be reindexed.");
+}
+
+// Wraps the exported bytes without the second full copy Buffer.from(data) would make.
+function exportBuffer(): Buffer {
+  const data = exportDatabase();
+  return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+}
+
+function logSaved(buffer: Buffer, startedAt: number): void {
+  const megabytes = (buffer.byteLength / 1024 / 1024).toFixed(1);
+  logger.log(`Saved index (${megabytes} MB) in ${Date.now() - startedAt} ms`);
+}
+
+// Clears dirty before exporting, so writes made while the file is being written mark the next
+// save; a failed write sets it again so the next save retries.
+async function writeIndexFile(): Promise<void> {
+  if (!db || !dbPath || !dirty) {
+    return;
+  }
+  const startedAt = Date.now();
+  const generation = dbGeneration;
+  const targetPath = dbPath;
+  const tempPath = targetPath + TEMP_SUFFIX;
+  dirty = false;
+  let buffer: Buffer;
+  try {
+    buffer = exportBuffer();
+    await fs.promises.writeFile(tempPath, buffer);
+    if (generation !== dbGeneration) {
+      await fs.promises.unlink(tempPath).catch(() => undefined);
+      return;
+    }
+    await fs.promises.rename(tempPath, targetPath);
+  } catch (error) {
+    dirty = true;
+    logger.log(`Failed to save index: ${error}`);
+    return;
+  }
+  logSaved(buffer, startedAt);
+  writeSharedTemplate(buffer);
+}
+
+function writeIndexFileSync(): void {
+  if (!db || !dbPath || !dirty) {
+    return;
+  }
+  const startedAt = Date.now();
+  const tempPath = dbPath + EXIT_TEMP_SUFFIX;
+  dirty = false;
+  let buffer: Buffer;
+  try {
+    buffer = exportBuffer();
+    fs.writeFileSync(tempPath, buffer);
+    fs.renameSync(tempPath, dbPath);
+  } catch (error) {
+    dirty = true;
+    logger.log(`Failed to save index: ${error}`);
+    return;
+  }
+  logSaved(buffer, startedAt);
+  writeSharedTemplate(buffer);
+}
+
+function writeSharedTemplate(buffer: Buffer): void {
+  if (
+    !fetchShareCacheAcrossWorktrees() ||
+    !extensionContext ||
+    !extensionContext.globalStorageUri
+  ) {
+    return;
+  }
+  const workspaceFolder =
+    vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+  if (!workspaceFolder) {
+    return;
+  }
+  const symbolCount = getCount();
+  gitService
+    .getRepoFingerprint(workspaceFolder.uri.fsPath)
+    .then(async (fingerprint) => {
+      if (fingerprint && extensionContext) {
+        const rootPath = workspaceFolder.uri.fsPath;
+        const commit = await gitService.getHeadCommit(rootPath);
+        const dirtyPaths = await gitService.getWorkingTreePaths(rootPath);
+        const globalDir = extensionContext.globalStorageUri.fsPath;
+        if (!fs.existsSync(globalDir)) {
+          fs.mkdirSync(globalDir, { recursive: true });
+        }
+        const templateDbPath = path.join(globalDir, `repo-${fingerprint}.db`);
+        const templateMetaPath = path.join(globalDir, `repo-${fingerprint}.json`);
+        fs.writeFileSync(templateDbPath, buffer);
+        fs.writeFileSync(
+          templateMetaPath,
+          JSON.stringify({
+            fingerprint,
+            templateRootUri: workspaceFolder.uri.toString(),
+            symbolCount,
+            lastUpdated: Date.now(),
+            commit,
+            dirtyPaths,
+          })
+        );
+      }
+    })
+    .catch(() => {
+      // Non-critical background task
+    });
+}
+
+/**
+ * Saves the index in the background when it changed since the last save. Single-flight: a call
+ * made while a save is writing returns that save's promise, which then runs one more save.
+ * Never rejects; a failed save is logged and retried by the next call.
+ */
+export function persistToFile(): Promise<void> {
+  if (persistInFlight) {
+    persistPending = true;
+    return persistInFlight;
+  }
+  const run = async () => {
+    try {
+      do {
+        persistPending = false;
+        await writeIndexFile();
+      } while (persistPending);
+    } finally {
+      persistInFlight = undefined;
+    }
+  };
+  persistInFlight = run();
+  return persistInFlight;
+}
+
+/** Saves synchronously when dirty; only for shutdown, where VS Code does not wait for promises. */
+export function persistToFileSync(): void {
+  writeIndexFileSync();
+}
+
+/** Cancels a scheduled save and saves now. */
+export function flushPersist(): Promise<void> {
+  cancelScheduledPersist();
+  return persistToFile();
+}
+
+function cancelScheduledPersist(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = undefined;
   }
 }
 
@@ -1694,12 +1853,11 @@ export function clearSharedCache(): void {
 }
 
 export function schedulePersist(): void {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  cancelScheduledPersist();
   persistTimer = setTimeout(() => {
+    persistTimer = undefined;
     persistToFile();
-  }, 2000);
+  }, PERSIST_DEBOUNCE_MS);
 }
 
 export function deleteDatabaseFile(): void {
@@ -1709,14 +1867,14 @@ export function deleteDatabaseFile(): void {
 }
 
 export function closeDatabase(): void {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  cancelScheduledPersist();
   if (db) {
-    persistToFile();
+    persistToFileSync();
     db.close();
     db = undefined;
   }
+  dbGeneration++;
+  persistPending = false;
 }
 
 export function isReady(): boolean {
@@ -1742,6 +1900,8 @@ export const database = {
   getCount,
   isEmpty,
   persistToFile,
+  persistToFileSync,
+  flushPersist,
   schedulePersist,
   deleteDatabaseFile,
   closeDatabase,

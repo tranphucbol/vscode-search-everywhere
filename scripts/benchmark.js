@@ -24,6 +24,9 @@ const vscodeMock = {
     workspaceFolders: undefined,
     getConfiguration: () => ({ get: (_key, defaultValue) => defaultValue }),
   },
+  window: {
+    createOutputChannel: () => ({ appendLine: (line) => console.log(`  [log] ${line}`) }),
+  },
 };
 
 // Hook module loader for 'vscode'
@@ -48,6 +51,7 @@ Module.prototype.require = function (id) {
 
 const { database, extractName } = require("../dist/database");
 const { initCache } = require("../dist/cache");
+require("../dist/logger").logger.init();
 
 const workspaceStateStore = new Map();
 initCache({
