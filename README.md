@@ -41,9 +41,12 @@ After the first scan the index is kept up to date as you work:
 
 - functions, classes, variables or React components added, renamed or deleted in a file
 - files added, renamed, deleted or moved between directories or folders of a multi-root workspace
+- files created, changed or deleted outside VS Code: by `git checkout`, `git pull`, a code
+  generator or a terminal command
 
-The index is cached, so the next start of VS Code reads it instead of scanning again. Git
-worktrees and local clones of the same repository share one cache.
+The index is cached, so the next start of VS Code reads it instead of scanning again, and changes
+made while VS Code was closed are picked up in the background. Git worktrees and local clones of
+the same repository share one cache.
 
 ## Features
 
@@ -171,6 +174,15 @@ worktrees and local clones of the same repository share one cache.
 - The index is cached between sessions (`searchEverywhere.shouldWorkspaceDataBeCached`) and shared
   across git worktrees and local clones of the same repository
   (`searchEverywhere.shareCacheAcrossWorktrees`).
+- The index records each file's modification time and size. On startup a cached index is compared
+  with the disk in the background, and only files added, changed or deleted since are reindexed;
+  when more than a quarter of the files changed (at least 2000), the workspace is indexed again.
+- Files created, changed or deleted outside VS Code are reindexed about half a second after the
+  last change (`searchEverywhere.watchFileSystem`). Files open in an editor follow the editor
+  instead, and a burst of more than 1000 changes, such as switching branches, is handled like a
+  startup comparison.
+- A worktree seeded from the shared cache reindexes the files that differ from the worktree the
+  cache was written in: `git diff` between the two commits plus both worktrees' uncommitted files.
 - Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
   file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
 - Before indexing, the extension opens one file per language and waits until its language server
@@ -383,6 +395,12 @@ against them. Measured on an Apple M4:
 
   Share and seed the indexed database cache across git worktrees and local clones of the same
   repository, for a near-instant start. `Search everywhere: Clear Shared Worktree Cache` clears it.
+
+- `searchEverywhere.watchFileSystem`, default `true`
+
+  Watch the workspace for files created, changed or deleted outside Visual Studio Code, such as by
+  git, a code generator or a terminal command, and update the index. When `false`, a cached index
+  is still compared with the disk on startup. Changing it does not reindex.
 
 ### Search and results
 

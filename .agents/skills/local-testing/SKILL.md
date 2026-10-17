@@ -128,10 +128,11 @@ the repository.
   driver's settings); opening the quick pick makes every start end with a ready index. To test
   startup behaviour itself, `SE start --no-activate [--setting shouldInitOnStartup=false]`,
   wait a few seconds, then `SE log`: `trigger: Startup` means it indexed without a command.
-- **Changes made from the shell are not indexed.** The extension listens to VS Code's file and
-  document events, not the disk. Writing a file with `cat >` or `mv` leaves the index stale, which
-  is expected. Create, rename, delete and edit files through VS Code (see the incremental-indexing
-  scenario), or run `command "Search everywhere: Reload"`.
+- **Changes made from the shell arrive after a delay.** A file system watcher batches them and
+  indexes about 0.5 s after the last one; wait 1.5 s before searching. Files under excluded
+  paths (`node_modules`) are ignored, and `set watchFileSystem=false` turns the watcher off. To
+  test changes made while VS Code is closed, `set shouldWorkspaceDataBeCached=true`, `stop --keep`,
+  change files, then `restart --no-compile`; `log` shows `Reconciled with disk: +A ~C -R`.
 - **VS Code filters the quick pick by label itself.** When rows the database returned don't show,
   check whether the items need `alwaysShow`; that was the filter-phrase bug. `log` shows what the
   extension did.
