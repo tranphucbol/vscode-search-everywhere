@@ -108,9 +108,43 @@ describe("Database", () => {
     });
 
     it("should filter by symbolKind", () => {
-      const results = database.search("", 500, { symbolKind: vscode.SymbolKind.Class });
+      const results = database.search("", 500, { symbolKinds: [vscode.SymbolKind.Class] });
       assert.equal(results.length, 2);
       assert.isTrue(results.every((r) => r.symbolKind === vscode.SymbolKind.Class));
+    });
+
+    it("should restrict results to a list of symbol kinds", () => {
+      const results = database.search("", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Class],
+      });
+      assert.equal(results.length, 3);
+
+      const interfaces = database.search("", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Struct],
+      });
+      assert.deepEqual(
+        interfaces.map((r) => r.label),
+        ["$(symbol-interface) User"]
+      );
+    });
+
+    it("should cache searches for different kind lists separately", () => {
+      const classes = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Class],
+      });
+      const interfaces = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface],
+      });
+      const both = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Class],
+      });
+      const bothReordered = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Class, vscode.SymbolKind.Interface],
+      });
+      assert.equal(classes.length, 2);
+      assert.equal(interfaces.length, 1);
+      assert.equal(both.length, 3);
+      assert.strictEqual(bothReordered, both);
     });
 
     it("should filter by allowedKinds", () => {
@@ -275,7 +309,7 @@ describe("Database", () => {
         database.insertSymbolsBatch([method("a.ts"), method("b.ts")]);
 
         const classes = database.search("user service", 500, {
-          symbolKind: vscode.SymbolKind.Class,
+          symbolKinds: [vscode.SymbolKind.Class],
         });
         assert.deepEqual(labels(classes), ["$(symbol-class) UserService"]);
 
@@ -493,7 +527,7 @@ describe("Database", () => {
         database.insertSymbol(prop);
 
         const byKind = database.search("UserService.save", 500, {
-          symbolKind: vscode.SymbolKind.Property,
+          symbolKinds: [vscode.SymbolKind.Property],
         });
         assert.deepEqual(byKind.map(keyOf), [keyOf(prop)]);
 
@@ -669,7 +703,7 @@ describe("Database", () => {
       ]);
 
       assert.deepEqual(
-        labels(database.search("usi", 500, { symbolKind: vscode.SymbolKind.Method })),
+        labels(database.search("usi", 500, { symbolKinds: [vscode.SymbolKind.Method] })),
         ["$(symbol-class) UserSettingsItem"]
       );
       const unignored = labels(database.search("usi", 500, { ignoredNames: ["Secret"] }));
@@ -1089,7 +1123,7 @@ describe("Database", () => {
       database.insertSymbolsBatch([impl, userFn, runA, runB]);
 
       const byKind = database.search("user", 500, {
-        symbolKind: vscode.SymbolKind.Function,
+        symbolKinds: [vscode.SymbolKind.Function],
         recent: [keyFor(impl)],
       });
       assert.deepEqual(ids(byKind), [id(userFn)]);

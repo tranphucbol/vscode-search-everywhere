@@ -191,7 +191,7 @@ export const mocks = {
     const qpItems = [
       {
         label: "$(fake-icon)  fake-1.ts",
-        description: "[$$fake-1.ts] File",
+        description: "File",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 0,
@@ -208,7 +208,7 @@ export const mocks = {
       },
       {
         label: "$(another-fake-icon)  test name",
-        description: "[^^test name] Module at lines: 1 - 4 in fake-1.ts",
+        description: "Module at lines: 1 - 4 in fake-1.ts",
         containerName: "fake-1.ts",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
@@ -226,7 +226,7 @@ export const mocks = {
       },
       {
         label: "$(another-fake-icon)  test name 2",
-        description: "[^^test name 2] Module at lines: 5 - 6",
+        description: "Module at lines: 5 - 6",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,

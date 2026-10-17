@@ -22,6 +22,14 @@ export async function openToTheSide() {
   await controller.openToTheSide();
 }
 
+export function nextCategory() {
+  controller.nextCategory();
+}
+
+export function previousCategory() {
+  controller.previousCategory();
+}
+
 export async function reload() {
   await controller.reload();
 }
@@ -56,6 +64,14 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "searchEverywhere.openToTheSide",
       openToTheSide
+    ),
+    vscode.commands.registerCommand(
+      "searchEverywhere.nextCategory",
+      nextCategory
+    ),
+    vscode.commands.registerCommand(
+      "searchEverywhere.previousCategory",
+      previousCategory
     ),
     vscode.commands.registerCommand(
       "searchEverywhere.reload",

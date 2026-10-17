@@ -281,6 +281,11 @@ export const getTestSetups = () => {
             },
             {
               object: quickPick,
+              method: "getCategories",
+              returns: [],
+            },
+            {
+              object: quickPick,
               method: "getHelpPhrase",
               returns: "?",
             },

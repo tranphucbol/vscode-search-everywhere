@@ -624,15 +624,36 @@ describe("QuickPick", () => {
   });
 
   describe("loadItems with a filter phrase", () => {
-    const loadWithQuery = (query: string) => {
+    const defaultCategories = [
+      { name: "Types", phrase: "@@", kinds: [4, 9, 10, 22] },
+      { name: "Members", phrase: "!!", kinds: [5, 6, 11] },
+      { name: "Files", phrase: "$$", kinds: [0] },
+    ];
+
+    const loadWithQuery = (
+      query: string,
+      options: {
+        phrases?: { [kind: number]: string };
+        categories?: typeof defaultCategories;
+        description?: string;
+      } = {}
+    ) => {
       const control = vscode.window.createQuickPick<any>();
       control.value = query;
       const item = { ...getQpItems()[0] };
       delete item.alwaysShow;
+      if (options.description !== undefined) {
+        item.description = options.description;
+      }
       const sandbox = sinon.createSandbox();
       sandbox.stub(quickPick, "getControl").returns(control);
       sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
-      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({ 4: "@@" });
+      sandbox
+        .stub(quickPick, "getItemsFilterPhrases")
+        .returns(options.phrases ?? { 4: "@@" });
+      sandbox
+        .stub(quickPick, "getCategories")
+        .returns(options.categories ?? []);
       sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(database, "isReady").returns(true);
       const searchStub = sandbox.stub(database, "search").returns([item]);
@@ -640,16 +661,17 @@ describe("QuickPick", () => {
       quickPick.loadItems();
 
       const loaded = control.items[0];
+      const title = control.title;
       sandbox.restore();
       control.dispose();
-      return { item, loaded, searchStub };
+      return { item, loaded, searchStub, title };
     };
 
     it("should search the given kind without the phrase and keep results visible", () => {
       const { item, loaded, searchStub } = loadWithQuery("@@order");
 
       assert.equal(searchStub.firstCall.args[0], "order");
-      assert.equal(searchStub.firstCall.args[2]?.symbolKind, 4);
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [4]);
       assert.isTrue(loaded.alwaysShow);
       assert.isUndefined(item.alwaysShow);
     });
@@ -660,6 +682,143 @@ describe("QuickPick", () => {
 
     it("should not set alwaysShow for a query without a filter phrase", () => {
       assert.isUndefined(loadWithQuery("order").loaded.alwaysShow);
+    });
+
+    it("should search every kind of a category typed as a phrase", () => {
+      const { searchStub } = loadWithQuery("@@server", {
+        phrases: {},
+        categories: defaultCategories,
+      });
+
+      assert.equal(searchStub.firstCall.args[0], "server");
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [4, 9, 10, 22]);
+    });
+
+    it("should prefer a category over a one-kind phrase with the same text", () => {
+      const { searchStub, title } = loadWithQuery("!!save", {
+        phrases: { 11: "!!" },
+        categories: defaultCategories,
+      });
+
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
+      assert.include(title!, "[Members]");
+    });
+
+    it("should match the longest phrase first", () => {
+      const { searchStub, title } = loadWithQuery("@@@srv", {
+        phrases: { 22: "@@@" },
+        categories: defaultCategories,
+      });
+
+      assert.equal(searchStub.firstCall.args[0], "srv");
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
+      assert.include(title!, "[All]");
+    });
+
+    it("should use a one-kind phrase without selecting a category", () => {
+      const { searchStub, title } = loadWithQuery("s srv", {
+        phrases: { 22: "s " },
+        categories: defaultCategories,
+      });
+
+      assert.equal(searchStub.firstCall.args[0], "srv");
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
+      assert.equal(title, "[All] · Types · Members · Files   (Tab)");
+    });
+
+    it("should show the active category in the title", () => {
+      assert.equal(
+        loadWithQuery("server", { phrases: {}, categories: defaultCategories })
+          .title,
+        "[All] · Types · Members · Files   (Tab)"
+      );
+      assert.equal(
+        loadWithQuery("@@server", { phrases: {}, categories: defaultCategories })
+          .title,
+        "All · [Types] · Members · Files   (Tab)"
+      );
+    });
+
+    it("should not add the phrase tag to row descriptions", () => {
+      const { loaded } = loadWithQuery("@@order", {
+        phrases: {},
+        categories: defaultCategories,
+        description: "[@@order] Class",
+      });
+
+      assert.equal(loaded.description, "Class");
+    });
+  });
+
+  describe("cycleCategory", () => {
+    const categories = [
+      { name: "Types", phrase: "@@", kinds: [4, 9, 10, 22] },
+      { name: "Members", phrase: "!!", kinds: [5, 6, 11] },
+      { name: "Files", phrase: "$$", kinds: [0] },
+    ];
+
+    const cycle = (query: string, direction: 1 | -1) => {
+      const control = vscode.window.createQuickPick<any>();
+      control.value = query;
+      const sandbox = sinon.createSandbox();
+      sandbox.stub(quickPick, "getControl").returns(control);
+      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({});
+      sandbox.stub(quickPick, "getCategories").returns(categories);
+      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(database, "isReady").returns(true);
+      const searchStub = sandbox.stub(database, "search").returns([]);
+
+      quickPick.cycleCategory(direction);
+
+      const result = { value: control.value, title: control.title, searchStub };
+      sandbox.restore();
+      control.dispose();
+      return result;
+    };
+
+    it("should cycle to the next category on Tab and wrap to All", () => {
+      assert.equal(cycle("server", 1).value, "@@server");
+      assert.equal(cycle("!!server", 1).value, "$$server");
+      assert.equal(cycle("$$server", 1).value, "server");
+    });
+
+    it("should cycle to the previous category on Shift+Tab", () => {
+      assert.equal(cycle("$$server", -1).value, "!!server");
+      assert.equal(cycle("!!server", -1).value, "@@server");
+      assert.equal(cycle("server", -1).value, "$$server");
+    });
+
+    it("should keep the query when switching categories", () => {
+      const { value, title, searchStub } = cycle("@@Server.Start", 1);
+
+      assert.equal(value, "!!Server.Start");
+      assert.equal(searchStub.firstCall.args[0], "Server.Start");
+      assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
+      assert.equal(title, "All · Types · [Members] · Files   (Tab)");
+    });
+  });
+
+  describe("help items", () => {
+    it("should list categories before one-kind phrases in help", () => {
+      const sandbox = sinon.createSandbox();
+      sandbox.stub(quickPick, "getHelpPhrase").returns("?");
+      sandbox
+        .stub(quickPick, "getCategories")
+        .returns([{ name: "Types", phrase: "@@", kinds: [4, 10] }]);
+      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({ 11: "ff" });
+      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(quickPick, "fetchConfig");
+
+      quickPick.reload();
+      const labels = quickPick.getHelpItems().map((item) => item.label);
+      sandbox.restore();
+
+      assert.deepEqual(labels, [
+        "? Type @@ for limit results to Types only (Tab)",
+        "? Type ff for limit results to Function only",
+      ]);
     });
   });
 

@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import {
+  fetchCategories,
   fetchHelpPhrase,
   fetchItemsFilter,
   fetchItemsFilterPhrases,
@@ -17,7 +18,7 @@ import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
 import { recentItems } from "./recentItems";
-import { ItemsFilterPhrases, QuickPickItem } from "./types";
+import { Category, ItemsFilterPhrases, QuickPickItem } from "./types";
 import { utils } from "./utils";
 const debounce = utils.debounce;
 
@@ -72,10 +73,87 @@ function shouldLoadItemsForFilterPhrase(qpItem: QuickPickItem): boolean {
 }
 
 function loadItemsForFilterPhrase(qpItem: QuickPickItem): void {
-  const itemsFilterPhrases = quickPick.getItemsFilterPhrases();
-  const filterPhrase = itemsFilterPhrases[qpItem.symbolKind];
+  const filterPhrase =
+    qpItem.filterPhrase ??
+    quickPick.getItemsFilterPhrases()[qpItem.symbolKind];
   quickPick.setText(filterPhrase);
   quickPick.loadItems();
+}
+
+interface ResolvedFilterPhrase {
+  kinds?: number[];
+  category?: Category;
+  rest: string;
+}
+
+function resolveFilterPhrase(text: string): ResolvedFilterPhrase {
+  if (!quickPick.getShouldUseItemsFilterPhrases()) {
+    return { rest: text };
+  }
+
+  const candidates: { phrase: string; kinds: number[]; category?: Category }[] =
+    [];
+  for (const category of quickPick.getCategories() || []) {
+    candidates.push({ phrase: category.phrase, kinds: category.kinds, category });
+  }
+  const filterPhrases = quickPick.getItemsFilterPhrases() || {};
+  for (const kind of Object.keys(filterPhrases)) {
+    const phrase = filterPhrases[parseInt(kind)];
+    if (phrase) {
+      candidates.push({ phrase, kinds: [parseInt(kind)] });
+    }
+  }
+  // Array.prototype.sort is stable, so categories stay ahead of one-kind phrases of equal length.
+  candidates.sort((a, b) => b.phrase.length - a.phrase.length);
+
+  const trimmed = text.trimStart();
+  const match = candidates.find((candidate) =>
+    trimmed.startsWith(candidate.phrase)
+  );
+  return match
+    ? {
+        kinds: match.kinds,
+        category: match.category,
+        rest: trimmed.slice(match.phrase.length).trim(),
+      }
+    : { rest: text };
+}
+
+function cycleCategory(direction: 1 | -1): void {
+  const control = quickPick.getControl();
+  const categories = quickPick.getCategories() || [];
+  if (!control || fileScopeUri || !categories.length) {
+    return;
+  }
+
+  const { category, kinds, rest } = resolveFilterPhrase(control.value || "");
+  const query = kinds ? rest : (control.value || "").trim();
+  const positions = categories.length + 1;
+  const current = category ? categories.indexOf(category) + 1 : 0;
+  const next = (current + direction + positions) % positions;
+  const phrase = next === 0 ? "" : categories[next - 1].phrase;
+
+  control.value = `${phrase}${query}`;
+  quickPick.loadItems();
+}
+
+function updateTitle(category?: Category): void {
+  const control = quickPick.getControl();
+  if (!control || fileScopeUri) {
+    return;
+  }
+  const categories = quickPick.getCategories() || [];
+  if (!quickPick.getShouldUseItemsFilterPhrases() || !categories.length) {
+    control.title = undefined;
+    return;
+  }
+  const names = [
+    category ? "All" : "[All]",
+    ...categories.map((item) =>
+      item === category ? `[${item.name}]` : item.name
+    ),
+  ];
+  control.title = `${names.join(" · ")}   (Tab)`;
 }
 
 export function ensureUri(uri: any): vscode.Uri {
@@ -195,6 +273,9 @@ function getSelectionForQpItem(
 
 function collectHelpItems(): QuickPickItem[] {
   const items: QuickPickItem[] = [];
+  for (const category of quickPick.getCategories() || []) {
+    items.push(getHelpItemForCategory(category));
+  }
   const itemsFilterPhrases = quickPick.getItemsFilterPhrases();
   for (const kind in itemsFilterPhrases) {
     const filterPhrase = itemsFilterPhrases[kind];
@@ -202,6 +283,16 @@ function collectHelpItems(): QuickPickItem[] {
     items.push(item);
   }
   return items;
+}
+
+function getHelpItemForCategory(category: Category): QuickPickItem {
+  return {
+    label: `${quickPick.getHelpPhrase()} Type ${category.phrase} for limit results to ${category.name} only (Tab)`,
+    symbolKind: category.kinds[0],
+    filterPhrase: category.phrase,
+    isHelp: true,
+    uri: vscode.Uri.parse("#"),
+  } as QuickPickItem;
 }
 
 function getHelpItemForKind(
@@ -227,6 +318,8 @@ function fetchConfig(): void {
 
   const itemsFilterPhrases = fetchItemsFilterPhrases();
   setItemsFilterPhrases(itemsFilterPhrases);
+
+  setCategories(fetchCategories());
 
   const shouldItemsBeSorted = fetchShouldItemsBeSorted();
   setShouldItemsBeSorted(shouldItemsBeSorted);
@@ -546,6 +639,7 @@ function isInitialized(): boolean {
 
 function show(): void {
   const control = quickPick.getControl();
+  updateTitle(resolveFilterPhrase(control.value || "").category);
   control.show();
   vscode.commands.executeCommand(
     "setContext",
@@ -568,28 +662,10 @@ function loadItems() {
   const control = quickPick.getControl();
   const rawQuery = control.value || "";
 
-  let symbolKind: number | undefined = undefined;
-  let cleanQuery = rawQuery;
-
-  if (quickPick.getShouldUseItemsFilterPhrases()) {
-    const trimmed = rawQuery.trimStart();
-    const filterPhrases = quickPick.getItemsFilterPhrases();
-    if (filterPhrases) {
-      const sortedKinds = Object.keys(filterPhrases).sort(
-        (a, b) =>
-          (filterPhrases[parseInt(b)]?.length || 0) -
-          (filterPhrases[parseInt(a)]?.length || 0)
-      );
-      for (const kindStr of sortedKinds) {
-        const phrase = filterPhrases[parseInt(kindStr)];
-        if (phrase && trimmed.startsWith(phrase)) {
-          symbolKind = parseInt(kindStr);
-          cleanQuery = trimmed.slice(phrase.length).trim();
-          break;
-        }
-      }
-    }
-  }
+  const filter = resolveFilterPhrase(rawQuery);
+  const symbolKinds = filter.kinds;
+  let cleanQuery = filter.rest;
+  updateTitle(filter.category);
 
   const lineSuffix = parseLineSuffix(cleanQuery);
   cleanQuery = lineSuffix.query;
@@ -597,7 +673,7 @@ function loadItems() {
   if (
     !fileScopeUri &&
     cleanQuery === "" &&
-    symbolKind === undefined &&
+    symbolKinds === undefined &&
     fetchShowRecentItemsOnEmptyQuery()
   ) {
     const recent = recentItems.getRecentItems(fetchRecentItemsLimit());
@@ -619,7 +695,7 @@ function loadItems() {
 
   // Query SQLite with clean search text, symbol kind, sorting and itemsFilter
   const searchResults = database.search(cleanQuery, VIRTUAL_PAGE_SIZE, {
-    symbolKind,
+    symbolKinds,
     sortByKind: quickPick.getShouldItemsBeSorted(),
     allowedKinds: itemsFilter.allowedKinds,
     ignoredKinds: itemsFilter.ignoredKinds,
@@ -633,7 +709,7 @@ function loadItems() {
     ? database.splitPathQuery(cleanQuery).leaf
     : cleanQuery;
   const needsOverrides =
-    symbolKind !== undefined ||
+    symbolKinds !== undefined ||
     !!lineSuffix.position ||
     !!database.parseQualifiedQuery(nameQuery) ||
     !!database.parsePatternQuery(cleanQuery) ||
@@ -649,28 +725,10 @@ function loadItems() {
     : loadUnsortedItemsFromResults(dbResults);
 }
 
+// Indexes built before categories stored a "[phrase name]" tag at the start of the description.
 function syncItemsFilterPhrases(items: QuickPickItem[]): void {
-  const filterPhrases = quickPick.getItemsFilterPhrases();
-  const shouldUse = quickPick.getShouldUseItemsFilterPhrases();
-
   for (const item of items) {
-    if (item.kind === vscode.QuickPickItemKind.Separator) {
-      continue;
-    }
-    if (!shouldUse || !filterPhrases) {
-      item.description = item.description?.replace(/^\[[^\]]+\]\s*/, "");
-      continue;
-    }
-    const phrase = filterPhrases[item.symbolKind];
-    if (phrase) {
-      const name = item.label.replace(ICON_PREFIX_REGEX, "");
-      const tag = `[${phrase}${name}]`;
-      if (item.description && item.description.startsWith("[")) {
-        item.description = item.description.replace(/^\[[^\]]+\]/, () => tag);
-      } else {
-        item.description = item.description ? `${tag} ${item.description}` : tag;
-      }
-    } else {
+    if (item.kind !== vscode.QuickPickItemKind.Separator) {
       item.description = item.description?.replace(/^\[[^\]]+\]\s*/, "");
     }
   }
@@ -757,6 +815,7 @@ let shouldUseItemsFilterPhrases: boolean;
 let helpPhrase: string;
 let shouldItemsBeSorted: boolean;
 let itemsFilterPhrases: ItemsFilterPhrases;
+let categories: Category[] = [];
 let helpItems: QuickPickItem[];
 let onDidChangeValueEventListeners: vscode.Disposable[] = [];
 
@@ -868,6 +927,14 @@ function setItemsFilterPhrases(newItemsFilterPhrases: ItemsFilterPhrases) {
   itemsFilterPhrases = newItemsFilterPhrases;
 }
 
+function getCategories() {
+  return categories;
+}
+
+function setCategories(newCategories: Category[]) {
+  categories = newCategories;
+}
+
 function getHelpItems() {
   return helpItems;
 }
@@ -895,6 +962,7 @@ export const quickPick = {
   getShouldItemsBeSorted,
   toggleKeepingSeparatorsVisibleOnFiltering,
   getItemsFilterPhrases,
+  getCategories,
   getHelpItems,
   getOnDidChangeValueEventListeners,
   setOnDidChangeValueEventListeners,
@@ -922,6 +990,9 @@ export const quickPick = {
   searchCurrentFile,
   openToTheSide,
   getFileScopeUri,
+  resolveFilterPhrase,
+  cycleCategory,
+  updateTitle,
   disposeOnDidChangeValueEventListeners,
   invalidateSymbolCache,
 };

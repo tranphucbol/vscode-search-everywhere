@@ -93,11 +93,7 @@ function getDocumentSymbolToQpItemDescription(
       : `lines: ${range.start.line + 1} - ${range.end.line + 1}`
     : "";
 
-  return `${
-    dataConverter.getShouldUseItemsFilterPhrases() && itemFilterPhrase
-      ? `[${itemFilterPhrase}${name}] `
-      : ""
-  }${vscode.SymbolKind[symbol.kind]}${lineDesc ? ` at ${lineDesc}` : ""}${
+  return `${vscode.SymbolKind[symbol.kind]}${lineDesc ? ` at ${lineDesc}` : ""}${
     parent ? ` in ${parent}` : ""
   }`;
 }
@@ -117,11 +113,7 @@ function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
 }
 
 function getUriToQpItemDescription(itemFilterPhrase: string, name: string) {
-  return `${
-    dataConverter.getShouldUseItemsFilterPhrases() && itemFilterPhrase
-      ? `[${itemFilterPhrase}${name}] `
-      : ""
-  }File`;
+  return "File";
 }
 
 function createQuickPickItem(

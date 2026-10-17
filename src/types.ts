@@ -65,6 +65,12 @@ export interface ItemsFilter {
   ignoredNames?: string[];
 }
 
+export interface Category {
+  name: string;
+  phrase: string;
+  kinds: number[];
+}
+
 export interface ItemsFilterPhrases {
   [symbolKind: number]: string;
 }
@@ -77,6 +83,7 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   symbolKind: number;
   range?: Range;
   isHelp?: boolean;
+  filterPhrase?: string;
   targetPosition?: vscode.Position;
   containerName?: string;
   matchBand?: MatchBand;

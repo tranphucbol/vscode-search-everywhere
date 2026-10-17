@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 import { getConfigByKey, updateConfigByKey } from "./cache";
-import { ExcludeMode, Icons, ItemsFilter, ItemsFilterPhrases } from "./types";
+import {
+  Category,
+  ExcludeMode,
+  Icons,
+  ItemsFilter,
+  ItemsFilterPhrases,
+} from "./types";
 
 const defaultSection = "searchEverywhere";
 const keys = {
@@ -47,6 +53,18 @@ const keys = {
   itemsFilterPhrases: {
     name: "itemsFilterPhrases",
     value: {} as ItemsFilterPhrases,
+  },
+  categories: {
+    name: "categories",
+    value: [
+      { name: "Types", phrase: "@@", kinds: [4, 9, 10, 22] },
+      {
+        name: "Members",
+        phrase: "!!",
+        kinds: [5, 6, 7, 8, 11, 12, 13, 21, 23, 24],
+      },
+      { name: "Files", phrase: "$$", kinds: [0] },
+    ] as Category[],
   },
   helpPhrase: {
     name: "helpPhrase",
@@ -197,6 +215,21 @@ export function fetchShouldUseItemsFilterPhrases(): boolean {
 
 export function fetchItemsFilterPhrases(): ItemsFilterPhrases {
   return get(keys.itemsFilterPhrases.name, keys.itemsFilterPhrases.value);
+}
+
+export function fetchCategories(): Category[] {
+  const categories = get(keys.categories.name, keys.categories.value);
+  if (!Array.isArray(categories)) {
+    return [];
+  }
+  return categories.filter(
+    (category) =>
+      !!category &&
+      typeof category.phrase === "string" &&
+      category.phrase.length > 0 &&
+      Array.isArray(category.kinds) &&
+      category.kinds.length > 0
+  );
 }
 
 export function fetchHelpPhrase(): string {

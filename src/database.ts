@@ -667,7 +667,7 @@ export function deleteByUriPrefix(uriPath: string): void {
 }
 
 export interface SearchOptions {
-  symbolKind?: number;
+  symbolKinds?: number[];
   allowedKinds?: number[];
   ignoredKinds?: number[];
   ignoredNames?: string[];
@@ -1004,7 +1004,7 @@ function searchItems(
   }
 
   // Fast-path: Check LRU search cache
-  let cacheKey = `${query}|${limit}|${options?.symbolKind ?? ""}|${options?.sortByKind ? "1" : "0"}|${options?.fileUri ?? ""}|${options?.allowedKinds?.join(",") ?? ""}|${options?.ignoredKinds?.join(",") ?? ""}|${options?.ignoredNames?.join(",") ?? ""}`;
+  let cacheKey = `${query}|${limit}|${options?.symbolKinds ? [...options.symbolKinds].sort((a, b) => a - b).join(",") : ""}|${options?.sortByKind ? "1" : "0"}|${options?.fileUri ?? ""}|${options?.allowedKinds?.join(",") ?? ""}|${options?.ignoredKinds?.join(",") ?? ""}|${options?.ignoredNames?.join(",") ?? ""}`;
   if (onlyKeys) {
     cacheKey += `|recent:${onlyKeys.map((key) => recentKeyString(key.uri, key.symbolKind, key.name)).join("\u0001")}`;
   }
@@ -1041,9 +1041,10 @@ function searchItems(
       conditions.push("symbol_kind != 0");
     }
 
-    if (options.symbolKind !== undefined) {
-      conditions.push("symbol_kind = ?");
-      params.push(options.symbolKind);
+    if (options.symbolKinds && options.symbolKinds.length > 0) {
+      const placeholders = options.symbolKinds.map(() => "?").join(", ");
+      conditions.push(`symbol_kind IN (${placeholders})`);
+      params.push(...options.symbolKinds);
     } else if (options.allowedKinds && options.allowedKinds.length > 0) {
       const placeholders = options.allowedKinds.map(() => "?").join(", ");
       conditions.push(`symbol_kind IN (${placeholders})`);

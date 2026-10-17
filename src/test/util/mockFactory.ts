@@ -62,6 +62,10 @@ export const getConfiguration = (): { [key: string]: any } => {
         "1": "^^",
         "4": "@@",
       },
+      categories: [
+        { name: "Types", phrase: "@@", kinds: [4, 10] },
+        { name: "Files", phrase: "$$", kinds: [0] },
+      ],
       helpPhrase: "?",
       shouldItemsBeSorted: true,
       shouldSearchSelection: true,

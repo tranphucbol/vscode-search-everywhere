@@ -182,6 +182,9 @@ function shouldReindexOnConfigurationChange(
     "shouldWorkspaceDataBeCached",
     "shouldSearchSelection",
     "useFileIconTheme",
+    "categories",
+    "itemsFilterPhrases",
+    "helpPhrase",
   ].map((config: string) => `${defaultSection}.${config}`);
 
   return (

@@ -30,6 +30,8 @@
     "onCommand:searchEverywhere.navigateIntoFile",
     "onCommand:searchEverywhere.navigateBack",
     "onCommand:searchEverywhere.openToTheSide",
+    "onCommand:searchEverywhere.nextCategory",
+    "onCommand:searchEverywhere.previousCategory",
     "onCommand:searchEverywhere.reload",
     "onCommand:searchEverywhere.clearSharedCache"
   ],
@@ -116,14 +118,47 @@
         },
         "searchEverywhere.itemsFilterPhrases": {
           "type": "object",
-          "default": {
-            "0": "$$",
-            "4": "@@",
-            "11": "!!",
-            "14": "##",
-            "17": "%%"
+          "default": {},
+          "description": "One-kind filter phrases, keyed by symbol kind, e.g. { \"11\": \"ff \" }. A phrase that is also used by a category belongs to the category."
+        },
+        "searchEverywhere.categories": {
+          "type": "array",
+          "default": [
+            {
+              "name": "Types",
+              "phrase": "@@",
+              "kinds": [4, 9, 10, 22]
+            },
+            {
+              "name": "Members",
+              "phrase": "!!",
+              "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24]
+            },
+            {
+              "name": "Files",
+              "phrase": "$$",
+              "kinds": [0]
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "phrase": {
+                "type": "string"
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": ["name", "phrase", "kinds"]
           },
-          "description": "Phrases for item type which could be used for narrowing the results down."
+          "description": "Named groups of symbol kinds. Type a category's phrase at the start of the query, or press Tab / Shift+Tab, to search only those kinds."
         },
         "searchEverywhere.helpPhrase": {
           "type": "string",
@@ -235,6 +270,14 @@
         "title": "Search everywhere: Open to the Side"
       },
       {
+        "command": "searchEverywhere.nextCategory",
+        "title": "Search everywhere: Next Category"
+      },
+      {
+        "command": "searchEverywhere.previousCategory",
+        "title": "Search everywhere: Previous Category"
+      },
+      {
         "command": "searchEverywhere.reload",
         "title": "Search everywhere: Reload"
       },
@@ -277,6 +320,16 @@
         "key": "alt+enter",
         "mac": "alt+enter",
         "when": "searchEverywhereOpen"
+      },
+      {
+        "command": "searchEverywhere.nextCategory",
+        "key": "tab",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
+      },
+      {
+        "command": "searchEverywhere.previousCategory",
+        "key": "shift+tab",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
       }
     ]
   },

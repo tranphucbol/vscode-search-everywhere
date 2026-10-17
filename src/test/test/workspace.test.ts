@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as vscode from "vscode";
 import { ActionTrigger, ActionType, ExcludeMode } from "../../types";
 import { workspace } from "../../workspace";
 import { getTestSetups } from "../testSetup/workspace.testSetup";
@@ -138,6 +139,16 @@ describe("Workspace", () => {
         ),
         false
       );
+    });
+
+    it("should not reindex when categories change", () => {
+      setups.shouldReindexOnConfigurationChange.setupForReturningFalseWhenConfigurationChangedButExcluded();
+      const changed = ["searchEverywhere", "searchEverywhere.categories"];
+      const event = {
+        affectsConfiguration: (section: string) => changed.includes(section),
+      } as vscode.ConfigurationChangeEvent;
+
+      assert.equal(workspace.shouldReindexOnConfigurationChange(event), false);
     });
 
     it("should return false if extension configuration has not changed", () => {

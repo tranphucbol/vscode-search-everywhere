@@ -326,6 +326,14 @@ async function openToTheSide(): Promise<void> {
   await quickPick.openToTheSide();
 }
 
+function nextCategory(): void {
+  quickPick.isInitialized() && quickPick.cycleCategory(1);
+}
+
+function previousCategory(): void {
+  quickPick.isInitialized() && quickPick.cycleCategory(-1);
+}
+
 export const controller = {
   shouldIndexOnQuickPickOpen,
   shouldLoadDataFromCacheOnQuickPickOpen,
@@ -346,6 +354,8 @@ export const controller = {
   navigateIntoFile,
   navigateBack,
   openToTheSide,
+  nextCategory,
+  previousCategory,
   startup,
   reload,
   handleWillProcessing,
