@@ -140,6 +140,9 @@ the language servers while indexing, and for libraries, commands and text search
   with the query. Reopening Search Everywhere shows the query without the prefix. A category or
   filter phrase that starts with the same character wins, and a selection or restored query that
   starts with one is still searched here. Turn it off with `searchEverywhere.handOffPrefixes`.
+
+  ![Commands and text search](img/hand-off.gif)
+
 - **Not indexed yet**: the search opens at once, even before the first index finishes. While the
   workspace is indexing, each query of two or more characters is also sent to the language
   servers' workspace symbol search, and symbols the index does not have yet are listed after the
@@ -154,6 +157,8 @@ the language servers while indexing, and for libraries, commands and text search
   `symbolScope` of `all`, and the TypeScript server covers what the project loads, such as
   `lib.*.d.ts` and imported packages, once `typescript.workspaceSymbols.excludeLibrarySymbols`
   is `false` (it is `true` by default).
+
+  ![Include libraries](img/include-libraries.gif)
 
 ### Ranking
 
@@ -227,6 +232,8 @@ the language servers while indexing, and for libraries, commands and text search
 - **Copy path and line**: `alt + cmd + c` / `ctrl + alt + c` copies the result's
   workspace-relative path and line, as shown under it (`src/user/service.ts:42`); a file copies
   its path alone. In a multi-root workspace the path starts with the folder name.
+
+  ![Copy reference and path](img/copy-reference.gif)
 
 ### Indexing and cache
 
