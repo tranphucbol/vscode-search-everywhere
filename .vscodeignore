@@ -1,5 +1,9 @@
 .vscode/**
 .vscode-test/**
+.github/**
+docs/**
+gdb/**
+AGENTS.md
 dist/test/**
 src/**
 scripts/**

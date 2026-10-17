@@ -1,0 +1,148 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      show-marketplace-identity:
+        description: Print the Azure identity's Marketplace ID, to add it as a publisher member
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  NODE_VERSION: "22"
+  VSCE_VERSION: "4"
+  OVSX_VERSION: "1"
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      vsix: ${{ steps.version.outputs.vsix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          name=$(node -p "require('./package.json').name")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "vsix=$name-$version.vsix" >> "$GITHUB_OUTPUT"
+
+      # Tags have been written both as v3.2.0 and v.3.2.0.
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag_version=$(echo "$GITHUB_REF_NAME" | sed -E 's/^v\.?//')
+          if [ "$tag_version" != "$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      # The suite runs inside a downloaded VS Code, which needs a display on Linux.
+      - name: Compile and test
+        run: xvfb-run -a npm test
+
+      # vscode:prepublish recompiles into a clean dist/, dropping the test run's coverage report.
+      - name: Package
+        run: npx --yes @vscode/vsce@${{ env.VSCE_VERSION }} package --no-git-tag-version --out "${{ steps.version.outputs.vsix }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: ${{ steps.version.outputs.vsix }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VSIX: ${{ needs.build.outputs.vsix }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+
+      # Global Azure DevOps PATs are retired on 2026-12-01, so the Marketplace is reached through
+      # a managed identity federated with this environment instead of a VSCE_PAT secret.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # --skip-duplicate lets a failed run be re-run after one registry already accepted the version.
+      - name: Publish to Visual Studio Marketplace
+        run: npx --yes @vscode/vsce@${{ env.VSCE_VERSION }} publish --azure-credential --packagePath "$VSIX" --skip-duplicate
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx@${{ env.OVSX_VERSION }} publish --packagePath "$VSIX" --skip-duplicate
+
+      - name: Attach package to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$VSIX" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$VSIX" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi
+
+  marketplace-identity:
+    name: Show Marketplace identity
+    if: github.event_name == 'workflow_dispatch' && inputs.show-marketplace-identity
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      id-token: write
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # 499b84ac-1321-427f-aa17-267ca6975798 is the Azure DevOps resource; the profile id it returns
+      # is what the Marketplace publisher page accepts as a member.
+      # https://code.visualstudio.com/api/working-with-extensions/publishing-extension
+      - name: Print Marketplace ID
+        run: |
+          id=$(az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id -o tsv)
+          echo "Marketplace ID: $id"
+          echo "Add \`$id\` as a Contributor member of the tranphucbol publisher." >> "$GITHUB_STEP_SUMMARY"

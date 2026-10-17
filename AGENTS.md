@@ -33,6 +33,13 @@ Run these from the repository root.
 - `npm run publish:extension` - publish to the VS Code Marketplace and Open VSX
   (`scripts/publish.js`); reads tokens from the gitignored `local.properties`, whose shape is
   `local.properties.example`. Only on an explicit request
+- `.github/workflows/release.yml` - CI: every push to `master` and every pull request compiles,
+  tests and packages the `.vsix`. Pushing a tag `v<version>` matching `package.json` also
+  publishes it to the Marketplace as publisher `tranphucbol` (`vsce publish --azure-credential`,
+  logged in through an Azure managed identity federated with the `marketplace` environment:
+  secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`), to Open VSX when `OVSX_PAT` is set, and
+  attaches it to a GitHub release. Running it by hand with `show-marketplace-identity` prints
+  the identity's Marketplace ID, which must be a Contributor member of the publisher
 - `node scripts/benchmark.js` - the search benchmark against a mocked `vscode`; it loads
   `dist/database.js`, so compile first
 
