@@ -58,8 +58,11 @@ worktrees and local clones of the same repository share one cache.
 | `impl user` | `UserServiceImpl` (words in any order) |
 | `user*impl` | `UserServiceImpl` (wildcard) |
 | `HTTPServer.ts:13`, `src/user.ts:10:5` | opens the item at that line and column |
-| `@@order` | classes only (filter phrase) |
-| `?` | the list of filter phrases |
+| `@@order` | types only: classes, enums, interfaces, structs (category) |
+| `!!save` | members only: methods, fields, constructors, functions… (category) |
+| `$$order` | files only (category) |
+| `tab` / `shift + tab` | switches between All and each category |
+| `?` | the list of categories and filter phrases |
 
 ![Query syntax](img/query-syntax.gif)
 
@@ -87,9 +90,17 @@ worktrees and local clones of the same repository share one cache.
 
   ![Jump to line](img/jump-to-line.gif)
 
-- **Filter phrases**: start the query with a phrase to search one item type only, e.g. `@@` for
-  classes or `$$` for files. Type the help phrase (`?`) to list them. Both are configurable with
-  `searchEverywhere.itemsFilterPhrases` and `searchEverywhere.helpPhrase`.
+- **Categories**: start the query with a category phrase to search one group of item types:
+  `@@` Types (classes, enums, interfaces, structs), `!!` Members (methods, properties, fields,
+  constructors, functions, variables, constants, enum members, events, operators) and `$$` Files.
+  Press `tab` / `shift + tab` to cycle All → Types → Members → Files; the query keeps its text and
+  only the leading phrase changes. The title shows the active category in brackets:
+  `[All] · Types · Members · Files   (Tab)`. Categories are configurable with
+  `searchEverywhere.categories`.
+- **Filter phrases**: map a phrase to a single item type with
+  `searchEverywhere.itemsFilterPhrases` (none by default). When a phrase is used by both, the
+  category wins. Type the help phrase (`?`, `searchEverywhere.helpPhrase`) to list the categories
+  and phrases.
 
   ![Filter phrases](img/filter-phrases.gif)
 
@@ -106,6 +117,11 @@ worktrees and local clones of the same repository share one cache.
 
   ![Recent items](img/recent-items.gif)
 
+- **Tests, mocks and generated code last**: files matching `searchEverywhere.secondaryCode`
+  (`*_test.go`, `mock_*.go`, `*.pb.go`, `src/test/**`, `*.spec.ts` and similar) and their symbols
+  rank after source code that matches equally well, and are tagged `· test` or `· generated`. They
+  are never hidden, and a better match still wins: an exact match in a test file stays above a
+  prefix match in source code. A recently used test row keeps its place among the recent rows.
 - Set `searchEverywhere.shouldItemsBeSorted` to group results by item type instead of ranking
   them strictly by relevance.
 
@@ -134,8 +150,13 @@ worktrees and local clones of the same repository share one cache.
 
   ![Highlight disabled](img/highlight-off.gif)
 
+- **Preview while browsing**: moving through the results opens the highlighted file or symbol in a
+  preview editor without leaving the quick pick (`searchEverywhere.previewOnSelect`). Press
+  `escape` to go back to the editor and cursor you started from; press `enter` to keep it.
+- **Last query restored**: reopening Search Everywhere puts the last workspace query back,
+  selected, so typing replaces it (`searchEverywhere.restoreLastQuery`).
 - The selection in the active editor is put in the search
-  (`searchEverywhere.shouldSearchSelection`).
+  (`searchEverywhere.shouldSearchSelection`); a non-empty selection wins over the last query.
 
 ### Indexing and cache
 
@@ -147,7 +168,38 @@ worktrees and local clones of the same repository share one cache.
 - The index is cached between sessions (`searchEverywhere.shouldWorkspaceDataBeCached`) and shared
   across git worktrees and local clones of the same repository
   (`searchEverywhere.shareCacheAcrossWorktrees`).
-- A dedicated output channel logs triggered actions, scanned directories and indexing times.
+- Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
+  file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
+- Before indexing, the extension opens one file per language and waits until its language server
+  returns symbols: up to 15 s, or 120 s for Java and Kotlin, whose servers import the build first.
+  Files indexed without symbols while their language server was still starting are retried every
+  30 s for 10 minutes. A language no installed extension provides (`.proto` without a protobuf
+  extension) is not waited for.
+- A dedicated output channel logs triggered actions, scanned directories, indexing times, the
+  detected language presets and the effective include and exclude patterns.
+
+### Go and Java
+
+- **Language presets**: when a workspace folder has `go.mod` or `go.work` at its root, or
+  `pom.xml`, `build.gradle`, `build.gradle.kts` or `settings.gradle*`, the matching preset fills
+  the include and exclude patterns and the ignored kinds you have not set yourself at any level
+  (user, workspace or folder):
+
+  | Preset | include | exclude adds | ignored kinds |
+  | :--- | :--- | :--- | :--- |
+  | Go | `**/*.{go,mod,work,proto,yaml,yml,json}` | `**/vendor/**`, `**/bin/**`, `**/testdata/**` | type parameters (25) |
+  | Java | `**/*.{java,kt,kts,xml,yml,yaml,properties,gradle,sql}` | `**/target/**`, `**/build/**`, `**/.gradle/**`, `**/.idea/**` | |
+
+  A workspace with both markers gets the union. Without a marker the defaults apply. Adding or
+  removing a marker file reindexes the workspace. Turn presets off with
+  `searchEverywhere.languagePresets`.
+- **Go methods** are stored by their name with the receiver type as container: gopls reports
+  `(*Server).Start`, which is found by `Start` or `Server.Start` and shown as
+  `Start   (*Server) · method`.
+- **Java methods and constructors** drop the parameter list from the name: jdtls reports
+  `save(User)`, which is found by `save` or `UserService.save` and shown as
+  `save   UserService · method (User)`.
+- Each row shows the name, then the container and kind, and `path:line` on the second line.
 
 ### Display
 
@@ -198,6 +250,8 @@ against them. Measured on an Apple M4:
 | `searchEverywhere.navigateIntoFile` | Search everywhere: Navigate into File | `alt + right` | `alt + right` |
 | `searchEverywhere.navigateBack` | Search everywhere: Navigate Back to Workspace | `alt + left` | `alt + left` |
 | `searchEverywhere.openToTheSide` | Search everywhere: Open to the Side | `cmd + enter`, `alt + enter` | `ctrl + enter`, `alt + enter` |
+| `searchEverywhere.nextCategory` | Search everywhere: Next Category | `tab` | `tab` |
+| `searchEverywhere.previousCategory` | Search everywhere: Previous Category | `shift + tab` | `shift + tab` |
 | `searchEverywhere.reload` | Search everywhere: Reload | | |
 | `searchEverywhere.clearSharedCache` | Search everywhere: Clear Shared Worktree Cache | | |
 
@@ -209,6 +263,8 @@ against them. Measured on an Apple M4:
   the previous query; it applies while scoped to a file.
 - **Open to the Side** opens the selected item beside the active editor; it applies while Search
   Everywhere is open.
+- **Next Category** and **Previous Category** switch between All and each category; they apply
+  while Search Everywhere is open and not scoped to a file.
 - **Reload** re-indexes the whole workspace.
 - **Clear Shared Worktree Cache** clears the repository cache shared across git worktrees and
   clones.
@@ -223,11 +279,25 @@ against them. Measured on an Apple M4:
 
 - `searchEverywhere.include`, default `"**/*.{js,jsx,ts,tsx}"`
 
-  A glob. Any file matching it is indexed.
+  A glob. Any file matching it is indexed. A [language preset](#go-and-java) replaces the default
+  when it is not set.
+
+- `searchEverywhere.indexNamesOnly`, default
+  `"**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}"`
+
+  A glob matched against the workspace-relative path. Matching files are indexed as files only;
+  their symbols are not requested. Set it to `""` to ask for symbols of every file.
+
+- `searchEverywhere.languagePresets`, default `"auto"`
+
+  `auto` detects Go (`go.mod`, `go.work`) and Java (`pom.xml`, `build.gradle`,
+  `build.gradle.kts`, `settings.gradle*`) at each workspace folder root and fills `include`,
+  `exclude` and `itemsFilter.ignoredKinds` where you have not set them. `off` keeps the defaults.
 
 - `searchEverywhere.exclude`
 
-  An array of globs. Any file matching these globs is excluded from indexing.
+  An array of globs. Any file matching these globs is excluded from indexing. A language preset
+  adds its excludes to the default when it is not set.
 
   Default value:
 
@@ -321,6 +391,41 @@ against them. Measured on an Apple M4:
 
   Put the selection of the active editor in the search.
 
+- `searchEverywhere.previewOnSelect`, default `true`
+
+  Open the highlighted result in a preview editor, without moving focus, while moving through the
+  results. `escape` restores the editor and selection that were active before the search opened.
+
+- `searchEverywhere.restoreLastQuery`, default `true`
+
+  Put the last workspace query back, selected, when Search Everywhere opens. A non-empty editor
+  selection still wins when `searchEverywhere.shouldSearchSelection` is on.
+
+- `searchEverywhere.secondaryCode`
+
+  An array of globs for tests, mocks and generated code. Matching files and their symbols rank
+  after other results of the same match quality and are tagged `· test` (when the glob mentions
+  `test` or `spec`) or `· generated`. Changing it does not reindex.
+
+  Default value:
+
+  ```json
+  [
+    "**/*_test.go",
+    "**/mock_*.go",
+    "**/mocks/**",
+    "**/*.pb.go",
+    "**/*_gen.go",
+    "**/*.gen.go",
+    "**/zz_generated*",
+    "**/src/test/**",
+    "**/generated/**",
+    "**/generated-sources/**",
+    "**/__tests__/**",
+    "**/*.{test,spec}.{ts,tsx,js,jsx}"
+  ]
+  ```
+
 - `searchEverywhere.shouldItemsBeSorted`, default `false`
 
   Group and sort results by item type. When `false` (recommended), results are ranked strictly by
@@ -340,27 +445,31 @@ against them. Measured on an Apple M4:
 
 - `searchEverywhere.shouldUseItemsFilterPhrases`, default `true`
 
-  Allow narrowing the results down with the filter phrases below.
+  Allow narrowing the results down with the categories and filter phrases below.
 
-- `searchEverywhere.itemsFilterPhrases`
+- `searchEverywhere.categories`
 
-  Phrases that narrow the results down to one item type, keyed by kind.
+  Groups of item kinds, each with a phrase. Starting the query with the phrase limits results to
+  those kinds, and `tab` / `shift + tab` cycle through the categories in this order.
 
   Default value:
 
   ```json
-  {
-    "0": "$$",
-    "4": "@@",
-    "11": "!!",
-    "14": "##",
-    "17": "%%"
-  }
+  [
+    { "name": "Types", "phrase": "@@", "kinds": [4, 9, 10, 22] },
+    { "name": "Members", "phrase": "!!", "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24] },
+    { "name": "Files", "phrase": "$$", "kinds": [0] }
+  ]
   ```
+
+- `searchEverywhere.itemsFilterPhrases`, default `{}`
+
+  Phrases that narrow the results down to one item type, keyed by kind, for example
+  `{ "11": "ff" }` for functions. A category with the same phrase wins.
 
 - `searchEverywhere.helpPhrase`, default `"?"`
 
-  A phrase that lists the filter phrases.
+  A phrase that lists the categories and filter phrases.
 
 ### Display
 

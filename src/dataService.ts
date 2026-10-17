@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "./config";
+import { fetchIndexNamesOnly, fetchItemsFilter } from "./config";
 import { dataConverter } from "./dataConverter";
 import { onDidItemIndexedEventEmitter } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
 import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";
-import { utils } from "./utils";
+import { matchesGlob, utils } from "./utils";
 
 const CONTAINER_SEPARATOR = ".";
 
@@ -26,103 +26,157 @@ async function getUrisOrFetchIfEmpty(
   return uris && uris.length ? uris : await dataService.fetchUris();
 }
 
-let isWarmupDone = false;
+const WARMUP_POLL_MS = 500;
+const WARMUP_TIMEOUT_MS = 15_000;
+// jdtls imports the Maven/Gradle build before it answers; 15 s is not enough on a cold start.
+const SLOW_WARMUP_TIMEOUT_MS = 120_000;
+const SLOW_LANGUAGES = new Set(["java", "kt"]);
+const SCRIPT_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx"]);
+const LANGUAGE_NAMES: { [language: string]: string } = {
+  typescript: "TypeScript",
+  go: "Go",
+  java: "Java",
+  kt: "Kotlin",
+  py: "Python",
+  cs: "C#",
+  rs: "Rust",
+};
 
-async function warmupLanguageServer(
+const readyLanguages = new Set<string>();
+
+function getLanguage(uri: vscode.Uri): string | undefined {
+  const fileName = uri.path.split("/").pop() || "";
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return undefined;
+  }
+  const extension = fileName.slice(dotIndex + 1).toLowerCase();
+  return SCRIPT_EXTENSIONS.has(extension) ? "typescript" : extension;
+}
+
+function getLanguageName(language: string): string {
+  return LANGUAGE_NAMES[language] || `.${language}`;
+}
+
+function isWarmupSample(uri: vscode.Uri): boolean {
+  const path = uri.path.toLowerCase();
+  return (
+    !isNonSymbolFile(uri) &&
+    !isNamesOnly(uri) &&
+    !path.endsWith(".d.ts") &&
+    !path.includes("test") &&
+    !path.includes("fixtures")
+  );
+}
+
+function pickWarmupSamples(uris: vscode.Uri[]): Map<string, vscode.Uri> {
+  const urisByLanguage = new Map<string, vscode.Uri[]>();
+  for (const uri of uris) {
+    const language = getLanguage(uri);
+    if (!language || readyLanguages.has(language) || !isWarmupSample(uri)) {
+      continue;
+    }
+    const languageUris = urisByLanguage.get(language) || [];
+    languageUris.push(uri);
+    urisByLanguage.set(language, languageUris);
+  }
+
+  const samples = new Map<string, vscode.Uri>();
+  urisByLanguage.forEach((languageUris, language) =>
+    samples.set(language, languageUris[Math.floor(languageUris.length / 2)])
+  );
+  return samples;
+}
+
+async function warmupLanguageServers(
   uris: vscode.Uri[],
   progress?: vscode.Progress<{
     message?: string | undefined;
     increment?: number | undefined;
   }>
-): Promise<void> {
-  if (isWarmupDone || uris.length <= 1) {
-    return;
-  }
-  isWarmupDone = true;
-  progress?.report({ message: "Initializing Language Server..." });
-  logger.log("Warming up language servers...");
-
-  // 1. Explicitly activate built-in / common language extensions
-  const LANG_EXTENSIONS = [
-    "vscode.typescript-language-features",
-    "vscode.json-language-features",
-    "vscode.markdown-language-features",
-  ];
-
-  for (const extId of LANG_EXTENSIONS) {
-    try {
-      const ext = vscode.extensions.getExtension(extId);
-      if (ext && !ext.isActive) {
-        logger.log(`Activating extension ${extId}...`);
-        await ext.activate();
-        logger.log(`Extension ${extId} activated.`);
-      }
-    } catch (e) {
-      logger.log(`Could not activate ${extId}: ${e}`);
-    }
+): Promise<Set<string>> {
+  const timedOut = new Set<string>();
+  if (uris.length <= 1) {
+    return timedOut;
   }
 
-  // 2. Find candidate code URIs that are regular source files
-  const codeExts = ["ts", "tsx", "js", "jsx"];
-  const candidateUris = uris.filter((u) => {
-    const p = u.path.toLowerCase();
-    const ext = p.split(".").pop();
-    return (
-      ext &&
-      codeExts.includes(ext) &&
-      !p.endsWith(".d.ts") &&
-      !p.includes("test") &&
-      !p.includes("fixtures")
+  const samples = pickWarmupSamples(uris);
+  await Promise.all(
+    Array.from(samples.entries()).map(async ([language, sampleUri]) => {
+      const result = await warmupLanguageServer(language, sampleUri, progress);
+      result === "ready" && readyLanguages.add(language);
+      result === "timedOut" && timedOut.add(language);
+    })
+  );
+
+  timedOut.size &&
+    logger.log(
+      `Language servers not ready after warm-up: ${Array.from(timedOut)
+        .map(getLanguageName)
+        .join(", ")}`
     );
-  });
+  return timedOut;
+}
 
-  const sampleUri =
-    candidateUris[Math.floor(candidateUris.length / 2)] ||
-    candidateUris[0] ||
-    uris[0];
+async function warmupLanguageServer(
+  language: string,
+  sampleUri: vscode.Uri,
+  progress?: vscode.Progress<{
+    message?: string | undefined;
+    increment?: number | undefined;
+  }>
+): Promise<"ready" | "timedOut" | "unsupported"> {
+  const languageName = getLanguageName(language);
+  const timeoutMs = SLOW_LANGUAGES.has(language)
+    ? SLOW_WARMUP_TIMEOUT_MS
+    : WARMUP_TIMEOUT_MS;
+  const maxAttempts = Math.ceil(timeoutMs / WARMUP_POLL_MS);
+  const startedAt = Date.now();
 
-  if (!sampleUri) {
-    return;
-  }
-
+  logger.log(`Waiting for the ${languageName} language server: ${sampleUri.path}`);
   try {
-    logger.log(`Opening sample document: ${sampleUri.path}`);
-    await vscode.workspace.openTextDocument(sampleUri);
+    const document = await vscode.workspace.openTextDocument(sampleUri);
+    // No installed extension claims the file (e.g. .proto without a protobuf extension), so no
+    // symbol provider will ever answer; waiting would only delay every index by the timeout.
+    if (document?.languageId === "plaintext") {
+      logger.log(
+        `No extension provides the ${languageName} language; its files are indexed without symbols.`
+      );
+      return "unsupported";
+    }
   } catch (e) {
-    logger.log(`Failed to open sample document: ${e}`);
+    logger.log(`Failed to open sample document ${sampleUri.path}: ${e}`);
   }
 
-  // 3. Poll sampleUri until executeDocumentSymbolProvider returns actual symbols
-  const maxAttempts = 30; // up to 15s
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (dataService.getIsCancelled()) {
-      return;
+    const elapsedMs = Date.now() - startedAt;
+    if (dataService.getIsCancelled() || elapsedMs >= timeoutMs) {
+      break;
     }
 
     progress?.report({
-      message: `Initializing Language Server (${attempt + 1}/${maxAttempts})...`,
+      message: `Waiting for the ${languageName} language server (${Math.round(
+        elapsedMs / 1000
+      )} s)…`,
     });
 
-    try {
-      const rawSymbols = await loadAllSymbolsForUri(sampleUri);
+    const rawSymbols = await loadAllSymbolsForUri(sampleUri);
+    if (rawSymbols && rawSymbols.length > 0) {
       logger.log(
-        `Warmup attempt ${attempt + 1}/${maxAttempts}: returned ${
-          rawSymbols ? `${rawSymbols.length} raw symbols` : "undefined"
-        }`
+        `The ${languageName} language server is ready after ${elapsedMs} ms.`
       );
-      if (rawSymbols && rawSymbols.length > 0) {
-        logger.log(
-          `Language server is ready! Found ${rawSymbols.length} symbols in sample file.`
-        );
-        progress?.report({ message: "Language Server ready! Indexing..." });
-        break;
-      }
-    } catch (e) {
-      logger.log(`Warmup attempt ${attempt + 1} threw error: ${e}`);
+      return "ready";
     }
 
-    await utils.sleep(500);
+    await utils.sleep(WARMUP_POLL_MS);
   }
+
+  logger.log(
+    `The ${languageName} language server returned no symbols within ${
+      timeoutMs / 1000
+    } s.`
+  );
+  return "timedOut";
 }
 
 async function includeSymbols(
@@ -138,7 +192,8 @@ async function includeSymbols(
     return;
   }
 
-  await warmupLanguageServer(uris, progress);
+  const timedOutLanguages = await warmupLanguageServers(uris, progress);
+  const urisToRetry: vscode.Uri[] = [];
 
   const CONCURRENCY = 20;
   let currentIndex = 0;
@@ -154,6 +209,14 @@ async function includeSymbols(
         const uri = uris[i];
 
         const symbolsForUri = await tryToGetSymbolsForUri(uri);
+        if (
+          !symbolsForUri?.length &&
+          timedOutLanguages.has(getLanguage(uri) || "") &&
+          !isNonSymbolFile(uri) &&
+          !isNamesOnly(uri)
+        ) {
+          urisToRetry.push(uri);
+        }
         if (onBatch) {
           const qpItems = dataConverter.convertUriAndSymbolsToQpItems(
             uri,
@@ -174,6 +237,8 @@ async function includeSymbols(
 
   if (dataService.getIsCancelled()) {
     utils.clearWorkspaceData(workspaceData);
+  } else if (urisToRetry.length) {
+    workspaceData.urisToRetry = urisToRetry;
   }
 }
 
@@ -184,11 +249,19 @@ const NON_SYMBOL_EXTENSIONS = new Set([
   "mp3", "mp4", "wav", "avi"
 ]);
 
+function isNonSymbolFile(uri: vscode.Uri): boolean {
+  const ext = uri.path.split(".").pop()?.toLowerCase();
+  return !!ext && NON_SYMBOL_EXTENSIONS.has(ext);
+}
+
+function isNamesOnly(uri: vscode.Uri): boolean {
+  return matchesGlob(utils.normalizeUriPath(uri.path), fetchIndexNamesOnly());
+}
+
 async function tryToGetSymbolsForUri(
   uri: vscode.Uri
 ): Promise<vscode.DocumentSymbol[] | undefined> {
-  const ext = uri.path.split(".").pop()?.toLowerCase();
-  if (ext && NON_SYMBOL_EXTENSIONS.has(ext)) {
+  if (isNonSymbolFile(uri) || isNamesOnly(uri)) {
     return undefined;
   }
 
@@ -453,6 +526,10 @@ function getIsCancelled() {
   return isCancelled;
 }
 
+function resetLanguageWarmup() {
+  readyLanguages.clear();
+}
+
 function setItemsFilter(newItemsFilter: ItemsFilter) {
   itemsFilter = newItemsFilter;
 }
@@ -475,4 +552,5 @@ export const dataService = {
   isUriExistingInWorkspace,
   fetchUris,
   getSymbolsForUri,
+  resetLanguageWarmup,
 };

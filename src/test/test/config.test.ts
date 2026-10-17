@@ -105,6 +105,32 @@ describe("Config", () => {
     });
   });
 
+  describe("fetchCategories", () => {
+    it("should return categories setting", () => {
+      assert.deepEqual(
+        config.fetchCategories(),
+        configuration.searchEverywhere.categories
+      );
+    });
+
+    it("should drop categories without a phrase or kinds", () => {
+      const original = configuration.searchEverywhere.categories;
+      configuration.searchEverywhere.categories = [
+        { name: "Types", phrase: "@@", kinds: [4] },
+        { name: "No phrase", phrase: "", kinds: [5] },
+        { name: "No kinds", phrase: "##", kinds: [] },
+        { name: "Missing kinds", phrase: "%%" },
+      ];
+      try {
+        assert.deepEqual(config.fetchCategories(), [
+          { name: "Types", phrase: "@@", kinds: [4] },
+        ]);
+      } finally {
+        configuration.searchEverywhere.categories = original;
+      }
+    });
+  });
+
   describe("fetchHelpPhrase", () => {
     it("should return help phrase from configuration", () => {
       const section = "searchEverywhere";

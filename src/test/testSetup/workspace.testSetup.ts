@@ -5,6 +5,9 @@ import * as cache from "../../cache";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
 import { dataService } from "../../dataService";
+import { database } from "../../database";
+import { logger } from "../../logger";
+import * as presets from "../../presets";
 import { ExcludeMode } from "../../types";
 import { utils } from "../../utils";
 import { workspace } from "../../workspace";
@@ -23,6 +26,56 @@ export const getTestSetups = () => {
     },
 
     init: {
+      setupForComparingIndexedConfig: (
+        indexedConfig: string | undefined,
+        currentConfig: string
+      ) => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "clearAll",
+            },
+            {
+              object: logger,
+              method: "log",
+            },
+            {
+              object: cache,
+              method: "getIndexedConfig",
+              returns: indexedConfig,
+            },
+            {
+              object: config,
+              method: "fetchIndexedConfigSnapshot",
+              returns: currentConfig,
+            },
+            {
+              object: cache,
+              method: "clearConfig",
+            },
+            {
+              object: presets,
+              method: "refreshPresets",
+              returns: Promise.resolve(false),
+            },
+            {
+              object: utils,
+              method: "setWorkspaceFoldersCommonPath",
+            },
+            {
+              object: dataService,
+              method: "fetchConfig",
+            },
+            {
+              object: dataConverter,
+              method: "fetchConfig",
+            },
+          ],
+          sandbox
+        );
+      },
+
       setupForInvokingSetWorkspaceFoldersCommonPath: () => {
         return stubMultiple(
           [
@@ -405,6 +458,46 @@ export const getTestSetups = () => {
         return eventEmitter;
       },
 
+      setupForRecomputingSecondaryCode: () => {
+        return stubMultiple(
+          [
+            {
+              object: workspace,
+              method: "shouldReindexOnConfigurationChange",
+              returns: false,
+            },
+            {
+              object: workspace,
+              method: "index",
+            },
+            {
+              object: utils,
+              method: "isDebounceConfigurationToggled",
+              returns: false,
+            },
+            {
+              object: utils,
+              method: "isSortingConfigurationToggled",
+              returns: false,
+            },
+            {
+              object: config,
+              method: "fetchSecondaryCode",
+              returns: ["**/*_test.go"],
+            },
+            {
+              object: database,
+              method: "recomputeSecondary",
+            },
+            {
+              object: cache,
+              method: "clearConfig",
+            },
+          ],
+          sandbox
+        );
+      },
+
       setupForDoingNothingWhenExtensionConfigurationNotChanged: () => {
         return stubMultiple(
           [
@@ -484,6 +577,15 @@ export const getTestSetups = () => {
               method: "hasWorkspaceChanged",
               returns: true,
             },
+            {
+              object: presets,
+              method: "refreshPresets",
+              returns: Promise.resolve(false),
+            },
+            {
+              object: workspace,
+              method: "reloadConfig",
+            },
           ],
           sandbox
         );
@@ -500,6 +602,34 @@ export const getTestSetups = () => {
               object: utils,
               method: "hasWorkspaceChanged",
               returns: false,
+            },
+          ],
+          sandbox
+        );
+      },
+    },
+
+    handleDidChangeMarkerFile: {
+      setupForMarkerFile: (isRootMarker: boolean, presetsChanged: boolean) => {
+        return stubMultiple(
+          [
+            {
+              object: workspace,
+              method: "index",
+            },
+            {
+              object: workspace,
+              method: "reloadConfig",
+            },
+            {
+              object: presets,
+              method: "isRootMarker",
+              returns: isRootMarker,
+            },
+            {
+              object: presets,
+              method: "refreshPresets",
+              returns: Promise.resolve(presetsChanged),
             },
           ],
           sandbox

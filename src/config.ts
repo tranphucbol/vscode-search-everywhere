@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { getConfigByKey, updateConfigByKey } from "./cache";
-import { ExcludeMode, Icons, ItemsFilter, ItemsFilterPhrases } from "./types";
+import { effectiveValue, getActivePresets, PresetKey } from "./presets";
+import {
+  Category,
+  ExcludeMode,
+  Icons,
+  ItemsFilter,
+  ItemsFilterPhrases,
+} from "./types";
 
 const defaultSection = "searchEverywhere";
 const keys = {
@@ -47,6 +54,18 @@ const keys = {
   itemsFilterPhrases: {
     name: "itemsFilterPhrases",
     value: {} as ItemsFilterPhrases,
+  },
+  categories: {
+    name: "categories",
+    value: [
+      { name: "Types", phrase: "@@", kinds: [4, 9, 10, 22] },
+      {
+        name: "Members",
+        phrase: "!!",
+        kinds: [5, 6, 7, 8, 11, 12, 13, 21, 23, 24],
+      },
+      { name: "Files", phrase: "$$", kinds: [0] },
+    ] as Category[],
   },
   helpPhrase: {
     name: "helpPhrase",
@@ -96,6 +115,40 @@ const keys = {
     name: "useFileIconTheme",
     value: false,
   },
+  previewOnSelect: {
+    name: "previewOnSelect",
+    value: true,
+  },
+  restoreLastQuery: {
+    name: "restoreLastQuery",
+    value: true,
+  },
+  indexNamesOnly: {
+    name: "indexNamesOnly",
+    value:
+      "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}",
+  },
+  secondaryCode: {
+    name: "secondaryCode",
+    value: [
+      "**/*_test.go",
+      "**/mock_*.go",
+      "**/mocks/**",
+      "**/*.pb.go",
+      "**/*_gen.go",
+      "**/*.gen.go",
+      "**/zz_generated*",
+      "**/src/test/**",
+      "**/generated/**",
+      "**/generated-sources/**",
+      "**/__tests__/**",
+      "**/*.{test,spec}.{ts,tsx,js,jsx}",
+    ],
+  },
+  languagePresets: {
+    name: "languagePresets",
+    value: "auto",
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -117,6 +170,28 @@ function get<T>(key: string, defaultValue: T, customSection?: string): T {
     updateConfigByKey(cacheKey, value);
   }
   return value as T;
+}
+
+function getUserValue<T>(key: string): T | undefined {
+  const inspected = vscode.workspace
+    .getConfiguration(defaultSection)
+    .inspect<T>(key);
+  if (!inspected) {
+    return undefined;
+  }
+  return inspected.workspaceFolderValue !== undefined
+    ? inspected.workspaceFolderValue
+    : inspected.workspaceValue !== undefined
+    ? inspected.workspaceValue
+    : inspected.globalValue;
+}
+
+function withPresets<T>(key: PresetKey, value: T): T {
+  const presets = getActivePresets();
+  if (!presets.length || fetchLanguagePresets() !== "auto") {
+    return value;
+  }
+  return effectiveValue(key, getUserValue<T>(key), presets);
 }
 
 function getFilesExclude(): string[] {
@@ -164,7 +239,10 @@ export function fetchShouldExcludeVariables(): boolean {
 }
 
 export function fetchItemsFilter(): ItemsFilter {
-  const filter = get(keys.itemsFilter.name, keys.itemsFilter.value);
+  const filter = withPresets(
+    "itemsFilter",
+    get(keys.itemsFilter.name, keys.itemsFilter.value)
+  );
   const shouldExcludeProperties = fetchShouldExcludeProperties();
   const shouldExcludeVariables = fetchShouldExcludeVariables();
 
@@ -199,6 +277,21 @@ export function fetchItemsFilterPhrases(): ItemsFilterPhrases {
   return get(keys.itemsFilterPhrases.name, keys.itemsFilterPhrases.value);
 }
 
+export function fetchCategories(): Category[] {
+  const categories = get(keys.categories.name, keys.categories.value);
+  if (!Array.isArray(categories)) {
+    return [];
+  }
+  return categories.filter(
+    (category) =>
+      !!category &&
+      typeof category.phrase === "string" &&
+      category.phrase.length > 0 &&
+      Array.isArray(category.kinds) &&
+      category.kinds.length > 0
+  );
+}
+
 export function fetchHelpPhrase(): string {
   return get(keys.helpPhrase.name, keys.helpPhrase.value);
 }
@@ -211,12 +304,48 @@ export function fetchShouldSearchSelection(): boolean {
   return get(keys.shouldSearchSelection.name, keys.shouldSearchSelection.value);
 }
 
+export function fetchPreviewOnSelect(): boolean {
+  return get(keys.previewOnSelect.name, keys.previewOnSelect.value);
+}
+
+export function fetchRestoreLastQuery(): boolean {
+  return get(keys.restoreLastQuery.name, keys.restoreLastQuery.value);
+}
+
+export function fetchIndexNamesOnly(): string {
+  return get(keys.indexNamesOnly.name, keys.indexNamesOnly.value);
+}
+
+export function fetchSecondaryCode(): string[] {
+  const globs = get(keys.secondaryCode.name, keys.secondaryCode.value);
+  return Array.isArray(globs)
+    ? globs.filter((glob) => typeof glob === "string" && glob.length > 0)
+    : [];
+}
+
 export function fetchExclude(): string[] {
-  return get(keys.exclude.name, keys.exclude.value);
+  return withPresets("exclude", get(keys.exclude.name, keys.exclude.value));
 }
 
 export function fetchInclude(): string {
-  return get(keys.include.name, keys.include.value);
+  return withPresets("include", get(keys.include.name, keys.include.value));
+}
+
+/**
+ * The effective settings an index was built with, as a string to compare
+ * against the next start: a preset appearing or going away changes it.
+ */
+export function fetchIndexedConfigSnapshot(): string {
+  return JSON.stringify({
+    presets: fetchLanguagePresets() === "auto" ? getActivePresets() : [],
+    include: fetchInclude(),
+    exclude: fetchExclude(),
+    itemsFilter: fetchItemsFilter(),
+  });
+}
+
+export function fetchLanguagePresets(): string {
+  return get(keys.languagePresets.name, keys.languagePresets.value);
 }
 
 export function fetchFilesAndSearchExclude(): string[] {

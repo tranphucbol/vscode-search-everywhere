@@ -1,3 +1,4 @@
+import { assert } from "chai";
 import { performance } from "perf_hooks";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
@@ -10,6 +11,7 @@ import * as dataServiceEventsEmitter from "../../dataServiceEventsEmitter";
 import { logger } from "../../logger";
 import { utils } from "../../utils";
 import { workspaceIndexer } from "../../workspaceIndexer";
+import { retryQueue } from "../../workspaceUpdater";
 import { getWorkspaceData } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
 import { stubMultiple } from "../util/stubHelpers";
@@ -277,6 +279,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -284,6 +290,38 @@ export const getTestSetups = () => {
         return {
           token,
         };
+      },
+
+      setupForRetryQueue: (urisToRetry: vscode.Uri[]) => {
+        stubMultiple(
+          [
+            {
+              object: dataServiceEventsEmitter,
+              method: "onDidItemIndexed",
+              returns: { dispose: sinon.stub() },
+            },
+            {
+              object: dataService,
+              method: "fetchData",
+              returns: Promise.resolve({ ...getWorkspaceData(), urisToRetry }),
+            },
+            { object: utils, method: "sleep" },
+            { object: utils, method: "printStatsMessage" },
+            { object: logger, method: "logScanTime" },
+            { object: logger, method: "logStructure" },
+            { object: logger, method: "log" },
+          ],
+          sandbox
+        );
+        const callOrder: string[] = [];
+        sandbox.stub(retryQueue, "stop").callsFake(() => {
+          callOrder.push("stop");
+        });
+        sandbox.stub(retryQueue, "start").callsFake((uris) => {
+          callOrder.push("start");
+          assert.deepEqual(uris, urisToRetry);
+        });
+        return callOrder;
       },
 
       setupForItemIndexedEvent: () => {
@@ -328,6 +366,10 @@ export const getTestSetups = () => {
             {
               object: logger,
               method: "logStructure",
+            },
+            {
+              object: logger,
+              method: "log",
             },
           ],
           sandbox
@@ -382,6 +424,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -430,6 +476,10 @@ export const getTestSetups = () => {
               object: logger,
               method: "logStructure",
             },
+            {
+              object: logger,
+              method: "log",
+            },
           ],
           sandbox
         );
@@ -449,6 +499,10 @@ export const getTestSetups = () => {
             {
               object: logger,
               method: "logStructure",
+            },
+            {
+              object: logger,
+              method: "log",
             },
             {
               object: dataServiceEventsEmitter,

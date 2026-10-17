@@ -372,6 +372,115 @@ export const getTestSetups = () => {
       },
     },
 
+    indexNamesOnly: {
+      setupForNamesOnlyFiles: (namesOnlyGlob: string) => {
+        stubConfig(sandbox);
+        const uris = [
+          vscode.Uri.file("/./fake/config.json"),
+          vscode.Uri.file("/./fake/fake-1.ts"),
+        ];
+        const [getSymbolsForUriStub] = stubMultiple(
+          [
+            {
+              object: dataService,
+              method: "getSymbolsForUri",
+              returns: Promise.resolve(getDocumentSymbolItemSingleLineArray(1)),
+            },
+            {
+              object: config,
+              method: "fetchIndexNamesOnly",
+              returns: namesOnlyGlob,
+            },
+            {
+              object: utils,
+              method: "normalizeUriPath",
+              callsFake: (path: string) => path.replace("/./fake", ""),
+            },
+            {
+              object: utils,
+              method: "createWorkspaceData",
+              returns: getWorkspaceData(),
+            },
+            {
+              object: utils,
+              method: "sleep",
+            },
+            {
+              object: vscode.workspace,
+              method: "findFiles",
+              returns: Promise.resolve(uris),
+            },
+            {
+              object: vscode.workspace,
+              method: "openTextDocument",
+            },
+            {
+              object: vscode.commands,
+              method: "executeCommand",
+            },
+          ],
+          sandbox
+        );
+        return { getSymbolsForUriStub, uris };
+      },
+    },
+
+    warmup: {
+      setupForWarmup: (
+        uris: vscode.Uri[],
+        readyExtensions: string[],
+        namesOnlyGlob = "**/*.json",
+        plaintextExtensions: string[] = []
+      ) => {
+        stubConfig(sandbox);
+        dataService.resetLanguageWarmup();
+        const extensionOf = (uri: vscode.Uri) => uri.path.split(".").pop()!;
+        const isReady = (uri: vscode.Uri) =>
+          readyExtensions.includes(extensionOf(uri));
+        const [openTextDocumentStub, executeCommandStub, sleepStub] =
+          stubMultiple(
+            [
+              {
+                object: vscode.workspace,
+                method: "openTextDocument",
+                callsFake: async (uri: vscode.Uri) => ({
+                  languageId: plaintextExtensions.includes(extensionOf(uri))
+                    ? "plaintext"
+                    : extensionOf(uri),
+                }),
+              },
+              {
+                object: vscode.commands,
+                method: "executeCommand",
+                callsFake: async (_command: string, uri: vscode.Uri) =>
+                  isReady(uri) ? getDocumentSymbolItemSingleLineArray(1) : [],
+              },
+              {
+                object: utils,
+                method: "sleep",
+              },
+              {
+                object: config,
+                method: "fetchIndexNamesOnly",
+                returns: namesOnlyGlob,
+              },
+              {
+                object: utils,
+                method: "normalizeUriPath",
+                callsFake: (path: string) => path.replace("/./fake", ""),
+              },
+              {
+                object: vscode.workspace,
+                method: "findFiles",
+                returns: Promise.resolve(uris),
+              },
+            ],
+            sandbox
+          );
+        return { openTextDocumentStub, executeCommandStub, sleepStub };
+      },
+    },
+
     isUriExistingInWorkspace: {
       setupForReturningTrueWhenUriExists: () => {
         stubMultiple(

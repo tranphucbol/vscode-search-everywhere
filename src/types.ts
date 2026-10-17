@@ -11,6 +11,7 @@ export enum ActionTrigger {
   DidCreateFiles = "DidCreateFiles",
   DidDeleteFiles = "DidDeleteFiles",
   ReloadUnsavedUri = "ReloadUnsavedUri",
+  RetryWithoutSymbols = "RetryWithoutSymbols",
 }
 
 export enum ActionType {
@@ -65,6 +66,12 @@ export interface ItemsFilter {
   ignoredNames?: string[];
 }
 
+export interface Category {
+  name: string;
+  phrase: string;
+  kinds: number[];
+}
+
 export interface ItemsFilterPhrases {
   [symbolKind: number]: string;
 }
@@ -77,9 +84,11 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   symbolKind: number;
   range?: Range;
   isHelp?: boolean;
+  filterPhrase?: string;
   targetPosition?: vscode.Position;
   containerName?: string;
   matchBand?: MatchBand;
+  isSecondary?: boolean;
   // Declared here because @types/vscode is pinned to 1.64:
   // iconPath was finalized in VS Code 1.81, resourceUri in VS Code 1.108.
   iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon;
@@ -94,4 +103,5 @@ export interface Range {
 export interface WorkspaceData {
   items: Map<string, Item>;
   count: number;
+  urisToRetry?: vscode.Uri[];
 }

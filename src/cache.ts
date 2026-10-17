@@ -64,6 +64,17 @@ export function clearNotSavedUriPaths(): void {
   extensionContext.workspaceState.update(appConfig.notSaveUriPathsKey, []);
 }
 
+export function getIndexedConfig(): string | undefined {
+  return extensionContext?.workspaceState?.get(appConfig.indexedConfigKey);
+}
+
+export function updateIndexedConfig(snapshot: string): void {
+  extensionContext?.workspaceState?.update(
+    appConfig.indexedConfigKey,
+    snapshot
+  );
+}
+
 export function getRecentItems<T>(): T[] {
   const items: T[] | undefined = extensionContext?.workspaceState?.get(
     appConfig.recentItemsKey

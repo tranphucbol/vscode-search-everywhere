@@ -603,6 +603,64 @@ export const getTestSetups = () => {
               object: quickPick,
               method: "show",
             },
+            {
+              object: quickPick,
+              method: "getLastQuery",
+              returns: "",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRestoringLastQuery: (
+        lastQuery: string,
+        selectedText: string,
+        restoreLastQuery: boolean = true
+      ) => {
+        stubComponents(sandbox);
+        stubComponentsForSearch(sandbox, {
+          isInitialized: true,
+          shouldIndexOnQuickPickOpen: false,
+          shouldLoadDataFromCacheOnQuickPickOpen: false,
+          shouldSearchSelection: true,
+        });
+        const editor = getTextEditorStub(true, selectedText);
+
+        return stubMultiple(
+          [
+            {
+              object: quickPick,
+              method: "setText",
+            },
+            {
+              object: quickPick,
+              method: "loadItems",
+            },
+            {
+              object: quickPick,
+              method: "show",
+            },
+            {
+              object: quickPick,
+              method: "getLastQuery",
+              returns: lastQuery,
+            },
+            {
+              object: config,
+              method: "fetchRestoreLastQuery",
+              returns: restoreLastQuery,
+            },
+            {
+              object: utils,
+              method: "sleepAndExecute",
+            },
+            {
+              object: vscode.window,
+              method: "activeTextEditor",
+              isNotMethod: true,
+              returns: editor,
+            },
           ],
           sandbox
         );

@@ -30,6 +30,8 @@
     "onCommand:searchEverywhere.navigateIntoFile",
     "onCommand:searchEverywhere.navigateBack",
     "onCommand:searchEverywhere.openToTheSide",
+    "onCommand:searchEverywhere.nextCategory",
+    "onCommand:searchEverywhere.previousCategory",
     "onCommand:searchEverywhere.reload",
     "onCommand:searchEverywhere.clearSharedCache"
   ],
@@ -116,14 +118,47 @@
         },
         "searchEverywhere.itemsFilterPhrases": {
           "type": "object",
-          "default": {
-            "0": "$$",
-            "4": "@@",
-            "11": "!!",
-            "14": "##",
-            "17": "%%"
+          "default": {},
+          "description": "One-kind filter phrases, keyed by symbol kind, e.g. { \"11\": \"ff \" }. A phrase that is also used by a category belongs to the category."
+        },
+        "searchEverywhere.categories": {
+          "type": "array",
+          "default": [
+            {
+              "name": "Types",
+              "phrase": "@@",
+              "kinds": [4, 9, 10, 22]
+            },
+            {
+              "name": "Members",
+              "phrase": "!!",
+              "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24]
+            },
+            {
+              "name": "Files",
+              "phrase": "$$",
+              "kinds": [0]
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "phrase": {
+                "type": "string"
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": ["name", "phrase", "kinds"]
           },
-          "description": "Phrases for item type which could be used for narrowing the results down."
+          "description": "Named groups of symbol kinds. Type a category's phrase at the start of the query, or press Tab / Shift+Tab, to search only those kinds."
         },
         "searchEverywhere.helpPhrase": {
           "type": "string",
@@ -139,6 +174,16 @@
           "type": "boolean",
           "default": true,
           "description": "Ability to decide whether selection in the active editor is put in the search."
+        },
+        "searchEverywhere.previewOnSelect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the highlighted item in a preview editor, without moving focus, as the selection moves in the search. Escape returns to the editor that was active before the search opened."
+        },
+        "searchEverywhere.restoreLastQuery": {
+          "type": "boolean",
+          "default": true,
+          "description": "Put the last workspace query back, selected, when the search is opened again. Typing replaces it. A non-empty editor selection still wins when shouldSearchSelection is on."
         },
         "searchEverywhere.exclude": {
           "type": "array",
@@ -170,6 +215,45 @@
           "type": "string",
           "default": "**/*.{js,jsx,ts,tsx}",
           "description": "String with include pattern. Any file matching this glob will be included in indexing."
+        },
+        "searchEverywhere.indexNamesOnly": {
+          "type": "string",
+          "default": "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}",
+          "description": "Glob, matched against the workspace-relative path, of included files that are indexed by file name only. Their symbols are never requested from a language server. An empty string asks for symbols of every included file."
+        },
+        "searchEverywhere.secondaryCode": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*_test.go",
+            "**/mock_*.go",
+            "**/mocks/**",
+            "**/*.pb.go",
+            "**/*_gen.go",
+            "**/*.gen.go",
+            "**/zz_generated*",
+            "**/src/test/**",
+            "**/generated/**",
+            "**/generated-sources/**",
+            "**/__tests__/**",
+            "**/*.{test,spec}.{ts,tsx,js,jsx}"
+          ],
+          "description": "Globs, matched against the workspace-relative path, of test, mock and generated files. Their items stay searchable but rank after other items of the same match quality and are tagged `· test` or `· generated`. Changing it does not reindex."
+        },
+        "searchEverywhere.languagePresets": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Detect Go (go.mod, go.work) and Java (pom.xml, build.gradle, build.gradle.kts, settings.gradle) at each workspace folder root and fill include, exclude and itemsFilter.ignoredKinds you have not set yourself.",
+            "Use the contributed defaults for include, exclude and itemsFilter."
+          ],
+          "default": "auto",
+          "description": "Fill include, exclude and itemsFilter with values suited to the Go or Java project found at a workspace folder root, wherever you have not set them at any level."
         },
         "searchEverywhere.excludeMode": {
           "type": "string",
@@ -235,6 +319,14 @@
         "title": "Search everywhere: Open to the Side"
       },
       {
+        "command": "searchEverywhere.nextCategory",
+        "title": "Search everywhere: Next Category"
+      },
+      {
+        "command": "searchEverywhere.previousCategory",
+        "title": "Search everywhere: Previous Category"
+      },
+      {
         "command": "searchEverywhere.reload",
         "title": "Search everywhere: Reload"
       },
@@ -277,6 +369,16 @@
         "key": "alt+enter",
         "mac": "alt+enter",
         "when": "searchEverywhereOpen"
+      },
+      {
+        "command": "searchEverywhere.nextCategory",
+        "key": "tab",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
+      },
+      {
+        "command": "searchEverywhere.previousCategory",
+        "key": "shift+tab",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
       }
     ]
   },

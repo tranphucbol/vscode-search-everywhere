@@ -3,9 +3,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
+import { dataConverter } from "../../dataConverter";
+import * as config from "../../config";
 import { database, RecentKey } from "../../database";
 import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
+import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
 describe("Database", () => {
   const fakeContext: any = {
@@ -108,9 +111,43 @@ describe("Database", () => {
     });
 
     it("should filter by symbolKind", () => {
-      const results = database.search("", 500, { symbolKind: vscode.SymbolKind.Class });
+      const results = database.search("", 500, { symbolKinds: [vscode.SymbolKind.Class] });
       assert.equal(results.length, 2);
       assert.isTrue(results.every((r) => r.symbolKind === vscode.SymbolKind.Class));
+    });
+
+    it("should restrict results to a list of symbol kinds", () => {
+      const results = database.search("", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Class],
+      });
+      assert.equal(results.length, 3);
+
+      const interfaces = database.search("", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Struct],
+      });
+      assert.deepEqual(
+        interfaces.map((r) => r.label),
+        ["$(symbol-interface) User"]
+      );
+    });
+
+    it("should cache searches for different kind lists separately", () => {
+      const classes = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Class],
+      });
+      const interfaces = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface],
+      });
+      const both = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Interface, vscode.SymbolKind.Class],
+      });
+      const bothReordered = database.search("User", 500, {
+        symbolKinds: [vscode.SymbolKind.Class, vscode.SymbolKind.Interface],
+      });
+      assert.equal(classes.length, 2);
+      assert.equal(interfaces.length, 1);
+      assert.equal(both.length, 3);
+      assert.strictEqual(bothReordered, both);
     });
 
     it("should filter by allowedKinds", () => {
@@ -275,7 +312,7 @@ describe("Database", () => {
         database.insertSymbolsBatch([method("a.ts"), method("b.ts")]);
 
         const classes = database.search("user service", 500, {
-          symbolKind: vscode.SymbolKind.Class,
+          symbolKinds: [vscode.SymbolKind.Class],
         });
         assert.deepEqual(labels(classes), ["$(symbol-class) UserService"]);
 
@@ -493,7 +530,7 @@ describe("Database", () => {
         database.insertSymbol(prop);
 
         const byKind = database.search("UserService.save", 500, {
-          symbolKind: vscode.SymbolKind.Property,
+          symbolKinds: [vscode.SymbolKind.Property],
         });
         assert.deepEqual(byKind.map(keyOf), [keyOf(prop)]);
 
@@ -669,7 +706,7 @@ describe("Database", () => {
       ]);
 
       assert.deepEqual(
-        labels(database.search("usi", 500, { symbolKind: vscode.SymbolKind.Method })),
+        labels(database.search("usi", 500, { symbolKinds: [vscode.SymbolKind.Method] })),
         ["$(symbol-class) UserSettingsItem"]
       );
       const unignored = labels(database.search("usi", 500, { ignoredNames: ["Secret"] }));
@@ -1089,7 +1126,7 @@ describe("Database", () => {
       database.insertSymbolsBatch([impl, userFn, runA, runB]);
 
       const byKind = database.search("user", 500, {
-        symbolKind: vscode.SymbolKind.Function,
+        symbolKinds: [vscode.SymbolKind.Function],
         recent: [keyFor(impl)],
       });
       assert.deepEqual(ids(byKind), [id(userFn)]);
@@ -1172,6 +1209,130 @@ describe("Database", () => {
     });
   });
 
+  describe("Go symbols", () => {
+    const serverGo = vscode.Uri.file("/workspace/server.go");
+    const nameOf = (item: QuickPickItem) => database.extractName(item.label);
+
+    beforeEach(() => {
+      database.insertSymbolsBatch(
+        dataConverter.convertUriAndSymbolsToQpItems(
+          serverGo,
+          flattenSymbols(loadSymbolFixture("gopls-server.json"))
+        )
+      );
+    });
+
+    it("should find a Go method by Type.method", () => {
+      const [first] = database.search("Server.Start");
+      assert.equal(nameOf(first), "Start");
+      assert.equal(first.description, "(*Server) · method");
+    });
+
+    it("should list Go methods with Type.", () => {
+      const members = database
+        .search("Config.")
+        .map((item) => `${nameOf(item)} ${item.symbolKind}`);
+      assert.includeMembers(members, [
+        `Validate ${vscode.SymbolKind.Method}`,
+        `Admin ${vscode.SymbolKind.Field}`,
+        `Port ${vscode.SymbolKind.Field}`,
+      ]);
+    });
+  });
+
+  describe("secondary code", () => {
+    const fileItem = (path: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+      description: "file",
+    });
+    const method = (name: string, path: string, container: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.Method,
+      label: `$(symbol-method) ${name}`,
+      description: `${container} · method`,
+      containerName: container,
+      range: new vscode.Range(new vscode.Position(3, 0), new vscode.Position(5, 0)),
+    });
+    const paths = (results: QuickPickItem[]) => results.map((item) => item.uri.path);
+
+    it("should rank a test file below a source file of the same band", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/server_test.go"),
+        fileItem("/workspace/server_tools.go"),
+      ]);
+
+      assert.deepEqual(paths(database.search("server")), [
+        "/workspace/server_tools.go",
+        "/workspace/server_test.go",
+      ]);
+    });
+
+    it("should keep an exact secondary match above a prefix source match", () => {
+      database.insertSymbolsBatch([
+        method("Start", "/workspace/mocks/server.go", "MockServer"),
+        method("StartAll", "/workspace/server.go", "Server"),
+      ]);
+
+      assert.deepEqual(paths(database.search("Start")), [
+        "/workspace/mocks/server.go",
+        "/workspace/server.go",
+      ]);
+    });
+
+    it("should keep a recent secondary item above other items of its band", () => {
+      const secondary = method("Start", "/workspace/mocks/server.go", "MockServer");
+      const source = method("Start", "/workspace/server.go", "Server");
+      database.insertSymbolsBatch([secondary, source]);
+
+      assert.deepEqual(paths(database.search("Start")), [
+        "/workspace/server.go",
+        "/workspace/mocks/server.go",
+      ]);
+      const recent: RecentKey = {
+        uri: secondary.uri.toString(),
+        symbolKind: secondary.symbolKind,
+        name: "Start",
+      };
+      assert.deepEqual(paths(database.search("Start", 500, { recent: [recent] })), [
+        "/workspace/mocks/server.go",
+        "/workspace/server.go",
+      ]);
+    });
+
+    it("should tag test and generated rows in the description", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/api/user.pb.go"),
+        fileItem("/workspace/api/user_test.go"),
+        fileItem("/workspace/api/user.go"),
+      ]);
+
+      const descriptions = Object.fromEntries(
+        database.search("user").map((item) => [item.uri.path, item.description])
+      );
+      assert.deepEqual(descriptions, {
+        "/workspace/api/user.go": "file",
+        "/workspace/api/user_test.go": "file · test",
+        "/workspace/api/user.pb.go": "file · generated",
+      });
+    });
+
+    it("should recompute is_secondary without reindexing", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/fixtures/order.go"),
+        fileItem("/workspace/order_test.go"),
+      ]);
+
+      database.recomputeSecondary(["**/fixtures/**"]);
+
+      const descriptions = database.search("order").map((item) => item.description);
+      assert.deepEqual(descriptions, ["file · generated", "file"]);
+      assert.equal(database.getCount(), 2);
+      database.recomputeSecondary(config.fetchSecondaryCode());
+    });
+  });
+
   describe("schema migration", () => {
     const dbFile = path.join(fakeContext.storageUri.fsPath, "search-everywhere-index.db");
 
@@ -1214,7 +1375,13 @@ describe("Database", () => {
       }
     });
 
-    const writeVersion1Database = async () => {
+    const writeVersion2Database = async (
+      version = 2,
+      rows: [string, string, number][] = [
+        ["file:///workspace/server.go", "(*Server).Start", 5],
+        ["file:///workspace/server.go", "server.go", 0],
+      ]
+    ) => {
       const initSqlJs = require("sql.js");
       const SQL = await initSqlJs({
         locateFile: () =>
@@ -1224,28 +1391,25 @@ describe("Database", () => {
       legacy.run(`CREATE TABLE symbols (
         id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
         clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', clean_container TEXT DEFAULT '',
+        clean_words TEXT DEFAULT '', clean_initials TEXT DEFAULT '',
         symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
         range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
         range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
-      const rows = [
-        ["file:///workspace/src/UserServiceImpl.ts", "UserServiceImpl", 4],
-        ["file:///workspace/src/map-service.ts", "map-service.ts", 0],
-      ];
       for (const [uri, name, kind] of rows) {
         legacy.run(
-          "INSERT INTO symbols (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [uri, name, database.extractCleanName(name as string),
-            database.extractCleanStem(name as string), "", kind, `$(symbol-class) ${name}`]
+            database.extractCleanStem(name as string), kind, name, kind === 0 ? "file" : "method"]
         );
       }
-      legacy.run("PRAGMA user_version = 1");
+      legacy.run(`PRAGMA user_version = ${version}`);
       fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
       legacy.close();
     };
 
-    const reopenVersion1Database = async () => {
+    const reopenVersion2Database = async () => {
       database.closeDatabase();
-      await writeVersion1Database();
+      await writeVersion2Database();
       await database.initDatabase(fakeContext);
     };
 
@@ -1263,47 +1427,44 @@ describe("Database", () => {
       return version;
     };
 
-    it("should backfill words and initials when migrating from schema version 1", async () => {
-      const logStub = sinon.stub(logger, "log");
-      try {
-        await reopenVersion1Database();
-
-        assert.deepEqual(
-          database.search("usi").map((r) => r.label),
-          ["$(symbol-class) UserServiceImpl"]
-        );
-        assert.deepEqual(
-          database.search("ms").map((r) => r.label),
-          ["$(symbol-class) map-service.ts"]
-        );
-        assert.isTrue(
-          logStub.calledWith("Index schema upgraded; word columns backfilled for 2 rows.")
-        );
-      } finally {
-        logStub.restore();
-      }
-    });
-
-    it("should not empty a version 1 index when migrating to version 2", async () => {
+    it("should clear a version 2 index on open", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
         database.setSeededFromTemplate(true);
-        await reopenVersion1Database();
+        await reopenVersion2Database();
 
-        assert.equal(database.getCount(), 2);
-        assert.isTrue(database.wasSeededFromTemplate());
+        assert.isTrue(database.isEmpty());
+        assert.isFalse(database.wasSeededFromTemplate());
+        assert.isTrue(
+          logStub.calledWith("Index schema upgraded; the workspace will be reindexed.")
+        );
       } finally {
         logStub.restore();
         database.setSeededFromTemplate(false);
       }
     });
 
-    it("should set the schema version to 2 after migrating", async () => {
+    it("should backfill is_secondary when opening a version 3 index", async () => {
+      database.closeDatabase();
+      await writeVersion2Database(3, [
+        ["file:///workspace/server_test.go", "server_test.go", 0],
+        ["file:///workspace/server.go", "server.go", 0],
+      ]);
+      await database.initDatabase(fakeContext);
+
+      assert.equal(database.getCount(), 2);
+      assert.deepEqual(
+        database.search("server").map((item) => `${item.label} ${item.description}`),
+        ["server.go file", "server_test.go file · test"]
+      );
+    });
+
+    it("should set the schema version to 4 after migrating", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
-        await reopenVersion1Database();
+        await reopenVersion2Database();
 
-        assert.equal(await readSchemaVersion(), 2);
+        assert.equal(await readSchemaVersion(), 4);
       } finally {
         logStub.restore();
       }

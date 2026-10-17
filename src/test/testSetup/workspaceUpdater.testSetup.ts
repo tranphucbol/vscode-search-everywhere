@@ -1,7 +1,13 @@
 import * as sinon from "sinon";
+import * as vscode from "vscode";
+import * as config from "../../config";
+import { dataService } from "../../dataService";
 import { database } from "../../database";
+import { logger } from "../../logger";
 import { utils } from "../../utils";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
+import { retryQueue, workspaceUpdater } from "../../workspaceUpdater";
+import { getDocumentSymbolItemSingleLineArray } from "../util/itemMockFactory";
 import {
   getQpItems,
   getQpItemsSymbolAndUri,
@@ -13,6 +19,7 @@ export const getTestSetups = () => {
 
   return {
     afterEach: () => {
+      retryQueue.stop();
       sandbox.restore();
     },
 
@@ -149,6 +156,50 @@ export const getTestSetups = () => {
               object: database,
               method: "schedulePersist",
             },
+          ],
+          sandbox
+        );
+      },
+    },
+    retryQueue: {
+      setupForRetrying: (symbolCountsByPath: {
+        [path: string]: number[];
+      }) => {
+        const clock = sandbox.useFakeTimers({ now: 0 });
+        const updateUriStub = sandbox
+          .stub(workspaceUpdater, "updateUri")
+          .callsFake(async (uri: vscode.Uri) => {
+            const counts = symbolCountsByPath[uri.path];
+            return counts.length > 1 ? counts.shift()! : counts[0];
+          });
+        sandbox
+          .stub(indexer, "registerAction")
+          .callsFake(async (_type, fn) => {
+            await fn();
+          });
+        sandbox.stub(logger, "log");
+        return { clock, updateUriStub };
+      },
+
+      setupForLanguagesWarmedUp: (readyExtensions: string[]) => {
+        dataService.resetLanguageWarmup();
+        dataService.setIsCancelled(false);
+        stubMultiple(
+          [
+            {
+              object: vscode.commands,
+              method: "executeCommand",
+              callsFake: async (_command: string, uri: vscode.Uri) =>
+                readyExtensions.includes(uri.path.split(".").pop()!) &&
+                !uri.path.includes("empty")
+                  ? getDocumentSymbolItemSingleLineArray(1)
+                  : [],
+            },
+            { object: vscode.workspace, method: "openTextDocument" },
+            { object: utils, method: "sleep" },
+            { object: config, method: "fetchIndexNamesOnly", returns: "" },
+            { object: dataService, method: "getItemsFilter", returns: {} },
+            { object: logger, method: "log" },
           ],
           sandbox
         );

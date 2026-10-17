@@ -72,7 +72,7 @@ export const mocks = {
     const qpItems = [
       {
         label: "fake-1.ts",
-        description: "File",
+        description: "file",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 0,
@@ -89,9 +89,9 @@ export const mocks = {
       },
       {
         label: "test name",
-        description: "Module at lines: 1 - 4 in fake-1.ts",
+        description: "fake-1.ts · module",
         containerName: "fake-1.ts",
-        detail: "/./fake/fake-1.ts",
+        detail: "/./fake/fake-1.ts:1",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
         range: {
@@ -107,9 +107,9 @@ export const mocks = {
       },
       {
         label: "test name 2",
-        description: "Module at lines: 5 - 6 in fake-1.ts",
+        description: "fake-1.ts · module",
         containerName: "fake-1.ts",
-        detail: "/./fake/fake-1.ts",
+        detail: "/./fake/fake-1.ts:5",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
         range: {
@@ -125,8 +125,8 @@ export const mocks = {
       },
       {
         label: "test name 3",
-        description: "Module at line: 10",
-        detail: "/./fake/fake-1.ts",
+        description: "module",
+        detail: "/./fake/fake-1.ts:10",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
         range: {
@@ -191,7 +191,7 @@ export const mocks = {
     const qpItems = [
       {
         label: "$(fake-icon)  fake-1.ts",
-        description: "[$$fake-1.ts] File",
+        description: "file",
         detail: "/./fake/fake-1.ts",
         uri: workspaceDataItems[0].uri,
         symbolKind: 0,
@@ -208,9 +208,9 @@ export const mocks = {
       },
       {
         label: "$(another-fake-icon)  test name",
-        description: "[^^test name] Module at lines: 1 - 4 in fake-1.ts",
+        description: "fake-1.ts · module",
         containerName: "fake-1.ts",
-        detail: "/./fake/fake-1.ts",
+        detail: "/./fake/fake-1.ts:1",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
         range: {
@@ -226,8 +226,8 @@ export const mocks = {
       },
       {
         label: "$(another-fake-icon)  test name 2",
-        description: "[^^test name 2] Module at lines: 5 - 6",
-        detail: "/./fake/fake-1.ts",
+        description: "module",
+        detail: "/./fake/fake-1.ts:5",
         uri: workspaceDataItems[0].uri,
         symbolKind: 1,
         range: {
