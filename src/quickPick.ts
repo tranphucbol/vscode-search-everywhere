@@ -2,6 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import {
   fetchCategories,
+  fetchHandOffPrefixes,
   fetchHelpPhrase,
   fetchItemsFilter,
   fetchItemsFilterPhrases,
@@ -22,6 +23,7 @@ import { recentItems } from "./recentItems";
 import {
   Category,
   CategoryButton,
+  HandOffTarget,
   ItemsFilterPhrases,
   QuickPickItem,
 } from "./types";
@@ -36,6 +38,14 @@ const ACTIVE_ICON = "check";
 // vscode.QuickInputButtonLocation.Inline, added after the pinned @types/vscode.
 const INLINE_BUTTON_LOCATION = 2;
 const FOCUS_QUICK_INPUT_COMMAND = "workbench.action.focusQuickOpen";
+const HAND_OFF_PREFIXES: Record<string, HandOffTarget> = {
+  ">": "commands",
+  "%": "text",
+};
+const QUICK_OPEN_COMMAND = "workbench.action.quickOpen";
+// The "%" text search in quick open; VS Code versions without it only have the Search view.
+const QUICK_TEXT_SEARCH_COMMAND = "workbench.action.quickTextSearch";
+const FIND_IN_FILES_COMMAND = "workbench.action.findInFiles";
 
 function disposeOnDidChangeValueEventListeners(): void {
   quickPick
@@ -73,6 +83,10 @@ function registerOnDidChangeValueWithoutDebounceEventListeners(): void {
 
 async function openSelected(qpItem: QuickPickItem): Promise<void> {
   if (qpItem.kind === vscode.QuickPickItemKind.Separator) {
+    return;
+  }
+  if (qpItem.handOff && qpItem.filterPhrase) {
+    await handOff(qpItem.handOff, qpItem.filterPhrase, "");
     return;
   }
   shouldLoadItemsForFilterPhrase(qpItem)
@@ -362,6 +376,12 @@ function collectHelpItems(): QuickPickItem[] {
   for (const category of quickPick.getCategories() || []) {
     items.push(getHelpItemForCategory(category));
   }
+  if (quickPick.getHandOffPrefixes()) {
+    items.push(
+      getHelpItemForHandOff(">", "search VS Code commands"),
+      getHelpItemForHandOff("%", "search text in files")
+    );
+  }
   const itemsFilterPhrases = quickPick.getItemsFilterPhrases();
   for (const kind in itemsFilterPhrases) {
     const filterPhrase = itemsFilterPhrases[kind];
@@ -376,6 +396,17 @@ function getHelpItemForCategory(category: Category): QuickPickItem {
     label: `${quickPick.getHelpPhrase()} Type ${category.phrase} for limit results to ${category.name} only (Tab)`,
     symbolKind: category.kinds[0],
     filterPhrase: category.phrase,
+    isHelp: true,
+    uri: vscode.Uri.parse("#"),
+  } as QuickPickItem;
+}
+
+function getHelpItemForHandOff(prefix: string, action: string): QuickPickItem {
+  return {
+    label: `${quickPick.getHelpPhrase()} Type ${prefix} to ${action}`,
+    symbolKind: vscode.SymbolKind.File,
+    filterPhrase: prefix,
+    handOff: HAND_OFF_PREFIXES[prefix],
     isHelp: true,
     uri: vscode.Uri.parse("#"),
   } as QuickPickItem;
@@ -406,6 +437,7 @@ function fetchConfig(): void {
   setItemsFilterPhrases(itemsFilterPhrases);
 
   setCategories(fetchCategories());
+  setHandOffPrefixes(fetchHandOffPrefixes());
 
   const shouldItemsBeSorted = fetchShouldItemsBeSorted();
   setShouldItemsBeSorted(shouldItemsBeSorted);
@@ -428,8 +460,71 @@ function handleDidChangeValueClearing() {
   control.items = [];
 }
 
-function handleDidChangeValue(text: string) {
+async function handleDidChangeValue(text: string): Promise<void> {
+  const resolved = text !== lastSetText ? resolveHandOff(text) : undefined;
+  if (resolved) {
+    await handOff(resolved.target, resolved.prefix, resolved.rest);
+    return;
+  }
   shouldLoadHelpItems(text) ? quickPick.loadHelpItems() : quickPick.loadItems();
+}
+
+interface ResolvedHandOff {
+  target: HandOffTarget;
+  prefix: string;
+  rest: string;
+}
+
+function resolveHandOff(text: string): ResolvedHandOff | undefined {
+  const trimmed = text.trimStart();
+  const prefix = trimmed.charAt(0);
+  const target = HAND_OFF_PREFIXES[prefix];
+  if (
+    !target ||
+    !quickPick.getHandOffPrefixes() ||
+    shouldLoadHelpItems(text) ||
+    resolveFilterPhrase(text).kinds
+  ) {
+    return undefined;
+  }
+  return { target, prefix, rest: trimmed.slice(1) };
+}
+
+let quickTextSearchSupport: Promise<boolean> | undefined;
+
+function supportsQuickTextSearch(): Promise<boolean> {
+  quickTextSearchSupport ??= Promise.resolve(
+    vscode.commands.getCommands(true)
+  ).then(
+    (commands) => commands.includes(QUICK_TEXT_SEARCH_COMMAND),
+    () => false
+  );
+  return quickTextSearchSupport;
+}
+
+async function handOff(
+  target: HandOffTarget,
+  prefix: string,
+  rest: string
+): Promise<void> {
+  cancelPendingPreview();
+  const editorToRestore =
+    previewShown && !itemAccepted ? editorBeforeShow : undefined;
+  handOffQuery = rest.trim();
+  // The editor is restored here rather than in handleDidHide: restoring it after the
+  // command ran would take focus from, and close, the quick open that the command shows.
+  itemAccepted = true;
+  quickPick.getControl().hide();
+  await restoreEditorBeforeShow(editorToRestore);
+
+  if (target === "text" && !(await quickPick.supportsQuickTextSearch())) {
+    await vscode.commands.executeCommand(FIND_IN_FILES_COMMAND, {
+      query: rest,
+      triggerSearch: rest.length > 0,
+    });
+    return;
+  }
+  await vscode.commands.executeCommand(QUICK_OPEN_COMMAND, `${prefix}${rest}`);
 }
 
 function shouldLoadHelpItems(text: string): boolean {
@@ -468,6 +563,8 @@ let previewShown = false;
 let itemAccepted = false;
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let lastQuery = "";
+// Set while a hand-off hides the quick pick: the query to remember, without its prefix.
+let handOffQuery: string | undefined;
 
 function getLastQuery(): string {
   return lastQuery;
@@ -572,7 +669,10 @@ async function restoreEditorBeforeShow(
 function handleDidHide() {
   cancelPendingPreview();
   const control = quickPick.getControl();
-  lastQuery = fileScopeUri ? savedWorkspaceSearchText : control?.value || "";
+  lastQuery =
+    handOffQuery ??
+    (fileScopeUri ? savedWorkspaceSearchText : control?.value || "");
+  handOffQuery = undefined;
   if (previewShown && !itemAccepted) {
     void restoreEditorBeforeShow(editorBeforeShow);
   }
@@ -1022,8 +1122,13 @@ function showLoading(value: boolean): void {
   control.busy = value;
 }
 
+// A value set by the extension, such as the editor selection or the restored last query,
+// is searched even when it starts with a hand-off prefix; only typing one hands off.
+let lastSetText: string | undefined;
+
 function setText(text: string): void {
   const control = quickPick.getControl();
+  lastSetText = text;
   control.value = text;
 }
 
@@ -1052,6 +1157,7 @@ let helpPhrase: string;
 let shouldItemsBeSorted: boolean;
 let itemsFilterPhrases: ItemsFilterPhrases;
 let categories: Category[] = [];
+let handOffPrefixes = false;
 let helpItems: QuickPickItem[];
 let onDidChangeValueEventListeners: vscode.Disposable[] = [];
 
@@ -1171,6 +1277,14 @@ function setCategories(newCategories: Category[]) {
   categories = newCategories;
 }
 
+function getHandOffPrefixes() {
+  return handOffPrefixes;
+}
+
+function setHandOffPrefixes(newHandOffPrefixes: boolean) {
+  handOffPrefixes = newHandOffPrefixes;
+}
+
 function getHelpItems() {
   return helpItems;
 }
@@ -1199,6 +1313,8 @@ export const quickPick = {
   toggleKeepingSeparatorsVisibleOnFiltering,
   getItemsFilterPhrases,
   getCategories,
+  getHandOffPrefixes,
+  supportsQuickTextSearch,
   getHelpItems,
   getOnDidChangeValueEventListeners,
   setOnDidChangeValueEventListeners,
