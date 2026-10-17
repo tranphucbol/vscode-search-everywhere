@@ -158,6 +158,23 @@ the same repository share one cache.
 
   ![Open to the side](img/open-to-the-side.gif)
 
+- **Copy reference**: the copy button on a result, or `alt + shift + cmd + c` /
+  `ctrl + alt + shift + c`, copies a reference to it without opening it, ready to paste into a
+  review comment, a ticket or a prompt. The quick pick stays open, so you can copy several in a
+  row, and the status bar shows what was copied.
+
+  | Result | Reference |
+  | :--- | :--- |
+  | Java or Kotlin member | `com.acme.user.UserService#save` |
+  | Java or Kotlin type | `com.acme.user.User.Builder` |
+  | Go method or function | `api.Server.Start`, `api.NewServer` (the form `go doc` accepts) |
+  | any other symbol | `UserService.save` |
+  | file | `src/user/service.ts`, the workspace-relative path |
+
+- **Copy path and line**: `alt + cmd + c` / `ctrl + alt + c` copies the result's
+  workspace-relative path and line, as shown under it (`src/user/service.ts:42`); a file copies
+  its path alone. In a multi-root workspace the path starts with the folder name.
+
 - **Highlight of the selected symbol** (`searchEverywhere.shouldHighlightSymbol`)
 
   enabled
@@ -282,6 +299,8 @@ against them. Measured on an Apple M4:
 | `searchEverywhere.navigateIntoFile` | Search everywhere: Navigate into File | `alt + right` | `alt + right` |
 | `searchEverywhere.navigateBack` | Search everywhere: Navigate Back to Workspace | `alt + left` | `alt + left` |
 | `searchEverywhere.openToTheSide` | Search everywhere: Open to the Side | `cmd + enter`, `alt + enter` | `ctrl + enter`, `alt + enter` |
+| `searchEverywhere.copyReference` | Search everywhere: Copy reference of the selected result | `alt + shift + cmd + c` | `ctrl + alt + shift + c` |
+| `searchEverywhere.copyLocation` | Search everywhere: Copy path and line of the selected result | `alt + cmd + c` | `ctrl + alt + c` |
 | `searchEverywhere.nextCategory` | Search everywhere: Next Category | `tab` | `tab` |
 | `searchEverywhere.previousCategory` | Search everywhere: Previous Category | `shift + tab` | `shift + tab` |
 | `searchEverywhere.reload` | Search everywhere: Reload | | |
@@ -295,6 +314,8 @@ against them. Measured on an Apple M4:
   the previous query; it applies while scoped to a file.
 - **Open to the Side** opens the selected item beside the active editor; it applies while Search
   Everywhere is open.
+- **Copy reference** and **Copy path and line** copy the selected result's reference or
+  `path:line` and keep Search Everywhere open; they apply while it is open.
 - **Next Category** and **Previous Category** switch between All and each category; they apply
   while Search Everywhere is open and not scoped to a file.
 - **Reload** re-indexes the whole workspace.

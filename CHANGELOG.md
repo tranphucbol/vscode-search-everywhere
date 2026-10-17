@@ -5,6 +5,8 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 ## [Unreleased]
 ### ✨ Features
 - **Commands and text search from Search Everywhere**: type `>` as the first character to open VS Code's command palette with the rest of the query (`>sort`), or `%` to open VS Code's quick text search with it (`%TODO`; the Search view on VS Code versions without quick text search). Reopening Search Everywhere shows the query without the prefix. Both are listed in the `?` help, where `enter` on the row opens them. A category or filter phrase starting with the same character still wins, and a selection or restored query starting with one is searched as before. Turn it off with `searchEverywhere.handOffPrefixes` (default `true`).
+- **Copy reference**: every result has a copy button that copies a reference to it without opening it: `com.acme.user.UserService#save` for Java and Kotlin, `api.Server.Start` for Go, `UserService.save` for other languages and the workspace-relative path for a file. Also `searchEverywhere.copyReference` (`alt + shift + cmd + c` / `ctrl + alt + shift + c`) while Search Everywhere is open.
+- **Copy path and line**: `searchEverywhere.copyLocation` (`alt + cmd + c` / `ctrl + alt + c`) copies the selected result's `path:line`. Both keep the quick pick open and confirm in the status bar.
 
 ## [0.3.0] - 2026-10-18
 ### ✨ Features
