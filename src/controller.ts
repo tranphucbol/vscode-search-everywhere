@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { clear, clearConfig, clearNotSavedUriPaths, initCache } from "./cache";
 import {
+  fetchRestoreLastQuery,
   fetchShouldInitOnStartup,
   fetchShouldSearchSelection,
   fetchShouldWorkspaceDataBeCached,
@@ -24,19 +25,29 @@ import {
 
 function loadItemsAndShowQuickPick() {
   quickPick.reload();
+
+  const activeEditorOrUndefined = vscode.window.activeTextEditor;
+  const selectedText = controller.shouldSearchSelection(activeEditorOrUndefined)
+    ? getSelectedText(activeEditorOrUndefined as vscode.TextEditor)
+    : "";
+
+  // Set before show() so VS Code selects the restored query and typing
+  // replaces it; QuickPick.valueSelection does not exist in VS Code 1.64.
+  if (!selectedText && fetchRestoreLastQuery() && quickPick.getLastQuery()) {
+    quickPick.setText(quickPick.getLastQuery());
+  }
+
   quickPick.loadItems();
   quickPick.show();
 
-  const activeEditorOrUndefined = vscode.window.activeTextEditor;
-
-  if (controller.shouldSearchSelection(activeEditorOrUndefined)) {
-    const activeEditor = activeEditorOrUndefined as vscode.TextEditor;
-
-    const { start, end } = activeEditor.selection;
-    quickPick.setText(
-      activeEditor.document.getText(new vscode.Range(start, end))
-    );
+  if (selectedText) {
+    quickPick.setText(selectedText);
   }
+}
+
+function getSelectedText(editor: vscode.TextEditor): string {
+  const { start, end } = editor.selection;
+  return editor.document.getText(new vscode.Range(start, end));
 }
 
 function setBusy(isBusy: boolean) {

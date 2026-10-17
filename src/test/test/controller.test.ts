@@ -159,6 +159,37 @@ describe("Controller", () => {
 
       assert.equal(setTextStub.calledOnce, false);
     });
+
+    it("should restore the last query on show", async () => {
+      const [setTextStub, , showStub] =
+        setups.search.setupForRestoringLastQuery("Server.Start", "");
+      await controller.search();
+
+      assert.equal(setTextStub.lastCall.args[0], "Server.Start");
+      assert.equal(setTextStub.lastCall.calledBefore(showStub.firstCall), true);
+    });
+
+    it("should prefer the editor selection over the last query", async () => {
+      const [setTextStub] = setups.search.setupForRestoringLastQuery(
+        "Server.Start",
+        "selected"
+      );
+      await controller.search();
+
+      assert.equal(setTextStub.calledWith("Server.Start"), false);
+      assert.equal(setTextStub.lastCall.args[0], "selected");
+    });
+
+    it("should not restore the last query when restoreLastQuery is off", async () => {
+      const [setTextStub] = setups.search.setupForRestoringLastQuery(
+        "Server.Start",
+        "",
+        false
+      );
+      await controller.search();
+
+      assert.equal(setTextStub.calledWith("Server.Start"), false);
+    });
   });
 
   describe("reload", () => {

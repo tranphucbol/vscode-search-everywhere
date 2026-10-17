@@ -175,6 +175,16 @@
           "default": true,
           "description": "Ability to decide whether selection in the active editor is put in the search."
         },
+        "searchEverywhere.previewOnSelect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the highlighted item in a preview editor, without moving focus, as the selection moves in the search. Escape returns to the editor that was active before the search opened."
+        },
+        "searchEverywhere.restoreLastQuery": {
+          "type": "boolean",
+          "default": true,
+          "description": "Put the last workspace query back, selected, when the search is opened again. Typing replaces it. A non-empty editor selection still wins when shouldSearchSelection is on."
+        },
         "searchEverywhere.exclude": {
           "type": "array",
           "default": [

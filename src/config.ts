@@ -114,6 +114,14 @@ const keys = {
     name: "useFileIconTheme",
     value: false,
   },
+  previewOnSelect: {
+    name: "previewOnSelect",
+    value: true,
+  },
+  restoreLastQuery: {
+    name: "restoreLastQuery",
+    value: true,
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -242,6 +250,14 @@ export function fetchShouldItemsBeSorted(): boolean {
 
 export function fetchShouldSearchSelection(): boolean {
   return get(keys.shouldSearchSelection.name, keys.shouldSearchSelection.value);
+}
+
+export function fetchPreviewOnSelect(): boolean {
+  return get(keys.previewOnSelect.name, keys.previewOnSelect.value);
+}
+
+export function fetchRestoreLastQuery(): boolean {
+  return get(keys.restoreLastQuery.name, keys.restoreLastQuery.value);
 }
 
 export function fetchExclude(): string[] {

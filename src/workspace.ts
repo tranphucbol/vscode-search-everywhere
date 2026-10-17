@@ -185,6 +185,8 @@ function shouldReindexOnConfigurationChange(
     "categories",
     "itemsFilterPhrases",
     "helpPhrase",
+    "previewOnSelect",
+    "restoreLastQuery",
   ].map((config: string) => `${defaultSection}.${config}`);
 
   return (

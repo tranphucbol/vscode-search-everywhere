@@ -5,6 +5,7 @@ import {
   fetchHelpPhrase,
   fetchItemsFilter,
   fetchItemsFilterPhrases,
+  fetchPreviewOnSelect,
   fetchRankRecentItemsHigher,
   fetchRecentItemsLimit,
   fetchShouldHighlightSymbol,
@@ -197,6 +198,8 @@ async function openItem(
   if (qpItem.kind === vscode.QuickPickItemKind.Separator) {
     return;
   }
+  itemAccepted = true;
+  cancelPendingPreview();
   recentItems.addRecentItem(qpItem);
   const targetUri = ensureUri(qpItem.uri);
   const document = await vscode.workspace.openTextDocument(targetUri);
@@ -368,11 +371,139 @@ function getFileScopeUri(): string | undefined {
   return fileScopeUri;
 }
 
+const PREVIEW_DELAY_MS = 150;
+
+interface EditorState {
+  uri: vscode.Uri;
+  selection: vscode.Selection;
+  viewColumn?: vscode.ViewColumn;
+}
+
+let isVisible = false;
+let editorBeforeShow: EditorState | undefined;
+let previewShown = false;
+let itemAccepted = false;
+let previewTimer: ReturnType<typeof setTimeout> | undefined;
+let lastQuery = "";
+
+function getLastQuery(): string {
+  return lastQuery;
+}
+
+function rememberActiveEditor(): void {
+  const editor = vscode.window.activeTextEditor;
+  editorBeforeShow = editor
+    ? {
+        uri: editor.document.uri,
+        selection: editor.selection,
+        viewColumn: editor.viewColumn,
+      }
+    : undefined;
+  previewShown = false;
+  itemAccepted = false;
+}
+
+function cancelPendingPreview(): void {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = undefined;
+  }
+}
+
+function handleDidChangeActive(items: readonly QuickPickItem[]): void {
+  cancelPendingPreview();
+  const item = items[0];
+  if (
+    !fetchPreviewOnSelect() ||
+    !item ||
+    !item.uri ||
+    item.isHelp ||
+    item.kind === vscode.QuickPickItemKind.Separator
+  ) {
+    return;
+  }
+  previewTimer = setTimeout(() => {
+    previewTimer = undefined;
+    void quickPick.previewItem(item);
+  }, PREVIEW_DELAY_MS);
+}
+
+function getPreviewPosition(qpItem: QuickPickItem): vscode.Position {
+  if (qpItem.targetPosition) {
+    return qpItem.targetPosition;
+  }
+  const start = qpItem.range?.start;
+  return start
+    ? new vscode.Position(start.line, start.character)
+    : new vscode.Position(0, 0);
+}
+
+async function previewItem(qpItem: QuickPickItem): Promise<void> {
+  if (!isVisible) {
+    return;
+  }
+  const position = getPreviewPosition(qpItem);
+  const range = new vscode.Range(position, position);
+  try {
+    const document = await vscode.workspace.openTextDocument(
+      ensureUri(qpItem.uri)
+    );
+    if (!isVisible) {
+      return;
+    }
+    const editor = await vscode.window.showTextDocument(document, {
+      preview: true,
+      preserveFocus: true,
+      selection: range,
+      viewColumn: editorBeforeShow?.viewColumn,
+    });
+    previewShown = true;
+    editor.revealRange(
+      range,
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport
+    );
+  } catch {
+    // The file may have been deleted or moved since it was indexed.
+  }
+}
+
+async function restoreEditorBeforeShow(
+  state: EditorState | undefined
+): Promise<void> {
+  if (!state) {
+    return;
+  }
+  try {
+    const document = await vscode.workspace.openTextDocument(state.uri);
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: state.viewColumn,
+      selection: state.selection,
+    });
+    editor.selection = state.selection;
+    editor.revealRange(
+      state.selection,
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport
+    );
+  } catch {
+    // The editor's document may have been closed and deleted meanwhile.
+  }
+}
+
 function handleDidHide() {
+  cancelPendingPreview();
+  const control = quickPick.getControl();
+  lastQuery = fileScopeUri ? savedWorkspaceSearchText : control?.value || "";
+  if (previewShown && !itemAccepted) {
+    void restoreEditorBeforeShow(editorBeforeShow);
+  }
+  isVisible = false;
+  previewShown = false;
+  itemAccepted = false;
+  editorBeforeShow = undefined;
+
   quickPick.setText("");
   fileScopeUri = undefined;
   savedWorkspaceSearchText = "";
-  const control = quickPick.getControl();
   if (control) {
     control.title = undefined;
     control.placeholder = undefined;
@@ -617,6 +748,7 @@ function registerEventListeners() {
   const control = quickPick.getControl();
   control.onDidHide(handleDidHide);
   control.onDidAccept(handleDidAccept);
+  control.onDidChangeActive(handleDidChangeActive);
   control.onDidTriggerItemButton(handleDidTriggerItemButton);
   control.onDidTriggerButton(handleDidTriggerButton);
 
@@ -639,6 +771,10 @@ function isInitialized(): boolean {
 
 function show(): void {
   const control = quickPick.getControl();
+  if (!isVisible) {
+    rememberActiveEditor();
+    isVisible = true;
+  }
   updateTitle(resolveFilterPhrase(control.value || "").category);
   control.show();
   vscode.commands.executeCommand(
@@ -983,6 +1119,9 @@ export const quickPick = {
   handleDidChangeValue,
   handleDidAccept,
   handleDidHide,
+  handleDidChangeActive,
+  previewItem,
+  getLastQuery,
   handleDidTriggerItemButton,
   handleDidTriggerButton,
   navigateIntoFile,
