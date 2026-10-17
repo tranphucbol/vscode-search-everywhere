@@ -2,7 +2,7 @@
   "name": "jetbrain-search-everywhere",
   "displayName": "Jetbrain Search Everywhere",
   "description": "Fast and customizable files, symbols search engine. An alternative for 'Go to symbol in workspace' built-in feature.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "preview": false,
   "publisher": "tranphucbol",
   "author": {
@@ -321,5 +321,9 @@
   "bugs": {
     "url": "https://github.com/tranphucbol/vscode-search-everywhere/issues"
   },
-  "icon": "img/logo.png"
+  "icon": "img/logo.png",
+  "galleryBanner": {
+    "color": "#1B1D24",
+    "theme": "dark"
+  }
 }
