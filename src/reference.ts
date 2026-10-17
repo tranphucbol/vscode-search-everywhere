@@ -69,7 +69,9 @@ function getPath(uri: vscode.Uri): string {
   if (!vscode.workspace.getWorkspaceFolder(uri)) {
     return uri.scheme === "file" ? uri.fsPath : uri.toString();
   }
-  return vscode.workspace.asRelativePath(uri, true);
+  // Passing includeWorkspaceFolder = true would prefix the folder name in a single-root
+  // workspace too; the default adds it only when there are several folders.
+  return vscode.workspace.asRelativePath(uri);
 }
 
 async function resolveSymbol(

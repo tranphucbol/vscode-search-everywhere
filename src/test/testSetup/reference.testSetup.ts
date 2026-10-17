@@ -108,7 +108,7 @@ export const getTestSetups = () => {
       .callsFake((pathOrUri: string | vscode.Uri, includeFolder?: boolean) => {
         const uri = pathOrUri as vscode.Uri;
         const relative = uri.path.slice(root.path.length + 1);
-        return isMultiRoot && includeFolder
+        return includeFolder ?? isMultiRoot
           ? `${folderName}/${relative}`
           : relative;
       });
