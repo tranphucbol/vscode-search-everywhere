@@ -113,6 +113,37 @@ describe("DataService", () => {
     });
   });
 
+  describe("indexNamesOnly", () => {
+    const NAMES_ONLY = "**/*.{json,yaml}";
+
+    it("should not ask for symbols of a names-only file", async () => {
+      const { getSymbolsForUriStub, uris } =
+        setups.indexNamesOnly.setupForNamesOnlyFiles(NAMES_ONLY);
+      await dataService.fetchData();
+
+      assert.equal(getSymbolsForUriStub.callCount, 1);
+      assert.equal(getSymbolsForUriStub.firstCall.args[0], uris[1]);
+    });
+
+    it("should still index a names-only file by name", async () => {
+      const { uris } =
+        setups.indexNamesOnly.setupForNamesOnlyFiles(NAMES_ONLY);
+      const workspaceData = await dataService.fetchData();
+
+      const elements = workspaceData.items.get(uris[0].path)?.elements;
+      assert.deepEqual(elements, [uris[0]]);
+      assert.equal(workspaceData.count, 3);
+    });
+
+    it("should ask for symbols when indexNamesOnly is empty", async () => {
+      const { getSymbolsForUriStub } =
+        setups.indexNamesOnly.setupForNamesOnlyFiles("");
+      await dataService.fetchData();
+
+      assert.equal(getSymbolsForUriStub.callCount, 2);
+    });
+  });
+
   describe("getSymbolsForUri", () => {
     it("should keep the full ancestor chain in nested symbol names", async () => {
       setups.getSymbolsForUri.setupForNestedSymbols();

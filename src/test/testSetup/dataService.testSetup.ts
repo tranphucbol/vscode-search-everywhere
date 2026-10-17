@@ -372,6 +372,59 @@ export const getTestSetups = () => {
       },
     },
 
+    indexNamesOnly: {
+      setupForNamesOnlyFiles: (namesOnlyGlob: string) => {
+        stubConfig(sandbox);
+        const uris = [
+          vscode.Uri.file("/./fake/config.json"),
+          vscode.Uri.file("/./fake/fake-1.ts"),
+        ];
+        const [getSymbolsForUriStub] = stubMultiple(
+          [
+            {
+              object: dataService,
+              method: "getSymbolsForUri",
+              returns: Promise.resolve(getDocumentSymbolItemSingleLineArray(1)),
+            },
+            {
+              object: config,
+              method: "fetchIndexNamesOnly",
+              returns: namesOnlyGlob,
+            },
+            {
+              object: utils,
+              method: "normalizeUriPath",
+              callsFake: (path: string) => path.replace("/./fake", ""),
+            },
+            {
+              object: utils,
+              method: "createWorkspaceData",
+              returns: getWorkspaceData(),
+            },
+            {
+              object: utils,
+              method: "sleep",
+            },
+            {
+              object: vscode.workspace,
+              method: "findFiles",
+              returns: Promise.resolve(uris),
+            },
+            {
+              object: vscode.workspace,
+              method: "openTextDocument",
+            },
+            {
+              object: vscode.commands,
+              method: "executeCommand",
+            },
+          ],
+          sandbox
+        );
+        return { getSymbolsForUriStub, uris };
+      },
+    },
+
     isUriExistingInWorkspace: {
       setupForReturningTrueWhenUriExists: () => {
         stubMultiple(

@@ -216,6 +216,11 @@
           "default": "**/*.{js,jsx,ts,tsx}",
           "description": "String with include pattern. Any file matching this glob will be included in indexing."
         },
+        "searchEverywhere.indexNamesOnly": {
+          "type": "string",
+          "default": "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum}",
+          "description": "Glob, matched against the workspace-relative path, of included files that are indexed by file name only. Their symbols are never requested from a language server. An empty string asks for symbols of every included file."
+        },
         "searchEverywhere.excludeMode": {
           "type": "string",
           "enum": [

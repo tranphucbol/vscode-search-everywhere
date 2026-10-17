@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "./config";
+import { fetchIndexNamesOnly, fetchItemsFilter } from "./config";
 import { dataConverter } from "./dataConverter";
 import { onDidItemIndexedEventEmitter } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
 import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";
-import { utils } from "./utils";
+import { matchesGlob, utils } from "./utils";
 
 const CONTAINER_SEPARATOR = ".";
 
@@ -184,11 +184,15 @@ const NON_SYMBOL_EXTENSIONS = new Set([
   "mp3", "mp4", "wav", "avi"
 ]);
 
+function isNamesOnly(uri: vscode.Uri): boolean {
+  return matchesGlob(utils.normalizeUriPath(uri.path), fetchIndexNamesOnly());
+}
+
 async function tryToGetSymbolsForUri(
   uri: vscode.Uri
 ): Promise<vscode.DocumentSymbol[] | undefined> {
   const ext = uri.path.split(".").pop()?.toLowerCase();
-  if (ext && NON_SYMBOL_EXTENSIONS.has(ext)) {
+  if ((ext && NON_SYMBOL_EXTENSIONS.has(ext)) || isNamesOnly(uri)) {
     return undefined;
   }
 

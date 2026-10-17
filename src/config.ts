@@ -122,6 +122,11 @@ const keys = {
     name: "restoreLastQuery",
     value: true,
   },
+  indexNamesOnly: {
+    name: "indexNamesOnly",
+    value:
+      "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum}",
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -258,6 +263,10 @@ export function fetchPreviewOnSelect(): boolean {
 
 export function fetchRestoreLastQuery(): boolean {
   return get(keys.restoreLastQuery.name, keys.restoreLastQuery.value);
+}
+
+export function fetchIndexNamesOnly(): string {
+  return get(keys.indexNamesOnly.name, keys.indexNamesOnly.value);
 }
 
 export function fetchExclude(): string[] {
