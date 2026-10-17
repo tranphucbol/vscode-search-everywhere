@@ -149,6 +149,15 @@ function getDocumentSymbolToQpItemDescription(
   return qualifier ? `${description} ${qualifier}` : description;
 }
 
+function mapSymbolInformationToQpItem(
+  symbol: vscode.SymbolInformation
+): QuickPickItem {
+  return mapDocumentSymbolToQpItem(
+    symbol.location.uri,
+    symbol as unknown as vscode.DocumentSymbol
+  );
+}
+
 function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
   const symbolKind = 0;
   const name = utils.getNameFromUri(uri);
@@ -291,5 +300,6 @@ export const dataConverter = {
   convertToQpData,
   convertUriAndSymbolsToQpItems,
   mapUriToQpItem,
+  mapSymbolInformationToQpItem,
   fetchConfig,
 };

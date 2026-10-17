@@ -48,6 +48,12 @@ The index is cached, so the next start of VS Code reads it instead of scanning a
 made while VS Code was closed are picked up in the background. Git worktrees and local clones of
 the same repository share one cache.
 
+The search opens at once, even before the first index finishes. While the workspace is indexing,
+each query of two or more characters is also sent to the language servers' workspace symbol
+search, and symbols the index does not have yet are listed after the indexed results under
+`Not indexed yet` (`searchEverywhere.searchLanguageServersWhileIndexing`). These results are never
+written to the index.
+
 ## Features
 
 ### Query syntax
@@ -175,6 +181,15 @@ the same repository share one cache.
   workspace-relative path and line, as shown under it (`src/user/service.ts:42`); a file copies
   its path alone. In a multi-root workspace the path starts with the folder name.
 
+- **Include libraries**: press `alt + cmd + p` / `ctrl + alt + p` again while the search is open,
+  or click the library button in its title, to also search symbols outside the indexed files:
+  the JDK and dependencies, `node_modules`, the Go standard library. They are listed after the
+  workspace results under `Libraries`, and the title ends with `including libraries`. The toggle
+  is off each time the search opens. What it finds depends on the language server: jdtls covers
+  the JDK and the project's dependencies, gopls covers dependencies with its default
+  `symbolScope` of `all`, and the TypeScript server covers what the project loads, such as
+  `lib.*.d.ts` and imported packages, once `typescript.workspaceSymbols.excludeLibrarySymbols`
+  is `false` (it is `true` by default).
 - **Highlight of the selected symbol** (`searchEverywhere.shouldHighlightSymbol`)
 
   enabled
@@ -303,6 +318,7 @@ against them. Measured on an Apple M4:
 | `searchEverywhere.copyLocation` | Search everywhere: Copy path and line of the selected result | `alt + cmd + c` | `ctrl + alt + c` |
 | `searchEverywhere.nextCategory` | Search everywhere: Next Category | `tab` | `tab` |
 | `searchEverywhere.previousCategory` | Search everywhere: Previous Category | `shift + tab` | `shift + tab` |
+| `searchEverywhere.toggleIncludeLibraries` | Search everywhere: Include libraries | `alt + cmd + p` (search open) | `ctrl + alt + p` (search open) |
 | `searchEverywhere.reload` | Search everywhere: Reload | | |
 | `searchEverywhere.clearSharedCache` | Search everywhere: Clear Shared Worktree Cache | | |
 
@@ -421,6 +437,13 @@ against them. Measured on an Apple M4:
   declarations as variables too, so they are dropped with it; symbols reported as constants
   (kind 13) need 13 in `itemsFilter.ignoredKinds`. Listing 12 in `itemsFilter.allowedKinds`
   keeps variables.
+
+- `searchEverywhere.searchLanguageServersWhileIndexing`, default `true`
+
+  While the workspace is not fully indexed, also ask the language servers' workspace symbol search
+  for each query of two or more characters and list symbols the index does not have yet under
+  `Not indexed yet`. These results are never written to the index. Does not affect the Include
+  libraries toggle. Changing it does not reindex.
 
 ### Cache
 

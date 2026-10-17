@@ -34,6 +34,7 @@
     "onCommand:searchEverywhere.copyLocation",
     "onCommand:searchEverywhere.nextCategory",
     "onCommand:searchEverywhere.previousCategory",
+    "onCommand:searchEverywhere.toggleIncludeLibraries",
     "onCommand:searchEverywhere.reload",
     "onCommand:searchEverywhere.clearSharedCache"
   ],
@@ -295,6 +296,11 @@
           "default": true,
           "description": "Watch the file system and update the index when files are created, changed or deleted outside VS Code, for example by git, a code generator or a terminal command."
         },
+        "searchEverywhere.searchLanguageServersWhileIndexing": {
+          "type": "boolean",
+          "default": true,
+          "description": "While the index is being built, also ask the language servers for symbols matching the query and show the ones not indexed yet under Not indexed yet. The Include libraries toggle works regardless."
+        },
         "searchEverywhere.showRecentItemsOnEmptyQuery": {
           "type": "boolean",
           "default": true,
@@ -355,6 +361,10 @@
         "title": "Search everywhere: Previous Category"
       },
       {
+        "command": "searchEverywhere.toggleIncludeLibraries",
+        "title": "Search everywhere: Include libraries"
+      },
+      {
         "command": "searchEverywhere.reload",
         "title": "Search everywhere: Reload"
       },
@@ -368,6 +378,12 @@
         "command": "searchEverywhere.search",
         "key": "ctrl+alt+p",
         "mac": "alt+cmd+p"
+      },
+      {
+        "command": "searchEverywhere.toggleIncludeLibraries",
+        "key": "ctrl+alt+p",
+        "mac": "alt+cmd+p",
+        "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
       },
       {
         "command": "searchEverywhere.searchCurrentFile",

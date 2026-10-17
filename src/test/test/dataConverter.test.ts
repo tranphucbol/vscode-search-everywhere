@@ -7,6 +7,7 @@ import { getTestSetups } from "../testSetup/dataConverter.testSetup";
 import {
   getDocumentSymbolItemWithDocComment,
   getDocumentSymbolItemWithSelectionOutsideRange,
+  getSymbolInformation,
 } from "../util/itemMockFactory";
 import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
@@ -259,6 +260,45 @@ describe("DataConverter", () => {
         normalizeSymbolName("save(User)", vscode.SymbolKind.Variable),
         { name: "save(User)" }
       );
+    });
+  });
+
+  describe("mapSymbolInformationToQpItem", () => {
+    const nameOf = (item: QuickPickItem) =>
+      item.label.replace(/^\$\([^)]+\)\s+/, "");
+
+    it("should map a SymbolInformation like an indexed symbol", () => {
+      const symbol = getSymbolInformation(
+        "save(User)",
+        vscode.Uri.file("/./fake/UserService.java"),
+        vscode.SymbolKind.Method,
+        "UserService",
+        11
+      );
+
+      const item = dataConverter.mapSymbolInformationToQpItem(symbol);
+
+      assert.equal(nameOf(item), "save");
+      assert.equal(item.symbolKind, vscode.SymbolKind.Method);
+      assert.equal(item.containerName, "UserService");
+      assert.equal(item.description, "UserService · method (User)");
+      assert.equal(item.uri.toString(), symbol.location.uri.toString());
+      assert.equal(item.range!.start.line, 11);
+      assert.match(item.detail!, /fake\/UserService\.java:12$/);
+    });
+
+    it("should normalize a Go receiver method from SymbolInformation", () => {
+      const symbol = getSymbolInformation(
+        "(*Server).Start",
+        vscode.Uri.file("/./fake/server.go"),
+        vscode.SymbolKind.Method,
+        "server"
+      );
+
+      const item = dataConverter.mapSymbolInformationToQpItem(symbol);
+
+      assert.equal(nameOf(item), "Start");
+      assert.equal(item.description, "(*Server) · method");
     });
   });
 

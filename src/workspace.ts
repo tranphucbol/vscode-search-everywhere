@@ -234,6 +234,7 @@ function shouldReindexOnConfigurationChange(
     "helpPhrase",
     "previewOnSelect",
     "restoreLastQuery",
+    "searchLanguageServersWhileIndexing",
     "secondaryCode",
     "watchFileSystem",
   ].map((config: string) => `${defaultSection}.${config}`);

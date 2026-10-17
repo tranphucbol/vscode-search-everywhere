@@ -138,6 +138,10 @@ const keys = {
     name: "handOffPrefixes",
     value: true,
   },
+  searchLanguageServersWhileIndexing: {
+    name: "searchLanguageServersWhileIndexing",
+    value: true,
+  },
   indexNamesOnly: {
     name: "indexNamesOnly",
     value:
@@ -341,6 +345,13 @@ export function fetchRestoreLastQuery(): boolean {
 
 export function fetchHandOffPrefixes(): boolean {
   return get(keys.handOffPrefixes.name, keys.handOffPrefixes.value);
+}
+
+export function fetchSearchLanguageServersWhileIndexing(): boolean {
+  return get(
+    keys.searchLanguageServersWhileIndexing.name,
+    keys.searchLanguageServersWhileIndexing.value
+  );
 }
 
 export function fetchIndexNamesOnly(): string {
