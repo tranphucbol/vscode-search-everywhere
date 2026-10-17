@@ -20,6 +20,7 @@ import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
 import { recentItems } from "./recentItems";
+import { getLocation, getReference } from "./reference";
 import {
   Category,
   CategoryButton,
@@ -46,6 +47,11 @@ const QUICK_OPEN_COMMAND = "workbench.action.quickOpen";
 // The "%" text search in quick open; VS Code versions without it only have the Search view.
 const QUICK_TEXT_SEARCH_COMMAND = "workbench.action.quickTextSearch";
 const FIND_IN_FILES_COMMAND = "workbench.action.findInFiles";
+const COPY_ICON = "copy";
+const COPY_REFERENCE_TOOLTIP = `Copy reference · ${
+  process.platform === "darwin" ? "⌥⇧⌘C" : "Ctrl+Alt+Shift+C"
+}`;
+const COPIED_MESSAGE_TIMEOUT_MS = 3000;
 
 function disposeOnDidChangeValueEventListeners(): void {
   quickPick
@@ -713,6 +719,10 @@ async function handleDidTriggerItemButton({
     await navigateIntoFile(qpItem);
     return;
   }
+  if (iconId === COPY_ICON) {
+    await copyReference(qpItem);
+    return;
+  }
   await quickPick.openItem(qpItem, vscode.ViewColumn.Beside);
 }
 
@@ -921,6 +931,45 @@ async function openToTheSide(item?: QuickPickItem): Promise<void> {
   }
   await quickPick.openItem(targetItem, vscode.ViewColumn.Beside);
   control.hide();
+}
+
+async function copyReference(item?: QuickPickItem): Promise<void> {
+  const targetItem = getCopyTarget(item);
+  if (targetItem) {
+    await copyToClipboard(() => getReference(targetItem));
+  }
+}
+
+async function copyLocation(item?: QuickPickItem): Promise<void> {
+  const targetItem = getCopyTarget(item);
+  if (targetItem) {
+    await copyToClipboard(async () => getLocation(targetItem));
+  }
+}
+
+function getCopyTarget(item?: QuickPickItem): QuickPickItem | undefined {
+  const control = quickPick.getControl();
+  const targetItem =
+    item || (control?.activeItems?.length ? control.activeItems[0] : undefined);
+  if (
+    !targetItem ||
+    !targetItem.uri ||
+    targetItem.isHelp ||
+    targetItem.kind === vscode.QuickPickItemKind.Separator
+  ) {
+    return undefined;
+  }
+  return targetItem;
+}
+
+async function copyToClipboard(getText: () => Promise<string>): Promise<void> {
+  try {
+    const text = await getText();
+    await vscode.env.clipboard.writeText(text);
+    vscode.window.setStatusBarMessage(`Copied ${text}`, COPIED_MESSAGE_TIMEOUT_MS);
+  } catch (error) {
+    vscode.window.showErrorMessage(`Search everywhere: Could not copy: ${error}`);
+  }
 }
 
 function init(): void {
@@ -1230,6 +1279,10 @@ function reinitQpItemsButton(data: QuickPickItem[]) {
         iconPath: new vscode.ThemeIcon("open-preview"),
         tooltip: "Open to the side",
       });
+      buttons.push({
+        iconPath: new vscode.ThemeIcon(COPY_ICON),
+        tooltip: COPY_REFERENCE_TOOLTIP,
+      });
       item.buttons = buttons;
     }
   });
@@ -1344,6 +1397,8 @@ export const quickPick = {
   navigateBack,
   searchCurrentFile,
   openToTheSide,
+  copyReference,
+  copyLocation,
   getFileScopeUri,
   resolveFilterPhrase,
   cycleCategory,

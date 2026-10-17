@@ -19,12 +19,12 @@ describe("extension", () => {
   afterEach(() => setups.afterEach());
 
   describe("activate", () => {
-    it("should register nine commands", async () => {
+    it("should register eleven commands", async () => {
       const [registerCommandStub] =
         setups.activate.setupForRegisteringCommands();
       await extension.activate(context);
 
-      assert.equal(registerCommandStub.callCount, 9);
+      assert.equal(registerCommandStub.callCount, 11);
     });
 
     it("should controller.init method be invoked", async () => {
