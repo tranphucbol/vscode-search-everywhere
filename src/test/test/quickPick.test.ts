@@ -202,6 +202,12 @@ describe("QuickPick", () => {
           iconPath: new vscode.ThemeIcon("open-preview"),
           tooltip: "Open to the side",
         },
+        {
+          iconPath: new vscode.ThemeIcon("copy"),
+          tooltip: `Copy reference · ${
+            process.platform === "darwin" ? "⌥⇧⌘C" : "Ctrl+Alt+Shift+C"
+          }`,
+        },
       ]);
     });
   });

@@ -419,6 +419,14 @@ async function openToTheSide(): Promise<void> {
   await quickPick.openToTheSide();
 }
 
+async function copyReference(): Promise<void> {
+  await quickPick.copyReference();
+}
+
+async function copyLocation(): Promise<void> {
+  await quickPick.copyLocation();
+}
+
 function nextCategory(): void {
   quickPick.isInitialized() && quickPick.cycleCategory(1);
 }
@@ -450,6 +458,8 @@ export const controller = {
   navigateIntoFile,
   navigateBack,
   openToTheSide,
+  copyReference,
+  copyLocation,
   nextCategory,
   previousCategory,
   startup,

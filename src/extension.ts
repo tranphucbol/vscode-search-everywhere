@@ -23,6 +23,14 @@ export async function openToTheSide() {
   await controller.openToTheSide();
 }
 
+export async function copyReference() {
+  await controller.copyReference();
+}
+
+export async function copyLocation() {
+  await controller.copyLocation();
+}
+
 export function nextCategory() {
   controller.nextCategory();
 }
@@ -66,6 +74,14 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "searchEverywhere.openToTheSide",
       openToTheSide
+    ),
+    vscode.commands.registerCommand(
+      "searchEverywhere.copyReference",
+      copyReference
+    ),
+    vscode.commands.registerCommand(
+      "searchEverywhere.copyLocation",
+      copyLocation
     ),
     vscode.commands.registerCommand(
       "searchEverywhere.nextCategory",

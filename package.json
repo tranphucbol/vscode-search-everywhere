@@ -30,6 +30,8 @@
     "onCommand:searchEverywhere.navigateIntoFile",
     "onCommand:searchEverywhere.navigateBack",
     "onCommand:searchEverywhere.openToTheSide",
+    "onCommand:searchEverywhere.copyReference",
+    "onCommand:searchEverywhere.copyLocation",
     "onCommand:searchEverywhere.nextCategory",
     "onCommand:searchEverywhere.previousCategory",
     "onCommand:searchEverywhere.reload",
@@ -337,6 +339,14 @@
         "title": "Search everywhere: Open to the Side"
       },
       {
+        "command": "searchEverywhere.copyReference",
+        "title": "Search everywhere: Copy reference of the selected result"
+      },
+      {
+        "command": "searchEverywhere.copyLocation",
+        "title": "Search everywhere: Copy path and line of the selected result"
+      },
+      {
         "command": "searchEverywhere.nextCategory",
         "title": "Search everywhere: Next Category"
       },
@@ -389,6 +399,18 @@
         "when": "searchEverywhereOpen"
       },
       {
+        "command": "searchEverywhere.copyReference",
+        "key": "ctrl+alt+shift+c",
+        "mac": "alt+shift+cmd+c",
+        "when": "searchEverywhereOpen"
+      },
+      {
+        "command": "searchEverywhere.copyLocation",
+        "key": "ctrl+alt+c",
+        "mac": "alt+cmd+c",
+        "when": "searchEverywhereOpen"
+      },
+      {
         "command": "searchEverywhere.nextCategory",
         "key": "tab",
         "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
@@ -398,7 +420,19 @@
         "key": "shift+tab",
         "when": "searchEverywhereOpen && !searchEverywhereInFileScope"
       }
-    ]
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "searchEverywhere.copyReference",
+          "when": "searchEverywhereOpen"
+        },
+        {
+          "command": "searchEverywhere.copyLocation",
+          "when": "searchEverywhereOpen"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
