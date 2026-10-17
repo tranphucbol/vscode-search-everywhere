@@ -38,8 +38,9 @@ Run these from the repository root.
   publishes it to the Marketplace as publisher `tranphucbol` (`vsce publish --azure-credential`,
   logged in through an Azure managed identity federated with the `marketplace` environment:
   secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`), to Open VSX when `OVSX_PAT` is set, and
-  attaches it to a GitHub release. Running it by hand with `show-marketplace-identity` prints
-  the identity's Marketplace ID, which must be a Contributor member of the publisher
+  attaches it to a GitHub release. Running it by hand with `check-publishing` prints the
+  identity's Marketplace ID (it must be a Contributor member of the publisher), verifies publish
+  rights on both registries and creates the Open VSX namespace if it is missing
 - `node scripts/benchmark.js` - the search benchmark against a mocked `vscode`; it loads
   `dist/database.js`, so compile first
 
