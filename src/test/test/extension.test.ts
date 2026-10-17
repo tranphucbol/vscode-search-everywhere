@@ -1,4 +1,6 @@
 import { assert } from "chai";
+import * as fs from "fs";
+import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as extension from "../../extension";
@@ -37,6 +39,19 @@ describe("extension", () => {
       await extension.activate(context);
 
       assert.equal(startupStub.calledOnce, true);
+    });
+  });
+
+  describe("manifest", () => {
+    it("should activate once startup has finished so shouldInitOnStartup can index", () => {
+      const manifest = JSON.parse(
+        fs.readFileSync(
+          path.join(__dirname, "..", "..", "..", "package.json"),
+          "utf8"
+        )
+      );
+
+      assert.include(manifest.activationEvents, "onStartupFinished");
     });
   });
 

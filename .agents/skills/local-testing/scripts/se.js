@@ -525,10 +525,12 @@ async function launch(p, workspace) {
 
 async function activate(p, page, flags) {
   if (flags["no-activate"]) {
-    console.log("extension not activated yet: the first Search everywhere command activates it");
+    console.log(
+      "not waiting for the index: the extension activates once startup finishes and indexes then only with shouldInitOnStartup"
+    );
     return;
   }
-  // activationEvents only lists commands, so nothing loads or indexes until a command runs.
+  // Opening the quick pick indexes even with shouldInitOnStartup off, so every start ends ready.
   // Keybindings are ignored until the workbench finishes restoring, so keep pressing.
   await openQuickInput(page, "Alt+Meta+P", { attempts: 20 });
   const deadline = Date.now() + 180000;

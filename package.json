@@ -24,6 +24,7 @@
     "JetBrains"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:searchEverywhere.search",
     "onCommand:searchEverywhere.searchCurrentFile",
     "onCommand:searchEverywhere.navigateIntoFile",
