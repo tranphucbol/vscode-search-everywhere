@@ -127,17 +127,20 @@
             {
               "name": "Types",
               "phrase": "@@",
-              "kinds": [4, 9, 10, 22]
+              "kinds": [4, 9, 10, 22],
+              "icon": "symbol-class"
             },
             {
               "name": "Members",
               "phrase": "!!",
-              "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24]
+              "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24],
+              "icon": "symbol-method"
             },
             {
               "name": "Files",
               "phrase": "$$",
-              "kinds": [0]
+              "kinds": [0],
+              "icon": "files"
             }
           ],
           "items": {
@@ -154,11 +157,16 @@
                 "items": {
                   "type": "number"
                 }
+              },
+              "icon": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+$",
+                "description": "Codicon id shown on the category's button, for example symbol-class. Defaults to filter."
               }
             },
             "required": ["name", "phrase", "kinds"]
           },
-          "description": "Named groups of symbol kinds. Type a category's phrase at the start of the query, or press Tab / Shift+Tab, to search only those kinds."
+          "description": "Named groups of symbol kinds. Type a category's phrase at the start of the query, press Tab / Shift+Tab, or click a category button to search only those kinds."
         },
         "searchEverywhere.helpPhrase": {
           "type": "string",

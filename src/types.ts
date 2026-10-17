@@ -70,6 +70,14 @@ export interface Category {
   name: string;
   phrase: string;
   kinds: number[];
+  icon?: string;
+}
+
+// location and toggle were finalized in VS Code 1.109; @types/vscode is pinned to 1.64.
+export interface CategoryButton extends vscode.QuickInputButton {
+  categoryIndex: number; // -1 is All
+  location?: number;
+  toggle?: { checked: boolean };
 }
 
 export interface ItemsFilterPhrases {

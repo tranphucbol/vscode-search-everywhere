@@ -375,6 +375,12 @@ function supportsQuickPickFileIconTheme(): boolean {
   return isVscodeVersionAtLeast(1, 108);
 }
 
+function supportsQuickInputButtonToggle(
+  version: string = vscode.version
+): boolean {
+  return isVscodeVersionAtLeast(1, 109, version);
+}
+
 export const utils = {
   getWorkspaceFoldersCommonPathProp,
   hasWorkspaceAnyFolder,
@@ -405,4 +411,5 @@ export const utils = {
   debounce,
   isVscodeVersionAtLeast,
   supportsQuickPickFileIconTheme,
+  supportsQuickInputButtonToggle,
 };
