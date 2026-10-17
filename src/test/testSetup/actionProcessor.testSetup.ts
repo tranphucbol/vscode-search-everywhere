@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { actionProcessor } from "../../actionProcessor";
-import * as actionProcessorEventsEmitter from "../../actionProcessorEventsEmitter";
+import * as actionProcessorEventsEmitter from "../../shared/events";
 import { Action, ActionType } from "../../types";
 import { collections } from "../../shared/collections";
 import { getAction, getActions, getEventEmitter } from "../util/mockFactory";

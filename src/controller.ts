@@ -29,7 +29,7 @@ import {
   onWillExecuteAction,
   onWillProcessing,
   onWillReindexOnConfigurationChange,
-} from "./workspaceEventsEmitter";
+} from "./shared/events";
 
 function loadItemsAndShowQuickPick() {
   quickPick.reload();

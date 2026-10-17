@@ -2,7 +2,7 @@ import {
   onDidProcessingEventEmitter,
   onWillExecuteActionEventEmitter,
   onWillProcessingEventEmitter,
-} from "./actionProcessorEventsEmitter";
+} from "./shared/events";
 import { Action, ActionType } from "./types";
 import { collections } from "./shared/collections";
 

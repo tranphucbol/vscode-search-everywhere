@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getWorkspaceData } from "../util/mockFactory";
+import { getWorkspaceData } from "./mockFactory";
 
 export const mocks = {
   workspaceFolders: [

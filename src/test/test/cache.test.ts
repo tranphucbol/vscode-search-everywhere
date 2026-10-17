@@ -1,8 +1,8 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { appConfig } from "../../appConfig";
 import * as cache from "../../cache";
-import * as mock from "../mock/cache.mock";
+import { cacheKeys } from "../../cache";
+import * as mock from "../util/cache.mock";
 import { getTestSetups } from "../testSetup/cache.testSetup";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
@@ -39,7 +39,7 @@ describe("Cache", () => {
       cache.updateData(qpItems);
 
       assert.equal(
-        updateStub.calledWith(appConfig.dataCacheKey, qpItems),
+        updateStub.calledWith(cacheKeys.dataCacheKey, qpItems),
         true
       );
     });
@@ -83,7 +83,7 @@ describe("Cache", () => {
       cache.updateConfigByKey(key, mock.newExcludePatterns);
 
       assert.equal(
-        updateStub.calledWith(appConfig.configCacheKey, newConfig),
+        updateStub.calledWith(cacheKeys.configCacheKey, newConfig),
         true
       );
     });
@@ -96,7 +96,7 @@ describe("Cache", () => {
       cache.updateConfigByKey(key, mock.newExcludePatterns);
 
       assert.equal(
-        updateStub.calledWith(appConfig.configCacheKey, mock.newConfiguration),
+        updateStub.calledWith(cacheKeys.configCacheKey, mock.newConfiguration),
         true
       );
     });

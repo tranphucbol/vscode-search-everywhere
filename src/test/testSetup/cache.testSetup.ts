@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
-import { appConfig } from "../../appConfig";
-import * as mock from "../mock/cache.mock";
+import { cacheKeys } from "../../cache";
+import * as mock from "../util/cache.mock";
 import { getItems } from "../util/itemMockFactory";
 import { getExtensionContext } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
@@ -15,13 +15,13 @@ export const getTestSetups = () => {
       stubMultiple(
         [
           {
-            object: appConfig,
+            object: cacheKeys,
             method: "dataCacheKey",
             returns: "data",
             isNotMethod: true,
           },
           {
-            object: appConfig,
+            object: cacheKeys,
             method: "configCacheKey",
             returns: "config",
             isNotMethod: true,

@@ -1,10 +1,5 @@
 import * as vscode from "vscode";
 import {
-  onDidProcessing,
-  onWillExecuteAction,
-  onWillProcessing,
-} from "./actionProcessorEventsEmitter";
-import {
   clearConfig,
   clearNotSavedUriPaths as clearNotSavedUriPathsFromCache,
   getIndexedConfig,
@@ -25,7 +20,6 @@ import { fileWatcher } from "./fileWatcher";
 import { logger } from "./logger";
 import { isRootMarker, markerFileGlob, refreshPresets } from "./presets";
 import {
-  Action,
   ActionTrigger,
   ActionType,
   DetailedActionType,
@@ -38,13 +32,10 @@ import { workspaceFolders } from "./shared/workspaceFolders";
 import {
   onDidDebounceConfigToggleEventEmitter,
   onDidIndexWorkspace,
-  onDidProcessingEventEmitter,
   onDidSortingConfigToggleEventEmitter,
-  onWillExecuteActionEventEmitter,
   onWillIndexWorkspace,
-  onWillProcessingEventEmitter,
   onWillReindexOnConfigurationChangeEventEmitter,
-} from "./workspaceEventsEmitter";
+} from "./shared/events";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
 import { removeFromCacheByPath } from "./workspaceRemover";
 import { retryQueue, updateCacheByPath } from "./workspaceUpdater";
@@ -209,18 +200,6 @@ function handleDidSaveTextDocument(textDocument: vscode.TextDocument) {
   workspace.removeFromNotSavedUri(textDocument.uri);
 }
 
-function handleWillActionProcessorProcessing() {
-  onWillProcessingEventEmitter.fire();
-}
-
-function handleDidActionProcessorProcessing() {
-  onDidProcessingEventEmitter.fire();
-}
-
-function handleWillActionProcessorExecuteAction(action: Action) {
-  onWillExecuteActionEventEmitter.fire(action);
-}
-
 function shouldReindexOnConfigurationChange(
   event: vscode.ConfigurationChangeEvent
 ): boolean {
@@ -322,10 +301,6 @@ function registerEventListeners(): void {
 
   fileWatcher.startWatching();
 
-  onDidProcessing(handleDidActionProcessorProcessing);
-  onWillProcessing(handleWillActionProcessorProcessing);
-  onWillExecuteAction(handleWillActionProcessorExecuteAction);
-
   onWillIndexWorkspace(() => retryQueue.stop());
   onDidIndexWorkspace((urisToRetry) => retryQueue.start(urisToRetry));
 }
@@ -378,7 +353,4 @@ export const workspace = {
   handleDidRenameFiles,
   handleDidCreateFiles,
   handleDidDeleteFiles,
-  handleWillActionProcessorProcessing,
-  handleDidActionProcessorProcessing,
-  handleWillActionProcessorExecuteAction,
 };

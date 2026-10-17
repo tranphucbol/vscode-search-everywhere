@@ -12,7 +12,7 @@ import {
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database, FileState } from "./database";
-import { onDidItemIndexed } from "./dataServiceEventsEmitter";
+import { onDidItemIndexed } from "./shared/events";
 import { logger } from "./logger";
 import { getActivePresets } from "./presets";
 import { Action, ActionType, QuickPickItem, WorkspaceData } from "./types";
@@ -22,7 +22,7 @@ import { workspaceFolders } from "./shared/workspaceFolders";
 import {
   onDidIndexWorkspaceEventEmitter,
   onWillIndexWorkspaceEventEmitter,
-} from "./workspaceEventsEmitter";
+} from "./shared/events";
 
 function getData(query?: string, limit?: number): QuickPickItem[] {
   if (!database.isReady()) {

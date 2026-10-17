@@ -11,7 +11,6 @@ import {
   getTextDocumentChangeEvent,
   getWorkspaceFoldersChangeEvent,
 } from "../util/eventMockFactory";
-import { getAction } from "../util/mockFactory";
 import { getTextDocumentStub } from "../util/stubFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
@@ -113,9 +112,6 @@ describe("Workspace", () => {
         onDidChangeWorkspaceFoldersStub,
         onDidChangeTextDocumentStub,
         onDidSaveTextDocumentStub,
-        onWillProcessingStub,
-        onDidProcessingStub,
-        onWillExecuteActionStub,
         onWillIndexWorkspaceStub,
         onDidIndexWorkspaceStub,
       ] =
@@ -127,9 +123,6 @@ describe("Workspace", () => {
       assert.equal(onDidChangeWorkspaceFoldersStub.calledOnce, true);
       assert.equal(onDidChangeTextDocumentStub.calledOnce, true);
       assert.equal(onDidSaveTextDocumentStub.calledOnce, true);
-      assert.equal(onWillProcessingStub.calledOnce, true);
-      assert.equal(onDidProcessingStub.calledOnce, true);
-      assert.equal(onWillExecuteActionStub.calledOnce, true);
       assert.equal(onWillIndexWorkspaceStub.calledOnce, true);
       assert.equal(onDidIndexWorkspaceStub.calledOnce, true);
     });
@@ -142,8 +135,8 @@ describe("Workspace", () => {
       const urisToRetry = [vscode.Uri.file("/fake/server.go")];
 
       workspace.registerEventListeners();
-      stubs[7].firstCall.args[0]();
-      stubs[8].firstCall.args[0](urisToRetry);
+      stubs[4].firstCall.args[0]();
+      stubs[5].firstCall.args[0](urisToRetry);
 
       assert.equal(stopStub.calledOnce, true);
       assert.deepEqual(startStub.firstCall.args[0], urisToRetry);
@@ -488,36 +481,6 @@ describe("Workspace", () => {
       );
 
       assert.equal(workspace.getNotSavedUris().size, 2);
-    });
-  });
-
-  describe("handleWillActionProcessorProcessing", () => {
-    it("should onWillProcessing event be emitted", () => {
-      const eventEmitter =
-        setups.handleWillActionProcessorProcessing.setupForEmittingOnWillProcessingEvent();
-      workspace.handleWillActionProcessorProcessing();
-
-      assert.equal(eventEmitter.fire.calledOnce, true);
-    });
-  });
-
-  describe("handleDidActionProcessorProcessing", () => {
-    it("should onDidProcessing event be emitted", () => {
-      const eventEmitter =
-        setups.handleDidActionProcessorProcessing.setupForEmittingOnDidProcessingEvent();
-      workspace.handleDidActionProcessorProcessing();
-
-      assert.equal(eventEmitter.fire.calledOnce, true);
-    });
-  });
-
-  describe("handleWillActionProcessorExecuteAction", () => {
-    it("should onWillExecuteAction event be emitted", () => {
-      const eventEmitter =
-        setups.handleWillActionProcessorExecuteAction.setupForEmittingOnWillExecuteActionEvent();
-      workspace.handleWillActionProcessorExecuteAction(getAction());
-
-      assert.equal(eventEmitter.fire.calledOnce, true);
     });
   });
 });

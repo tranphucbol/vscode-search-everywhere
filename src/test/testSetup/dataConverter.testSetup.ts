@@ -5,7 +5,7 @@ import { dataConverter } from "../../dataConverter";
 import { Icons, ItemsFilterPhrases } from "../../types";
 import { pathUtils } from "../../shared/paths";
 import { workspaceFolders } from "../../shared/workspaceFolders";
-import { mocks } from "../mock/dataConverter.mock";
+import { mocks } from "../util/dataConverter.mock";
 import { getConfiguration, getWorkspaceData } from "../util/mockFactory";
 import { stubMultiple } from "../util/stubHelpers";
 

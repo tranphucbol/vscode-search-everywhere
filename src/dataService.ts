@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { fetchIndexNamesOnly, fetchItemsFilter } from "./config";
 import { dataConverter } from "./dataConverter";
 import { FileState } from "./database";
-import { onDidItemIndexedEventEmitter } from "./dataServiceEventsEmitter";
+import { onDidItemIndexedEventEmitter } from "./shared/events";
 import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
 import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";

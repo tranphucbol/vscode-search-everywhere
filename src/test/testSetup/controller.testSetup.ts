@@ -12,7 +12,7 @@ import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspace } from "../../workspace";
-import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
+import * as workspaceEventsEmitter from "../../shared/events";
 import { workspaceIndexer } from "../../workspaceIndexer";
 import { workspaceReconciler } from "../../workspaceReconciler";
 import { getExtensionContext } from "../util/mockFactory";

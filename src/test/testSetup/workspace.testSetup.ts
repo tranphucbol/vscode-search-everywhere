@@ -1,6 +1,5 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as actionProcessorEventsEmitter from "../../actionProcessorEventsEmitter";
 import * as cache from "../../cache";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
@@ -12,7 +11,7 @@ import { ExcludeMode } from "../../types";
 import { pathUtils } from "../../shared/paths";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspace } from "../../workspace";
-import * as events from "../../workspaceEventsEmitter";
+import * as events from "../../shared/events";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
 import { retryQueue } from "../../workspaceUpdater";
 import { getItems } from "../util/itemMockFactory";
@@ -228,18 +227,6 @@ export const getTestSetups = () => {
             {
               object: vscode.workspace,
               method: "onDidSaveTextDocument",
-            },
-            {
-              object: actionProcessorEventsEmitter,
-              method: "onWillProcessing",
-            },
-            {
-              object: actionProcessorEventsEmitter,
-              method: "onDidProcessing",
-            },
-            {
-              object: actionProcessorEventsEmitter,
-              method: "onWillExecuteAction",
             },
             {
               object: events,
@@ -889,61 +876,5 @@ export const getTestSetups = () => {
       },
     },
 
-    handleWillActionProcessorProcessing: {
-      setupForEmittingOnWillProcessingEvent: () => {
-        const eventEmitter = getEventEmitter();
-        stubMultiple(
-          [
-            {
-              object: events,
-              method: "onWillProcessingEventEmitter",
-              returns: eventEmitter,
-              isNotMethod: true,
-            },
-          ],
-          sandbox
-        );
-
-        return eventEmitter;
-      },
-    },
-
-    handleDidActionProcessorProcessing: {
-      setupForEmittingOnDidProcessingEvent: () => {
-        const eventEmitter = getEventEmitter();
-        stubMultiple(
-          [
-            {
-              object: events,
-              method: "onDidProcessingEventEmitter",
-              returns: eventEmitter,
-              isNotMethod: true,
-            },
-          ],
-          sandbox
-        );
-
-        return eventEmitter;
-      },
-    },
-
-    handleWillActionProcessorExecuteAction: {
-      setupForEmittingOnWillExecuteActionEvent: () => {
-        const eventEmitter = getEventEmitter();
-        stubMultiple(
-          [
-            {
-              object: events,
-              method: "onWillExecuteActionEventEmitter",
-              returns: eventEmitter,
-              isNotMethod: true,
-            },
-          ],
-          sandbox
-        );
-
-        return eventEmitter;
-      },
-    },
   };
 };
