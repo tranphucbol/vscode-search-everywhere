@@ -1,4 +1,7 @@
 import { assert } from "chai";
+import * as child_process from "child_process";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { gitService } from "../../gitService";
 
@@ -31,6 +34,79 @@ describe("gitService", () => {
       const nonExistent = "/tmp/does-not-exist-" + Date.now();
       const result = await gitService.getModifiedOrUntrackedFiles(nonExistent);
       assert.deepEqual(result, []);
+    });
+  });
+
+  describe("template delta", () => {
+    let repoRoot: string;
+    let firstCommit: string;
+
+    const git = (...args: string[]) =>
+      child_process
+        .execFileSync(
+          "git",
+          ["-c", "user.name=test", "-c", "user.email=test@example.com", ...args],
+          { cwd: repoRoot }
+        )
+        .toString()
+        .trim();
+    const write = (relativePath: string, content: string) => {
+      fs.mkdirSync(path.dirname(path.join(repoRoot, relativePath)), { recursive: true });
+      fs.writeFileSync(path.join(repoRoot, relativePath), content);
+    };
+
+    beforeEach(() => {
+      repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "se-git-"));
+      git("init", "-q");
+      write("src/kept.ts", "export const kept = 1;");
+      write("src/removed.ts", "export const removed = 1;");
+      write("src/renamed.ts", "export const renamed = 1;");
+      git("add", "-A");
+      git("commit", "-q", "-m", "first");
+      firstCommit = git("rev-parse", "HEAD");
+    });
+
+    afterEach(() => {
+      fs.rmSync(repoRoot, { recursive: true, force: true });
+    });
+
+    it("should list paths changed between a commit and HEAD", async () => {
+      write("src/added.ts", "export const added = 1;");
+      write("src/kept.ts", "export const kept = 2;");
+      git("rm", "-q", "src/removed.ts");
+      git("mv", "src/renamed.ts", "src/moved.ts");
+      git("add", "-A");
+      git("commit", "-q", "-m", "second");
+
+      const paths = await gitService.getChangedPathsBetween(repoRoot, firstCommit);
+
+      assert.deepEqual(paths!.sort(), [
+        "src/added.ts",
+        "src/kept.ts",
+        "src/moved.ts",
+        "src/removed.ts",
+        "src/renamed.ts",
+      ]);
+      assert.equal(await gitService.getHeadCommit(repoRoot), git("rev-parse", "HEAD"));
+    });
+
+    it("should return undefined when the commit is unknown", async () => {
+      const paths = await gitService.getChangedPathsBetween(
+        repoRoot,
+        "0123456789abcdef0123456789abcdef01234567"
+      );
+
+      assert.isUndefined(paths);
+    });
+
+    it("should include deleted files in the working tree paths", async () => {
+      fs.unlinkSync(path.join(repoRoot, "src/removed.ts"));
+      write("src/kept.ts", "export const kept = 2;");
+      write("src/untracked.ts", "export const untracked = 1;");
+
+      const paths = await gitService.getWorkingTreePaths(repoRoot);
+
+      assert.deepEqual(paths.sort(), ["src/kept.ts", "src/removed.ts", "src/untracked.ts"]);
     });
   });
 });

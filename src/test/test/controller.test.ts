@@ -1,6 +1,7 @@
 import { assert } from "chai";
+import * as vscode from "vscode";
 import { controller } from "../../controller";
-import { ActionType } from "../../types";
+import { ActionTrigger, ActionType } from "../../types";
 import { getTestSetups } from "../testSetup/controller.testSetup";
 import { getAction, getExtensionContext } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
@@ -277,6 +278,54 @@ describe("Controller", () => {
 
       assert.equal(getDataStub.calledOnce, false);
       assert.equal(setItemsStub.calledOnce, false);
+    });
+
+    it("should reconcile a cached index on startup when shouldInitOnStartup is off", async () => {
+      const [reconcileStub, indexStub] =
+        setups.startup.setupForReconcilingCachedIndexWhenInitOnStartupDisabled();
+      await controller.startup();
+
+      assert.isTrue(reconcileStub.calledOnceWith(ActionTrigger.Reconcile));
+      assert.equal(indexStub.called, false);
+    });
+
+    it("should index the git diff between the template commit and HEAD when seeded", async () => {
+      const { registerActionStub, indexStub, restatAllStub } =
+        setups.startup.setupForSeededWorktreeWithTemplateCommit();
+      await controller.startup();
+
+      const updated = registerActionStub.args
+        .filter((args) => args[0] === ActionType.Update)
+        .map((args) => (args[3] as vscode.Uri).fsPath)
+        .sort();
+      assert.deepEqual(updated, ["/workspace/src/changed.ts", "/workspace/src/edited.ts"]);
+      assert.equal(indexStub.called, false);
+      assert.equal(restatAllStub.calledOnce, true);
+      assert.isTrue(restatAllStub.calledAfter(registerActionStub));
+    });
+
+    it("should remove files deleted since the template commit when seeded", async () => {
+      const { registerActionStub } = setups.startup.setupForSeededWorktreeWithDeletedFile();
+      await controller.startup();
+
+      const removed = registerActionStub.args
+        .filter((args) => args[0] === ActionType.Remove)
+        .map((args) => (args[3] as vscode.Uri).fsPath);
+      const updated = registerActionStub.args
+        .filter((args) => args[0] === ActionType.Update)
+        .map((args) => (args[3] as vscode.Uri).fsPath);
+      assert.deepEqual(removed, ["/workspace/src/deleted.ts"]);
+      assert.deepEqual(updated, ["/workspace/src/kept.ts"]);
+    });
+
+    it("should fully index a seeded worktree whose template has no commit", async () => {
+      const { registerActionStub, indexStub, clearAllStub } =
+        setups.startup.setupForSeededWorktreeWithoutTemplateCommit();
+      await controller.startup();
+
+      assert.equal(clearAllStub.calledOnce, true);
+      assert.isTrue(indexStub.calledOnceWith(ActionTrigger.Startup));
+      assert.equal(registerActionStub.called, false);
     });
   });
 

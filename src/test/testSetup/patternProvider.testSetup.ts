@@ -33,6 +33,31 @@ export const getTestSetups = () => {
       },
     },
 
+    isIncluded: {
+      setupForIncludeAndExcludePatterns: () => {
+        stubMultiple(
+          [
+            {
+              object: patternProvider,
+              method: "getIncludePatterns",
+              returns: "**/*.{js,ts}",
+            },
+            {
+              object: patternProvider,
+              method: "getExcludeMode",
+              returns: ExcludeMode.SearchEverywhere,
+            },
+            {
+              object: patternProvider,
+              method: "getExtensionExcludePatterns",
+              returns: ["**/node_modules/**", "**/dist/**"],
+            },
+          ],
+          sandbox
+        );
+      },
+    },
+
     getExcludePatterns: {
       setupForSearchEverywhereExcludeMode: () => {
         const patterns = ["**/.history/**", "**/.vscode/**"];

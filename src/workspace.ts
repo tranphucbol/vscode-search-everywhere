@@ -20,6 +20,7 @@ import {
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
+import { fileWatcher } from "./fileWatcher";
 import { logger } from "./logger";
 import { isRootMarker, markerFileGlob, refreshPresets } from "./presets";
 import {
@@ -56,6 +57,7 @@ async function handleDidChangeConfiguration(
   clearConfig();
   if (workspace.shouldReindexOnConfigurationChange(event)) {
     reloadComponents();
+    workspace.shouldRestartFileWatcher(event) && fileWatcher.startWatching();
     onWillReindexOnConfigurationChangeEventEmitter.fire();
     await workspace.index(ActionTrigger.ConfigurationChange);
   } else if (utils.isDebounceConfigurationToggled(event)) {
@@ -64,7 +66,17 @@ async function handleDidChangeConfiguration(
     onDidSortingConfigToggleEventEmitter.fire();
   } else if (event.affectsConfiguration(`${defaultSection}.secondaryCode`)) {
     database.recomputeSecondary(fetchSecondaryCode());
+  } else if (workspace.shouldRestartFileWatcher(event)) {
+    fileWatcher.startWatching();
   }
+}
+
+function shouldRestartFileWatcher(
+  event: vscode.ConfigurationChangeEvent
+): boolean {
+  return ["include", "exclude", "excludeMode", "watchFileSystem"].some(
+    (config: string) => event.affectsConfiguration(`${defaultSection}.${config}`)
+  );
 }
 
 async function handleDidChangeWorkspaceFolders(
@@ -223,6 +235,7 @@ function shouldReindexOnConfigurationChange(
     "previewOnSelect",
     "restoreLastQuery",
     "secondaryCode",
+    "watchFileSystem",
   ].map((config: string) => `${defaultSection}.${config}`);
 
   return (
@@ -303,6 +316,8 @@ function registerEventListeners(): void {
   markerWatcher.onDidCreate(workspace.handleDidChangeMarkerFile);
   markerWatcher.onDidDelete(workspace.handleDidChangeMarkerFile);
 
+  fileWatcher.startWatching();
+
   onDidProcessing(handleDidActionProcessorProcessing);
   onWillProcessing(handleWillActionProcessorProcessing);
   onWillExecuteAction(handleWillActionProcessorExecuteAction);
@@ -348,6 +363,7 @@ export const workspace = {
   clearNotSavedUris,
   removeDataForUnsavedUris,
   shouldReindexOnConfigurationChange,
+  shouldRestartFileWatcher,
   handleDidChangeConfiguration,
   handleDidChangeWorkspaceFolders,
   handleDidChangeTextDocument,

@@ -65,6 +65,25 @@ describe("PatternProvider", () => {
     });
   });
 
+  describe("isIncluded", () => {
+    it("should include a path matching the include glob and no exclude", () => {
+      setups.isIncluded.setupForIncludeAndExcludePatterns();
+
+      assert.equal(patternProvider.isIncluded("src/app/UserService.ts"), true);
+      assert.equal(patternProvider.isIncluded("src/app/README.md"), false);
+    });
+
+    it("should exclude a path matching an exclude glob", () => {
+      setups.isIncluded.setupForIncludeAndExcludePatterns();
+
+      assert.equal(
+        patternProvider.isIncluded("node_modules/lib/index.js"),
+        false
+      );
+      assert.equal(patternProvider.isIncluded("packages/a/dist/a.js"), false);
+    });
+  });
+
   describe("fetchConfig", () => {
     it("should fetch exclude mode", async () => {
       const excludeMode = setups.fetchConfig.setupForFetchingExcludeMode();

@@ -4,11 +4,15 @@ import * as cache from "../../cache";
 import * as config from "../../config";
 import { controller } from "../../controller";
 import { database } from "../../database";
+import { gitService } from "../../gitService";
+import { logger } from "../../logger";
 import { patternProvider } from "../../patternProvider";
 import { quickPick } from "../../quickPick";
 import { utils } from "../../utils";
 import { workspace } from "../../workspace";
 import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
+import { workspaceIndexer } from "../../workspaceIndexer";
+import { workspaceReconciler } from "../../workspaceReconciler";
 import { getExtensionContext } from "../util/mockFactory";
 import { getQpItem, getQpItems } from "../util/qpItemMockFactory";
 import { getTextEditorStub } from "../util/stubFactory";
@@ -105,9 +109,129 @@ function stubComponentsForStartup(
         method: "shouldLoadDataFromCacheOnStartup",
         returns: returnsValues.shouldLoadDataFromCacheOnStartup,
       },
+      {
+        object: controller,
+        method: "shouldReconcileOnStartup",
+        returns: !!returnsValues.shouldReconcileOnStartup,
+      },
+      {
+        object: workspaceReconciler,
+        method: "reconcile",
+        returns: Promise.resolve(emptyReconcileResult),
+      },
     ],
     sandbox
   );
+}
+
+const emptyReconcileResult = {
+  added: 0,
+  changed: 0,
+  removed: 0,
+  fullIndex: false,
+  baseline: false,
+};
+
+const seededRoot = vscode.Uri.file("/workspace");
+
+function stubSeededStartup(
+  sandbox: sinon.SinonSandbox,
+  options: {
+    commit?: string;
+    changedPaths?: string[];
+    workingTreePaths?: string[];
+    existingPaths?: string[];
+  }
+) {
+  const folder = { uri: seededRoot, name: "workspace", index: 0 };
+  const existingPaths = options.existingPaths || [];
+  const [registerActionStub, indexStub, clearAllStub, restatAllStub] = stubMultiple(
+    [
+      {
+        object: workspaceIndexer,
+        method: "registerAction",
+        returns: Promise.resolve(),
+      },
+      {
+        object: workspace,
+        method: "index",
+      },
+      {
+        object: database,
+        method: "clearAll",
+      },
+      {
+        object: workspaceReconciler,
+        method: "restatAll",
+        returns: Promise.resolve(0),
+      },
+      {
+        object: database,
+        method: "wasSeededFromTemplate",
+        returns: true,
+      },
+      {
+        object: database,
+        method: "setSeededFromTemplate",
+      },
+      {
+        object: database,
+        method: "getSeedMeta",
+        returns: { commit: options.commit },
+      },
+      {
+        object: cache,
+        method: "clearConfig",
+      },
+      {
+        object: quickPick,
+        method: "isInitialized",
+        returns: true,
+      },
+      {
+        object: workspace,
+        method: "removeDataForUnsavedUris",
+      },
+      {
+        object: vscode.workspace,
+        method: "workspaceFolders",
+        isNotMethod: true,
+        returns: [folder],
+      },
+      {
+        object: vscode.workspace,
+        method: "getWorkspaceFolder",
+        callsFake: (uri: vscode.Uri) =>
+          uri.fsPath.startsWith(seededRoot.fsPath) ? folder : undefined,
+      },
+      {
+        object: gitService,
+        method: "getChangedPathsBetween",
+        returns: Promise.resolve(options.changedPaths),
+      },
+      {
+        object: gitService,
+        method: "getWorkingTreePaths",
+        returns: Promise.resolve(options.workingTreePaths || []),
+      },
+      {
+        object: gitService,
+        method: "getRepoRoot",
+        returns: Promise.resolve(seededRoot.fsPath),
+      },
+      {
+        object: controller,
+        method: "isIndexableFile",
+        callsFake: (uri: vscode.Uri) => existingPaths.includes(uri.fsPath),
+      },
+      {
+        object: logger,
+        method: "log",
+      },
+    ],
+    sandbox
+  );
+  return { registerActionStub, indexStub, clearAllStub, restatAllStub };
 }
 
 function stubComponentsForSearch(
@@ -799,6 +923,73 @@ export const getTestSetups = () => {
           shouldIndexOnStartup: false,
           shouldLoadDataFromCacheOnStartup: true,
         });
+      },
+
+      setupForReconcilingCachedIndexWhenInitOnStartupDisabled: () => {
+        stubComponents(sandbox);
+        return stubMultiple(
+          [
+            {
+              object: workspaceReconciler,
+              method: "reconcile",
+              returns: Promise.resolve(emptyReconcileResult),
+            },
+            {
+              object: workspace,
+              method: "index",
+            },
+            {
+              object: config,
+              method: "fetchShouldInitOnStartup",
+              returns: false,
+            },
+            {
+              object: config,
+              method: "fetchShouldWorkspaceDataBeCached",
+              returns: true,
+            },
+            {
+              object: database,
+              method: "isEmpty",
+              returns: false,
+            },
+            {
+              object: database,
+              method: "wasSeededFromTemplate",
+              returns: false,
+            },
+            {
+              object: quickPick,
+              method: "isInitialized",
+              returns: false,
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForSeededWorktreeWithTemplateCommit: () => {
+        stubComponents(sandbox);
+        return stubSeededStartup(sandbox, {
+          commit: "abc123",
+          changedPaths: ["src/changed.ts"],
+          workingTreePaths: ["src/edited.ts"],
+          existingPaths: ["/workspace/src/changed.ts", "/workspace/src/edited.ts"],
+        });
+      },
+
+      setupForSeededWorktreeWithDeletedFile: () => {
+        stubComponents(sandbox);
+        return stubSeededStartup(sandbox, {
+          commit: "abc123",
+          changedPaths: ["src/deleted.ts", "src/kept.ts"],
+          existingPaths: ["/workspace/src/kept.ts"],
+        });
+      },
+
+      setupForSeededWorktreeWithoutTemplateCommit: () => {
+        stubComponents(sandbox);
+        return stubSeededStartup(sandbox, {});
       },
     },
 

@@ -71,3 +71,35 @@ export function getTextDocumentStub(
     validatePosition: sinon.stub(),
   } as vscode.TextDocument;
 }
+
+export interface FakeFileSystemWatcher extends vscode.FileSystemWatcher {
+  globPattern: vscode.GlobPattern;
+  fireCreate(uri: vscode.Uri): void;
+  fireChange(uri: vscode.Uri): void;
+  fireDelete(uri: vscode.Uri): void;
+}
+
+export function getFileSystemWatcherStub(
+  globPattern: vscode.GlobPattern = "**/*",
+  ignoreCreateEvents: boolean = false,
+  ignoreChangeEvents: boolean = false,
+  ignoreDeleteEvents: boolean = false
+): FakeFileSystemWatcher {
+  const onDidCreate = new vscode.EventEmitter<vscode.Uri>();
+  const onDidChange = new vscode.EventEmitter<vscode.Uri>();
+  const onDidDelete = new vscode.EventEmitter<vscode.Uri>();
+
+  return {
+    globPattern,
+    ignoreCreateEvents,
+    ignoreChangeEvents,
+    ignoreDeleteEvents,
+    onDidCreate: onDidCreate.event,
+    onDidChange: onDidChange.event,
+    onDidDelete: onDidDelete.event,
+    dispose: sinon.stub(),
+    fireCreate: (uri: vscode.Uri) => !ignoreCreateEvents && onDidCreate.fire(uri),
+    fireChange: (uri: vscode.Uri) => !ignoreChangeEvents && onDidChange.fire(uri),
+    fireDelete: (uri: vscode.Uri) => !ignoreDeleteEvents && onDidDelete.fire(uri),
+  };
+}

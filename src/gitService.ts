@@ -2,6 +2,7 @@ import * as child_process from "child_process";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { logger } from "./logger";
 
 /**
  * Executes a Git command safely with timeout.
@@ -107,8 +108,82 @@ export async function getModifiedOrUntrackedFiles(rootPath: string): Promise<str
   }
 }
 
+export async function getHeadCommit(rootPath: string): Promise<string | undefined> {
+  try {
+    return (await gitService.execGit(["rev-parse", "HEAD"], rootPath)) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getRepoRoot(rootPath: string): Promise<string | undefined> {
+  try {
+    return (await gitService.execGit(["rev-parse", "--show-toplevel"], rootPath)) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function splitNul(output: string): string[] {
+  return output.split("\0").filter((entry) => entry.length > 0);
+}
+
+/**
+ * Returns the repo-relative paths that differ between `fromCommit` and HEAD,
+ * deleted files included, or undefined when git fails (e.g. an unknown commit).
+ */
+export async function getChangedPathsBetween(
+  rootPath: string,
+  fromCommit: string
+): Promise<string[] | undefined> {
+  try {
+    // --no-renames lists a renamed file under both names, so the old one is removed.
+    const output = await gitService.execGit(
+      ["diff", "--name-only", "--no-renames", "-z", fromCommit, "HEAD"],
+      rootPath
+    );
+    return splitNul(output);
+  } catch (error) {
+    logger.log(`git diff ${fromCommit} HEAD failed: ${error}`);
+    return undefined;
+  }
+}
+
+/**
+ * Returns the repo-relative paths `git status` reports, deleted files and both
+ * sides of a rename included. Returns an empty list when git fails.
+ */
+export async function getWorkingTreePaths(rootPath: string): Promise<string[]> {
+  try {
+    const output = await gitService.execGit(
+      ["status", "--porcelain", "-uall", "-z"],
+      rootPath
+    );
+    const entries = splitNul(output);
+    const paths: string[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      // execGit trims the output, which can eat the leading space of the first status.
+      const match = /^([ MTADRCU?!]{1,2}) (.+)$/.exec(entries[i]);
+      if (!match) {
+        continue;
+      }
+      paths.push(match[2]);
+      if (/[RC]/.test(match[1]) && i + 1 < entries.length) {
+        paths.push(entries[++i]);
+      }
+    }
+    return paths;
+  } catch {
+    return [];
+  }
+}
+
 export const gitService = {
   execGit,
   getRepoFingerprint,
   getModifiedOrUntrackedFiles,
+  getHeadCommit,
+  getRepoRoot,
+  getChangedPathsBetween,
+  getWorkingTreePaths,
 };

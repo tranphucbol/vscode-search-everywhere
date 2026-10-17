@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { controller } from "./controller";
 import { database } from "./database";
+import { fileWatcher } from "./fileWatcher";
 
 export async function search() {
   await controller.search();
@@ -35,6 +36,7 @@ export async function reload() {
 }
 
 export function deactivate() {
+  fileWatcher.stopWatching();
   database.closeDatabase();
   console.log('Extension "vscode-search-everywhere" has been deactivated.');
 }

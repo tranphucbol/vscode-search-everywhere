@@ -13,9 +13,15 @@ let sqlJs: any;
 let persistTimer: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
+let seedMeta: SeedMeta | undefined;
+
+export interface SeedMeta {
+  commit?: string;
+  dirtyPaths?: string[];
+}
 
 const SEARCH_LIMIT = 500;
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -95,6 +101,7 @@ export async function initDatabase(
 
             if (fs.existsSync(templateDbPath) && fs.existsSync(templateMetaPath)) {
               const meta = JSON.parse(fs.readFileSync(templateMetaPath, "utf8"));
+              seedMeta = { commit: meta.commit, dirtyPaths: meta.dirtyPaths };
               const templateRootUriStr = meta.templateRootUri;
               const currentRootUriStr = workspaceFolder.uri.toString();
 
@@ -106,6 +113,14 @@ export async function initDatabase(
                   templateRootUriStr,
                   currentRootUriStr,
                 ]);
+                try {
+                  db.run("UPDATE file_state SET uri = replace(uri, ?, ?)", [
+                    templateRootUriStr,
+                    currentRootUriStr,
+                  ]);
+                } catch {
+                  // Templates written before schema 5 have no file_state table.
+                }
               }
 
               const data = db.export();
@@ -447,6 +462,7 @@ function createTables(): void {
       is_secondary INTEGER DEFAULT 0
     )
   `);
+  createFileStateTable();
 
   // Migrations for existing databases from earlier versions
   try {
@@ -516,6 +532,16 @@ function createTables(): void {
   );
 }
 
+function createFileStateTable(): void {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS file_state (
+      uri TEXT PRIMARY KEY,
+      mtime INTEGER NOT NULL,
+      size INTEGER NOT NULL
+    ) WITHOUT ROWID
+  `);
+}
+
 function getSchemaVersion(): number {
   const result = db.exec("PRAGMA user_version");
   return result && result.length ? (result[0].values[0][0] as number) : 0;
@@ -527,7 +553,8 @@ function getSchemaVersion(): number {
 // Version 3 changed how names, containers and descriptions are built from the language
 // server's output (Go receivers, Java parameter lists), which needs the raw symbol names, so
 // anything older is emptied and rebuilt. Version 4 added is_secondary, which derives from the uri
-// alone and is backfilled in place.
+// alone and is backfilled in place. Version 5 added the file_state table and keeps every symbol:
+// the first reconcile records a baseline instead of reindexing (docs/decisions/006).
 function migrateSchema(): void {
   const version = getSchemaVersion();
   if (version >= SCHEMA_VERSION) {
@@ -556,6 +583,9 @@ function migrateSchema(): void {
       db.run("ALTER TABLE symbols ADD COLUMN is_secondary INTEGER DEFAULT 0");
     } catch {}
     updateSecondaryColumn(fetchSecondaryCode());
+  }
+  if (version < 5) {
+    createFileStateTable();
   }
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
@@ -656,6 +686,7 @@ export function deleteByUri(uriPath: string): void {
   }
   clearSearchCache();
   db.run("DELETE FROM symbols WHERE uri = ?", [uriPath]);
+  db.run("DELETE FROM file_state WHERE uri = ?", [uriPath]);
 }
 
 export function deleteByUriPrefix(uriPath: string): void {
@@ -663,7 +694,80 @@ export function deleteByUriPrefix(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, [escapeLike(uriPath) + "%"]);
+  const prefix = [escapeLike(uriPath) + "%"];
+  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+  db.run(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+}
+
+export interface FileState {
+  mtime: number;
+  size: number;
+}
+
+export function upsertFileStates(entries: Array<[uri: string, state: FileState]>): void {
+  if (!db || !entries.length) {
+    return;
+  }
+  db.run("BEGIN TRANSACTION");
+  const stmt = db.prepare("INSERT OR REPLACE INTO file_state (uri, mtime, size) VALUES (?, ?, ?)");
+  try {
+    for (const [uri, state] of entries) {
+      stmt.run([uri, state.mtime, state.size]);
+    }
+    stmt.free();
+    db.run("COMMIT");
+  } catch (e) {
+    stmt.free();
+    db.run("ROLLBACK");
+    throw e;
+  }
+}
+
+export function getFileStates(): Map<string, FileState> {
+  const states = new Map<string, FileState>();
+  if (!db) {
+    return states;
+  }
+  const result = db.exec("SELECT uri, mtime, size FROM file_state");
+  if (result && result.length) {
+    for (const row of result[0].values) {
+      states.set(row[0] as string, { mtime: row[1] as number, size: row[2] as number });
+    }
+  }
+  return states;
+}
+
+export function getFileState(uri: string): FileState | undefined {
+  if (!db) {
+    return undefined;
+  }
+  const result = db.exec("SELECT mtime, size FROM file_state WHERE uri = ?", [uri]);
+  if (!result || !result.length) {
+    return undefined;
+  }
+  const [mtime, size] = result[0].values[0];
+  return { mtime: mtime as number, size: size as number };
+}
+
+export function getIndexedUris(): string[] {
+  if (!db) {
+    return [];
+  }
+  const result = db.exec("SELECT DISTINCT uri FROM symbols");
+  return result && result.length ? result[0].values.map((row: any[]) => row[0] as string) : [];
+}
+
+export function clearFileStates(): void {
+  db && db.run("DELETE FROM file_state");
+}
+
+export function hasFileStateBaseline(): boolean {
+  if (!db) {
+    return true;
+  }
+  const result = db.exec("SELECT EXISTS (SELECT 1 FROM file_state)");
+  const hasStates = !!(result && result.length && result[0].values[0][0]);
+  return hasStates || isEmpty();
 }
 
 const enum Secondary {
@@ -1471,6 +1575,7 @@ export function clearAll(): void {
   if (db) {
     clearSearchCache();
     db.run("DELETE FROM symbols");
+    db.run("DELETE FROM file_state");
   }
 }
 
@@ -1506,8 +1611,11 @@ export function persistToFile(): void {
         if (workspaceFolder) {
           gitService
             .getRepoFingerprint(workspaceFolder.uri.fsPath)
-            .then((fingerprint) => {
+            .then(async (fingerprint) => {
               if (fingerprint && extensionContext) {
+                const rootPath = workspaceFolder.uri.fsPath;
+                const commit = await gitService.getHeadCommit(rootPath);
+                const dirtyPaths = await gitService.getWorkingTreePaths(rootPath);
                 const globalDir = extensionContext.globalStorageUri.fsPath;
                 if (!fs.existsSync(globalDir)) {
                   fs.mkdirSync(globalDir, { recursive: true });
@@ -1522,6 +1630,8 @@ export function persistToFile(): void {
                     templateRootUri: workspaceFolder.uri.toString(),
                     symbolCount: getCount(),
                     lastUpdated: Date.now(),
+                    commit,
+                    dirtyPaths,
                   })
                 );
               }
@@ -1543,6 +1653,10 @@ export function wasSeededFromTemplate(): boolean {
 
 export function setSeededFromTemplate(value: boolean): void {
   seededFromTemplate = value;
+}
+
+export function getSeedMeta(): SeedMeta | undefined {
+  return seedMeta;
 }
 
 export function clearSharedCache(): void {
@@ -1603,6 +1717,12 @@ export const database = {
   insertSymbolsBatch,
   deleteByUri,
   deleteByUriPrefix,
+  upsertFileStates,
+  getFileStates,
+  getFileState,
+  getIndexedUris,
+  clearFileStates,
+  hasFileStateBaseline,
   recomputeSecondary,
   search,
   clearSearchCache,
@@ -1616,6 +1736,7 @@ export const database = {
   isReady,
   wasSeededFromTemplate,
   setSeededFromTemplate,
+  getSeedMeta,
   clearSharedCache,
   extractName,
   extractCleanName,

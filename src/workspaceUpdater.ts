@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { database } from "./database";
+import { database, FileState } from "./database";
 import { logger } from "./logger";
 import {
   ActionTrigger,
@@ -14,10 +14,12 @@ async function updateUri(uri: vscode.Uri): Promise<number> {
   // Delete old data for this URI, then re-index and insert
   database.deleteByUri(uri.toString());
   try {
-    const dataForUri = await indexer.downloadData([uri]);
+    const fileStates: Array<[string, FileState]> = [];
+    const dataForUri = await indexer.downloadData([uri], fileStates);
     if (dataForUri && dataForUri.length) {
       database.insertSymbolsBatch(dataForUri);
     }
+    database.upsertFileStates(fileStates);
     database.schedulePersist();
     return dataForUri
       ? dataForUri.filter((item) => item.symbolKind !== 0).length

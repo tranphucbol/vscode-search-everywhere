@@ -11,7 +11,7 @@ import {
 } from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
-import { database } from "./database";
+import { database, FileState } from "./database";
 import { onDidItemIndexed } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { getActivePresets } from "./presets";
@@ -59,10 +59,22 @@ async function registerAction(
   await actionProcessor.register(action);
 }
 
-async function downloadData(uris?: vscode.Uri[]): Promise<QuickPickItem[]> {
+function isRebuilding(): boolean {
+  const current = actionProcessor.getPreviousAction();
+  return (
+    (!!current && current.type === ActionType.Rebuild) ||
+    actionProcessor.queue.some((action) => action.type === ActionType.Rebuild)
+  );
+}
+
+async function downloadData(
+  uris?: vscode.Uri[],
+  fileStates?: Array<[string, FileState]>
+): Promise<QuickPickItem[]> {
   const items: QuickPickItem[] = [];
-  const workspaceData = await dataService.fetchData(uris, undefined, (batch) => {
+  const workspaceData = await dataService.fetchData(uris, undefined, (batch, fileState) => {
     items.push(...batch);
+    fileStates && fileState && fileStates.push(fileState);
   });
   if (items.length === 0 && workspaceData && workspaceData.items) {
     return dataConverter.convertToQpData(workspaceData);
@@ -139,21 +151,28 @@ async function indexWorkspace(
   cache.updateIndexedConfig(fetchIndexedConfigSnapshot());
 
   let batch: QuickPickItem[] = [];
+  let fileStates: Array<[string, FileState]> = [];
   const BATCH_SIZE = 2500;
 
-  const onBatch = (items: QuickPickItem[]) => {
+  const flush = () => {
+    database.insertSymbolsBatch(batch);
+    database.upsertFileStates(fileStates);
+    batch = [];
+    fileStates = [];
+  };
+
+  const onBatch = (items: QuickPickItem[], fileState?: [string, FileState]) => {
     batch.push(...items);
+    fileState && fileStates.push(fileState);
     if (batch.length >= BATCH_SIZE) {
-      database.insertSymbolsBatch(batch);
-      batch = [];
+      flush();
     }
   };
 
   const data = await dataService.fetchData(undefined, progress, onBatch);
 
-  if (batch.length > 0) {
-    database.insertSymbolsBatch(batch);
-    batch = [];
+  if (batch.length > 0 || fileStates.length > 0) {
+    flush();
   }
 
   progress?.report({ message: "Saving index database..." });
@@ -264,6 +283,7 @@ export const workspaceIndexer = {
   indexWithProgress,
   indexWithProgressTask,
   registerAction,
+  isRebuilding,
   downloadData,
   cancelIndexing,
   handleCancellationRequested,
