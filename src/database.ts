@@ -13,6 +13,12 @@ let sqlJs: any;
 let persistTimer: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
+let seedMeta: SeedMeta | undefined;
+
+export interface SeedMeta {
+  commit?: string;
+  dirtyPaths?: string[];
+}
 
 const SEARCH_LIMIT = 500;
 const SCHEMA_VERSION = 5;
@@ -95,6 +101,7 @@ export async function initDatabase(
 
             if (fs.existsSync(templateDbPath) && fs.existsSync(templateMetaPath)) {
               const meta = JSON.parse(fs.readFileSync(templateMetaPath, "utf8"));
+              seedMeta = { commit: meta.commit, dirtyPaths: meta.dirtyPaths };
               const templateRootUriStr = meta.templateRootUri;
               const currentRootUriStr = workspaceFolder.uri.toString();
 
@@ -1604,8 +1611,11 @@ export function persistToFile(): void {
         if (workspaceFolder) {
           gitService
             .getRepoFingerprint(workspaceFolder.uri.fsPath)
-            .then((fingerprint) => {
+            .then(async (fingerprint) => {
               if (fingerprint && extensionContext) {
+                const rootPath = workspaceFolder.uri.fsPath;
+                const commit = await gitService.getHeadCommit(rootPath);
+                const dirtyPaths = await gitService.getWorkingTreePaths(rootPath);
                 const globalDir = extensionContext.globalStorageUri.fsPath;
                 if (!fs.existsSync(globalDir)) {
                   fs.mkdirSync(globalDir, { recursive: true });
@@ -1620,6 +1630,8 @@ export function persistToFile(): void {
                     templateRootUri: workspaceFolder.uri.toString(),
                     symbolCount: getCount(),
                     lastUpdated: Date.now(),
+                    commit,
+                    dirtyPaths,
                   })
                 );
               }
@@ -1641,6 +1653,10 @@ export function wasSeededFromTemplate(): boolean {
 
 export function setSeededFromTemplate(value: boolean): void {
   seededFromTemplate = value;
+}
+
+export function getSeedMeta(): SeedMeta | undefined {
+  return seedMeta;
 }
 
 export function clearSharedCache(): void {
@@ -1720,6 +1736,7 @@ export const database = {
   isReady,
   wasSeededFromTemplate,
   setSeededFromTemplate,
+  getSeedMeta,
   clearSharedCache,
   extractName,
   extractCleanName,

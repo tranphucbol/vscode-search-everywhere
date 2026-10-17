@@ -133,6 +133,13 @@ export async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult
   return result;
 }
 
+export async function restatAll(): Promise<number> {
+  const uris = await dataService.fetchUris();
+  database.clearFileStates();
+  return recordBaseline(uris);
+}
+
 export const workspaceReconciler = {
   reconcile,
+  restatAll,
 };

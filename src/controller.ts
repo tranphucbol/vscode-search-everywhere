@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { clear, clearConfig, clearNotSavedUriPaths, initCache } from "./cache";
 import {
@@ -9,11 +11,14 @@ import {
 import { database } from "./database";
 import { gitService } from "./gitService";
 import { logger } from "./logger";
+import { patternProvider } from "./patternProvider";
 import { quickPick } from "./quickPick";
 import { Action, ActionTrigger, ActionType, DetailedActionType } from "./types";
 import { utils } from "./utils";
 import { workspace } from "./workspace";
+import { workspaceIndexer } from "./workspaceIndexer";
 import { workspaceReconciler } from "./workspaceReconciler";
+import { removeFromCacheByPath } from "./workspaceRemover";
 import { updateCacheByPath } from "./workspaceUpdater";
 import {
   onDidDebounceConfigToggle,
@@ -248,19 +253,9 @@ async function startup(): Promise<void> {
 
     const workspaceFolder =
       vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-    if (workspaceFolder) {
+    if (workspaceFolder && workspaceFolder.uri.scheme === "file") {
       try {
-        const rootPath = workspaceFolder.uri.fsPath;
-        const changedFiles = await gitService.getModifiedOrUntrackedFiles(rootPath);
-        if (changedFiles.length > 0) {
-          logger.log(
-            `Syncing ${changedFiles.length} modified/untracked files for seeded worktree...`
-          );
-          for (const filePath of changedFiles) {
-            const fileUri = vscode.Uri.file(filePath);
-            await updateCacheByPath(fileUri, DetailedActionType.TextChange);
-          }
-        }
+        await controller.syncSeededWorktree(workspaceFolder.uri.fsPath);
       } catch (error) {
         logger.log(`Error syncing worktree delta: ${error}`);
       }
@@ -282,6 +277,78 @@ async function startup(): Promise<void> {
   }
 
   shouldReconcile && reconcileInBackground();
+}
+
+async function syncSeededWorktree(rootPath: string): Promise<void> {
+  const meta = database.getSeedMeta();
+  const commit = meta && meta.commit;
+  if (!commit) {
+    logger.log(
+      "The shared cache template records no commit; indexing the seeded worktree in full."
+    );
+    await indexSeededWorktreeInFull();
+    return;
+  }
+
+  const [changedPaths, workingTreePaths, repoRoot] = await Promise.all([
+    gitService.getChangedPathsBetween(rootPath, commit),
+    gitService.getWorkingTreePaths(rootPath),
+    gitService.getRepoRoot(rootPath),
+  ]);
+  if (!changedPaths || !repoRoot) {
+    logger.log(
+      `Could not diff the seeded worktree against template commit ${commit}; indexing it in full.`
+    );
+    await indexSeededWorktreeInFull();
+    return;
+  }
+
+  const relativePaths = new Set([
+    ...changedPaths,
+    ...workingTreePaths,
+    ...((meta && meta.dirtyPaths) || []),
+  ]);
+  logger.log(
+    `Syncing ${relativePaths.size} files changed since template commit ${commit} for seeded worktree...`
+  );
+
+  const uris = [...relativePaths]
+    .map((relativePath) => vscode.Uri.file(path.join(repoRoot, relativePath)))
+    .filter((uri) => vscode.workspace.getWorkspaceFolder(uri));
+  const actions = uris.map((uri) => {
+    return controller.isIndexableFile(uri)
+      ? workspaceIndexer.registerAction(
+          ActionType.Update,
+          updateCacheByPath.bind(null, uri, DetailedActionType.TextChange),
+          ActionTrigger.Startup,
+          uri
+        )
+      : workspaceIndexer.registerAction(
+          ActionType.Remove,
+          removeFromCacheByPath.bind(null, uri, DetailedActionType.RemoveFile),
+          ActionTrigger.Startup,
+          uri
+        );
+  });
+  await Promise.all(actions);
+  // The template's mtimes come from another checkout, so they say nothing about this one.
+  await workspaceReconciler.restatAll();
+}
+
+function isIndexableFile(uri: vscode.Uri): boolean {
+  try {
+    if (!fs.statSync(uri.fsPath).isFile()) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return patternProvider.isIncluded(vscode.workspace.asRelativePath(uri, false));
+}
+
+async function indexSeededWorktreeInFull(): Promise<void> {
+  database.clearAll();
+  await workspace.index(ActionTrigger.Startup);
 }
 
 function shouldReconcileOnStartup() {
@@ -366,6 +433,8 @@ export const controller = {
   shouldIndexOnStartup,
   shouldLoadDataFromCacheOnStartup,
   shouldReconcileOnStartup,
+  syncSeededWorktree,
+  isIndexableFile,
   shouldSearchSelection,
   restoreOnDidChangeValueEventListener,
   isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty,
