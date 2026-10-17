@@ -2,6 +2,11 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
+## [Unreleased]
+### 🐛 Fixes
+- Fixed `searchEverywhere.shouldInitOnStartup` doing nothing: the extension only activated on its first command, so the workspace was never indexed at startup. It now activates once VS Code has finished starting (`onStartupFinished`) and indexes then when the setting is on. With the setting off it still waits for the first search, but it now tracks file changes from startup, so a cached index no longer misses edits made before that search.
+- The README described `searchEverywhere.excludeVariables` as keeping constants; the TypeScript and JavaScript language server reports `const` as a variable, so those are excluded too.
+
 ## [0.0.3] - 2026-10-17
 ### 🐛 Fixes
 - Fixed filter phrases (`$$`, `@@`, `!!`, `##`, `%%`) showing an empty list: VS Code hid every result because its label does not contain the phrase.

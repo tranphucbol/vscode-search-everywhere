@@ -119,9 +119,11 @@ the repository.
 - **Fresh profile, no cache.** Each `start` uses a new profile with
   `shouldWorkspaceDataBeCached` and `shareCacheAcrossWorktrees` off, so the index is always rebuilt
   from the sample. Turn them on with `--setting` to test caching (see the scenarios).
-- **The extension activates on its first command.** `activationEvents` has only `onCommand`
-  entries, so `shouldInitOnStartup` does nothing at VS Code startup; `start` opens Search
-  Everywhere once to trigger indexing. Use `--no-activate` to see the inactive state.
+- **`start` opens Search Everywhere once.** The extension activates when VS Code finishes
+  starting (`onStartupFinished`) and indexes then only with `shouldInitOnStartup` (on in the
+  driver's settings); opening the quick pick makes every start end with a ready index. To test
+  startup behaviour itself, `SE start --no-activate [--setting shouldInitOnStartup=false]`,
+  wait a few seconds, then `SE log`: `trigger: Startup` means it indexed without a command.
 - **Changes made from the shell are not indexed.** The extension listens to VS Code's file and
   document events, not the disk. Writing a file with `cat >` or `mv` leaves the index stale, which
   is expected. Create, rename, delete and edit files through VS Code (see the incremental-indexing

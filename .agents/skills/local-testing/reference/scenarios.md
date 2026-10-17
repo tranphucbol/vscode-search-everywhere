@@ -16,6 +16,7 @@ ranking changes on purpose; say so when they do.
 - [Opening items](#opening-items)
 - [File scope](#file-scope)
 - [Incremental indexing](#incremental-indexing)
+- [Startup](#startup)
 - [Indexing settings](#indexing-settings)
 - [Notifications and debounce](#notifications-and-debounce)
 - [Caching and the shared worktree cache](#caching-and-the-shared-worktree-cache)
@@ -188,6 +189,16 @@ SE search "bootstrapAdmin"       # (no rows)
 
 A file written from the shell (`echo > src/x.ts`) is not indexed until
 `SE command "Search everywhere: Reload"`; that is expected.
+
+## Startup
+
+| Steps | `SE log` shows |
+|---|---|
+| `SE start --no-activate`, `sleep 8` | `has been activated`, then `type: Rebuild ... trigger: Startup` and the scan line, with no command run |
+| `SE start --no-activate --setting shouldInitOnStartup=false`, `sleep 8` | `has been activated` only; the first `SE search` then logs `trigger: Search` |
+
+Up to 0.0.3 the extension activated on its first command only, so the first row showed no
+activation at all.
 
 ## Indexing settings
 
