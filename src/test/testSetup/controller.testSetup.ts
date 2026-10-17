@@ -548,6 +548,18 @@ export const getTestSetups = () => {
       },
     },
 
+    toggleIncludeLibraries: {
+      setupForTogglingIncludeLibraries: () => {
+        return stubMultiple(
+          [
+            { object: quickPick, method: "isInitialized", returns: true },
+            { object: quickPick, method: "toggleIncludeLibraries" },
+          ],
+          sandbox
+        );
+      },
+    },
+
     search: {
       setupForClearingCacheWhenIndexingOnOpen: () => {
         stubComponents(sandbox);
@@ -565,6 +577,25 @@ export const getTestSetups = () => {
           shouldIndexOnQuickPickOpen: true,
           shouldLoadDataFromCacheOnQuickPickOpen: false,
         });
+      },
+
+      setupForShowingQuickPickBeforeTheFirstIndexFinishes: () => {
+        stubComponents(sandbox);
+        const [indexStub] = stubComponentsForSearch(sandbox, {
+          index: new Promise(() => {}),
+          isInitialized: true,
+          shouldIndexOnQuickPickOpen: true,
+          shouldLoadDataFromCacheOnQuickPickOpen: false,
+        });
+        const [showStub] = stubMultiple(
+          [
+            { object: quickPick, method: "show" },
+            { object: quickPick, method: "loadItems" },
+            { object: quickPick, method: "setText" },
+          ],
+          sandbox
+        );
+        return [indexStub, showStub];
       },
 
       setupForClearingConfigWhenLoadingFromCache: () => {

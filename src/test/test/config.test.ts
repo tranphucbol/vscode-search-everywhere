@@ -39,6 +39,18 @@ describe("Config", () => {
     });
   });
 
+  describe("fetchSearchLanguageServersWhileIndexing", () => {
+    it("should fetch searchLanguageServersWhileIndexing", () => {
+      const section = "searchEverywhere";
+      const key = "searchLanguageServersWhileIndexing";
+
+      assert.equal(
+        config.fetchSearchLanguageServersWhileIndexing(),
+        configuration[section][key]
+      );
+    });
+  });
+
   describe("fetchShouldHighlightSymbol", () => {
     it("should return boolean from configuration", () => {
       const section = "searchEverywhere";

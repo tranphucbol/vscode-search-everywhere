@@ -76,6 +76,7 @@ export const getConfiguration = (): { [key: string]: any } => {
       useFileIconTheme: true,
       rankRecentItemsHigher: false,
       handOffPrefixes: false,
+      searchLanguageServersWhileIndexing: false,
     },
     customSection: {
       exclude: ["**/customFolder/**"],

@@ -56,6 +56,16 @@ describe("Controller", () => {
     });
   });
 
+  describe("toggleIncludeLibraries", () => {
+    it("should toggle include libraries through the command", () => {
+      const [, toggleStub] =
+        setups.toggleIncludeLibraries.setupForTogglingIncludeLibraries();
+      controller.toggleIncludeLibraries();
+
+      assert.equal(toggleStub.calledOnce, true);
+    });
+  });
+
   describe("search", () => {
     it("should clear data and config from cache if shouldIndexOnQuickPickOpen method returns true", async () => {
       const [, clearStub] =
@@ -71,6 +81,15 @@ describe("Controller", () => {
       await controller.search();
 
       assert.equal(indexStub.calledOnce, true);
+    });
+
+    it("should show the quick pick before the first index finishes", async () => {
+      const [indexStub, showStub] =
+        setups.search.setupForShowingQuickPickBeforeTheFirstIndexFinishes();
+      await controller.search();
+
+      assert.equal(indexStub.calledOnce, true);
+      assert.equal(showStub.calledOnce, true);
     });
 
     it("should clear config from cache if shouldLoadDataFromCacheOnQuickPickOpen method returns true", async () => {
