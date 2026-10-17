@@ -104,6 +104,8 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   containerName?: string;
   matchBand?: MatchBand;
   isSecondary?: boolean;
+  // Set only on results fetched from the workspace symbol providers; they are never indexed.
+  source?: "live" | "library";
   // Declared here because @types/vscode is pinned to 1.64:
   // iconPath was finalized in VS Code 1.81, resourceUri in VS Code 1.108.
   iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon;

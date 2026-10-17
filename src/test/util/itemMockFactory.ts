@@ -143,3 +143,47 @@ export const getDocumentSymbolItemWithSelectionOutsideRange =
       children: [],
     };
   };
+
+export const getSymbolInformation = (
+  name: string,
+  uri: vscode.Uri,
+  kind: vscode.SymbolKind = vscode.SymbolKind.Class,
+  containerName: string = "",
+  line: number = 4
+): vscode.SymbolInformation =>
+  new vscode.SymbolInformation(
+    name,
+    kind,
+    containerName,
+    new vscode.Location(
+      uri,
+      new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line + 2, 1))
+    )
+  );
+
+export const getWorkspaceSymbolInformation = (
+  name: string = "UserService",
+  kind: vscode.SymbolKind = vscode.SymbolKind.Class
+): vscode.SymbolInformation =>
+  getSymbolInformation(name, vscode.Uri.file("/workspace/src/user.ts"), kind);
+
+export const getExcludedSymbolInformation = (
+  name: string = "Promise",
+  kind: vscode.SymbolKind = vscode.SymbolKind.Interface
+): vscode.SymbolInformation =>
+  getSymbolInformation(
+    name,
+    vscode.Uri.file("/workspace/node_modules/typescript/lib/lib.es5.d.ts"),
+    kind
+  );
+
+export const getOutsideSymbolInformation = (
+  name: string = "ArrayList",
+  kind: vscode.SymbolKind = vscode.SymbolKind.Class
+): vscode.SymbolInformation =>
+  getSymbolInformation(
+    name,
+    vscode.Uri.parse("jdt://contents/java.base/java.util/ArrayList.class"),
+    kind,
+    "java.util"
+  );
