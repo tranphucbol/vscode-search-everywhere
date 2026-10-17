@@ -243,7 +243,7 @@ function stubComponentsForSearch(
       {
         object: workspace,
         method: "index",
-        returns: returnsValues.index,
+        returns: returnsValues.index ?? Promise.resolve(),
       },
       {
         object: cache,

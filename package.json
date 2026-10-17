@@ -295,6 +295,11 @@
           "default": true,
           "description": "Watch the file system and update the index when files are created, changed or deleted outside VS Code, for example by git, a code generator or a terminal command."
         },
+        "searchEverywhere.searchLanguageServersWhileIndexing": {
+          "type": "boolean",
+          "default": true,
+          "description": "While the index is being built, also ask the language servers for symbols matching the query and show the ones not indexed yet under Not indexed yet. The Include libraries toggle works regardless."
+        },
         "searchEverywhere.showRecentItemsOnEmptyQuery": {
           "type": "boolean",
           "default": true,

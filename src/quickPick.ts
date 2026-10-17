@@ -9,6 +9,7 @@ import {
   fetchPreviewOnSelect,
   fetchRankRecentItemsHigher,
   fetchRecentItemsLimit,
+  fetchSearchLanguageServersWhileIndexing,
   fetchShouldHighlightSymbol,
   fetchShouldItemsBeSorted,
   fetchShouldUseDebounce,
@@ -19,6 +20,7 @@ import {
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
+import { liveSymbols } from "./liveSymbols";
 import { recentItems } from "./recentItems";
 import { getLocation, getReference } from "./reference";
 import {
@@ -29,6 +31,7 @@ import {
   QuickPickItem,
 } from "./types";
 import { utils } from "./utils";
+import { workspaceIndexer } from "./workspaceIndexer";
 const debounce = utils.debounce;
 
 const VIRTUAL_PAGE_SIZE = 500;
@@ -52,6 +55,15 @@ const COPY_REFERENCE_TOOLTIP = `Copy reference · ${
   process.platform === "darwin" ? "⌥⇧⌘C" : "Ctrl+Alt+Shift+C"
 }`;
 const COPIED_MESSAGE_TIMEOUT_MS = 3000;
+const LIVE_SYMBOLS_DELAY_MS = 200;
+const MIN_LIVE_SYMBOLS_QUERY_LENGTH = 2;
+const NOT_INDEXED_SEPARATOR = "Not indexed yet";
+const LIBRARIES_SEPARATOR = "Libraries";
+
+let liveSymbolsSequence = 0;
+let liveSymbolsTimer: ReturnType<typeof setTimeout> | undefined;
+let liveSymbolsPending = false;
+let indexBusy = false;
 
 function disposeOnDidChangeValueEventListeners(): void {
   quickPick
@@ -674,6 +686,7 @@ async function restoreEditorBeforeShow(
 
 function handleDidHide() {
   cancelPendingPreview();
+  cancelLiveSymbols();
   const control = quickPick.getControl();
   lastQuery =
     handOffQuery ??
@@ -1034,6 +1047,7 @@ function show(): void {
 }
 
 function loadItems() {
+  cancelLiveSymbols();
   if (!database.isReady()) {
     const fallbackItems = quickPick.getItems();
     if (fallbackItems && fallbackItems.length > 0) {
@@ -1041,6 +1055,13 @@ function loadItems() {
         ? loadSortedItemsFromResults(fallbackItems)
         : loadUnsortedItemsFromResults(fallbackItems);
     }
+    const fallbackControl = quickPick.getControl();
+    const fallbackFilter = resolveFilterPhrase(fallbackControl?.value || "");
+    scheduleLiveSymbols(
+      parseLineSuffix(fallbackFilter.rest).query,
+      fallbackFilter.kinds,
+      false
+    );
     return;
   }
 
@@ -1108,6 +1129,137 @@ function loadItems() {
   quickPick.getShouldItemsBeSorted()
     ? loadSortedItemsFromResults(dbResults)
     : loadUnsortedItemsFromResults(dbResults);
+  scheduleLiveSymbols(nameQuery, symbolKinds, dbResults.length > 0);
+}
+
+// isEmpty counts every row, so it is only asked when the search itself found nothing.
+function isIndexIncomplete(hasIndexResults: boolean): boolean {
+  return (
+    !database.isReady() ||
+    workspaceIndexer.isRebuilding() ||
+    (!hasIndexResults && database.isEmpty())
+  );
+}
+
+function setLiveSymbolsPending(pending: boolean): void {
+  liveSymbolsPending = pending;
+  const control = quickPick.getControl();
+  if (control) {
+    control.busy = indexBusy || pending;
+  }
+}
+
+function cancelLiveSymbols(): void {
+  liveSymbolsSequence++;
+  if (liveSymbolsTimer) {
+    clearTimeout(liveSymbolsTimer);
+    liveSymbolsTimer = undefined;
+  }
+  liveSymbolsPending && setLiveSymbolsPending(false);
+}
+
+function scheduleLiveSymbols(
+  cleanQuery: string,
+  symbolKinds: number[] | undefined,
+  hasIndexResults: boolean
+): void {
+  const query = cleanQuery.trim();
+  if (fileScopeUri || query.length < MIN_LIVE_SYMBOLS_QUERY_LENGTH) {
+    return;
+  }
+  const includeWorkspace =
+    fetchSearchLanguageServersWhileIndexing() &&
+    isIndexIncomplete(hasIndexResults);
+  if (!includeWorkspace) {
+    return;
+  }
+
+  const sequence = liveSymbolsSequence;
+  setLiveSymbolsPending(true);
+  liveSymbolsTimer = setTimeout(async () => {
+    liveSymbolsTimer = undefined;
+    const live = await liveSymbols.fetchLiveSymbols({
+      query,
+      includeWorkspace,
+      includeLibraries: false,
+      symbolKinds,
+    });
+    if (sequence !== liveSymbolsSequence || !isVisible) {
+      return;
+    }
+    setLiveSymbolsPending(false);
+    const control = quickPick.getControl();
+    const merged = mergeLiveSymbols([...control.items], live);
+    if (merged.length !== control.items.length) {
+      showItemsKeepingActive(merged);
+    }
+  }, LIVE_SYMBOLS_DELAY_MS);
+}
+
+function isSameSymbol(indexItem: QuickPickItem, live: QuickPickItem): boolean {
+  if (
+    indexItem.symbolKind !== live.symbolKind ||
+    indexItem.uri.toString() !== live.uri.toString() ||
+    liveSymbols.getName(indexItem) !== liveSymbols.getName(live)
+  ) {
+    return false;
+  }
+  const line = live.range?.start.line ?? 0;
+  const range = indexItem.range;
+  return range ? range.start.line <= line && line <= range.end.line : true;
+}
+
+function liveSeparator(label: string): QuickPickItem {
+  return {
+    label,
+    kind: vscode.QuickPickItemKind.Separator,
+    symbolKind: vscode.QuickPickItemKind.Separator,
+    uri: vscode.Uri.parse("#"),
+  };
+}
+
+function mergeLiveSymbols(
+  indexItems: QuickPickItem[],
+  live: QuickPickItem[]
+): QuickPickItem[] {
+  const indexed = indexItems.filter(
+    (item) => item.kind !== vscode.QuickPickItemKind.Separator
+  );
+  const fresh = live.filter(
+    (item) => !indexed.some((indexItem) => isSameSymbol(indexItem, item))
+  );
+  // The providers match on their own terms; VS Code's label filter would hide fuzzy hits.
+  fresh.forEach((item) => (item.alwaysShow = true));
+  reinitQpItemsButton(fresh);
+
+  const workspace = fresh.filter((item) => item.source === "live");
+  const libraries = fresh.filter((item) => item.source === "library");
+  return [
+    ...indexItems,
+    ...(workspace.length
+      ? [liveSeparator(NOT_INDEXED_SEPARATOR), ...workspace]
+      : []),
+    ...(libraries.length
+      ? [liveSeparator(LIBRARIES_SEPARATOR), ...libraries]
+      : []),
+  ];
+}
+
+function showItemsKeepingActive(items: QuickPickItem[]): void {
+  const control = quickPick.getControl();
+  const active = control.activeItems?.[0];
+  const activeIdentity = active && database.itemIdentity(active);
+  control.items = items;
+  const restored =
+    activeIdentity &&
+    items.find(
+      (item) =>
+        item.kind !== vscode.QuickPickItemKind.Separator &&
+        database.itemIdentity(item) === activeIdentity
+    );
+  if (restored) {
+    control.activeItems = [restored];
+  }
 }
 
 // Indexes built before categories stored a "[phrase name]" tag at the start of the description.
@@ -1142,6 +1294,7 @@ function loadSortedItemsFromResults(results: QuickPickItem[]): void {
 }
 
 function loadHelpItems() {
+  cancelLiveSymbols();
   const control = quickPick.getControl();
   control.items = quickPick.getHelpItems();
 }
@@ -1167,8 +1320,9 @@ function addSeparatorItemForEachSymbolKind(items: QuickPickItem[]) {
 }
 
 function showLoading(value: boolean): void {
+  indexBusy = value;
   const control = quickPick.getControl();
-  control.busy = value;
+  control.busy = value || liveSymbolsPending;
 }
 
 // A value set by the extension, such as the editor selection or the restored last query,
@@ -1269,7 +1423,11 @@ function reinitQpItemsButton(data: QuickPickItem[]) {
     if (item.kind !== vscode.QuickPickItemKind.Separator) {
       applyItemIcon(item, useFileIconTheme);
       const buttons: vscode.QuickInputButton[] = [];
-      if (item.symbolKind === 0 && !fileScopeUri) {
+      if (
+        item.symbolKind === 0 &&
+        !fileScopeUri &&
+        item.source !== "library"
+      ) {
         buttons.push({
           iconPath: new vscode.ThemeIcon("arrow-right"),
           tooltip: "Search symbols in this file",
@@ -1407,4 +1565,5 @@ export const quickPick = {
   updateTitle,
   disposeOnDidChangeValueEventListeners,
   invalidateSymbolCache,
+  mergeLiveSymbols,
 };

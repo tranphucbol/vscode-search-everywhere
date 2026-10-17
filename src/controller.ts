@@ -188,11 +188,20 @@ function handleWillReindexOnConfigurationChange() {
   quickPick.reload();
 }
 
+// The first index can take minutes on a large repository; the quick pick opens at once
+// and shows what is indexed so far plus live language server results.
+function startIndexOnQuickPickOpen(): void {
+  clear();
+  database.clearAll();
+  workspace
+    .index(ActionTrigger.Search)
+    .catch((error) => logger.log(`Error indexing the workspace: ${error}`));
+  !quickPick.isInitialized() && quickPick.init();
+}
+
 async function search(): Promise<void> {
   if (controller.shouldIndexOnQuickPickOpen()) {
-    clear();
-    database.clearAll();
-    await workspace.index(ActionTrigger.Search);
+    startIndexOnQuickPickOpen();
   }
 
   if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {
@@ -393,9 +402,7 @@ async function init(newExtensionContext: vscode.ExtensionContext) {
 
 async function searchCurrentFile(): Promise<void> {
   if (controller.shouldIndexOnQuickPickOpen()) {
-    clear();
-    database.clearAll();
-    await workspace.index(ActionTrigger.Search);
+    startIndexOnQuickPickOpen();
   }
 
   if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {

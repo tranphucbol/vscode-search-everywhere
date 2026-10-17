@@ -2139,6 +2139,7 @@ export const database = {
   deleteDatabaseFile,
   closeDatabase,
   isReady,
+  itemIdentity,
   wasSeededFromTemplate,
   setSeededFromTemplate,
   getSeedMeta,
