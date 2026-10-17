@@ -1,6 +1,8 @@
+import * as fs from "fs";
 import * as vscode from "vscode";
 import { fetchIndexNamesOnly, fetchItemsFilter } from "./config";
 import { dataConverter } from "./dataConverter";
+import { FileState } from "./database";
 import { onDidItemIndexedEventEmitter } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
@@ -8,6 +10,8 @@ import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";
 import { matchesGlob, utils } from "./utils";
 
 const CONTAINER_SEPARATOR = ".";
+
+export type OnBatch = (items: QuickPickItem[], fileState?: [string, FileState]) => void;
 
 async function fetchUris(): Promise<vscode.Uri[]> {
   const includePatterns = patternProvider.getIncludePatterns();
@@ -186,7 +190,7 @@ async function includeSymbols(
     message?: string | undefined;
     increment?: number | undefined;
   }>,
-  onBatch?: (items: QuickPickItem[]) => void
+  onBatch?: OnBatch
 ): Promise<void> {
   if (!uris.length || dataService.getIsCancelled()) {
     return;
@@ -208,7 +212,10 @@ async function includeSymbols(
         const i = currentIndex++;
         const uri = uris[i];
 
-        const symbolsForUri = await tryToGetSymbolsForUri(uri);
+        const [symbolsForUri, fileState] = await Promise.all([
+          tryToGetSymbolsForUri(uri),
+          dataService.statUri(uri),
+        ]);
         if (
           !symbolsForUri?.length &&
           timedOutLanguages.has(getLanguage(uri) || "") &&
@@ -222,7 +229,7 @@ async function includeSymbols(
             uri,
             symbolsForUri
           );
-          onBatch(qpItems);
+          onBatch(qpItems, fileState && [uri.toString(), fileState]);
           workspaceData.items.set(uri.path, { uri, elements: [] });
           workspaceData.count += qpItems.length;
         } else {
@@ -485,7 +492,7 @@ async function fetchData(
     message?: string | undefined;
     increment?: number | undefined;
   }>,
-  onBatch?: (items: QuickPickItem[]) => void
+  onBatch?: OnBatch
 ): Promise<WorkspaceData> {
   const workspaceData: WorkspaceData = utils.createWorkspaceData();
   const uriItems = await getUrisOrFetchIfEmpty(uris);
@@ -498,6 +505,26 @@ async function fetchData(
   dataService.setIsCancelled(false);
 
   return workspaceData;
+}
+
+const statFailuresLogged = new Set<string>();
+
+async function statUri(uri: vscode.Uri): Promise<FileState | undefined> {
+  try {
+    if (uri.scheme === "file") {
+      const stat = await fs.promises.stat(uri.fsPath);
+      return { mtime: Math.floor(stat.mtimeMs), size: stat.size };
+    }
+    const stat = await vscode.workspace.fs.stat(uri);
+    return { mtime: Math.floor(stat.mtime), size: stat.size };
+  } catch (error) {
+    const key = uri.toString();
+    if (!statFailuresLogged.has(key)) {
+      statFailuresLogged.add(key);
+      logger.log(`Could not stat ${uri.path}: ${error}`);
+    }
+    return undefined;
+  }
 }
 
 async function isUriExistingInWorkspace(uri: vscode.Uri): Promise<boolean> {
@@ -551,6 +578,7 @@ export const dataService = {
   fetchData,
   isUriExistingInWorkspace,
   fetchUris,
+  statUri,
   getSymbolsForUri,
   resetLanguageWarmup,
 };

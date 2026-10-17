@@ -1394,7 +1394,8 @@ describe("Database", () => {
         clean_words TEXT DEFAULT '', clean_initials TEXT DEFAULT '',
         symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
         range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
-        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
+        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0
+        ${version >= 4 ? ", is_secondary INTEGER DEFAULT 0" : ""})`);
       for (const [uri, name, kind] of rows) {
         legacy.run(
           "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -1459,15 +1460,40 @@ describe("Database", () => {
       );
     });
 
-    it("should set the schema version to 4 after migrating", async () => {
+    it("should set the schema version to 5 after migrating", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
         await reopenVersion2Database();
 
-        assert.equal(await readSchemaVersion(), 4);
+        assert.equal(await readSchemaVersion(), 5);
       } finally {
         logStub.restore();
       }
+    });
+
+    it("should create file_state when migrating to schema 5 without deleting symbols", async () => {
+      database.closeDatabase();
+      await writeVersion2Database(4);
+      await database.initDatabase(fakeContext);
+
+      assert.equal(database.getCount(), 2);
+      assert.equal(database.getFileStates().size, 0);
+      database.upsertFileStates([["file:///workspace/server.go", { mtime: 1, size: 2 }]]);
+      assert.deepEqual(database.getFileStates().get("file:///workspace/server.go"), {
+        mtime: 1,
+        size: 2,
+      });
+      assert.equal(await readSchemaVersion(), 5);
+    });
+
+    it("should report no baseline when file_state is empty and symbols exist", async () => {
+      database.closeDatabase();
+      await writeVersion2Database(4);
+      await database.initDatabase(fakeContext);
+
+      assert.isFalse(database.hasFileStateBaseline());
+      database.upsertFileStates([["file:///workspace/server.go", { mtime: 1, size: 2 }]]);
+      assert.isTrue(database.hasFileStateBaseline());
     });
   });
 
@@ -1479,9 +1505,33 @@ describe("Database", () => {
       const results = database.search("UserController");
       assert.equal(results.length, 0);
     });
+
+    it("should delete file state together with the symbols of a uri", () => {
+      database.insertSymbolsBatch([item1, item2]);
+      database.upsertFileStates([
+        [item1.uri.toString(), { mtime: 1, size: 10 }],
+        [item2.uri.toString(), { mtime: 2, size: 20 }],
+      ]);
+
+      database.deleteByUri(item1.uri.toString());
+
+      assert.deepEqual([...database.getFileStates().keys()], [item2.uri.toString()]);
+    });
   });
 
   describe("deleteByUriPrefix", () => {
+    it("should delete file state under a removed directory prefix", () => {
+      database.insertSymbolsBatch([item1, item2, item3]);
+      database.upsertFileStates([
+        [item1.uri.toString(), { mtime: 1, size: 10 }],
+        [item3.uri.toString(), { mtime: 3, size: 30 }],
+      ]);
+
+      database.deleteByUriPrefix(vscode.Uri.file("/workspace/src/models").toString());
+
+      assert.deepEqual([...database.getFileStates().keys()], [item1.uri.toString()]);
+    });
+
     it("should delete symbols matching uri prefix for directory removal", () => {
       database.insertSymbolsBatch([item1, item2, item3]);
       database.deleteByUriPrefix(vscode.Uri.file("/workspace/src/models").toString());
