@@ -1,43 +1,158 @@
+<p align="center">
+  <img src="img/logo.png" alt="Jetbrain Search Everywhere logo" width="128">
+</p>
+
 # Jetbrain Search Everywhere
 
-The extension is inspired by JetBrains IDEs feature "Search Everywhere".
-It allows user to easily navigate through files and symbols in the whole workspace.
-
-It is the alternative for "Go to Symbol in Workspace..." - fully customizable.
-
-
-> 🚀 **v3.2.0 Released: In-File Scope Search, Split Editor & Remote Fixes**
-> 
-> - 🔍 **In-File Scope Search & Outline Navigation:** Search symbols in the current active file (`searchEverywhere.searchCurrentFile`), or drill down into any file with `alt + right` / right-arrow button, and back with `alt + left` / Back button.
-> - 📖 **Open to the Side:** Open any file or symbol in a side-by-side editor with `cmd + enter` / `ctrl + enter` or `alt + enter`.
-> - ⚡ **Sub-millisecond query latency (~0.20 ms)** powered by covering B-Tree indexes (and **0.00 ms** instant LRU cache).
-> - 🌐 **Remote Development Fix:** Seamless multi-tab caching for SSH, WSL, Dev Containers, and virtual file systems.
-> - 🐘 **Massive scale:** Effortlessly indexes and searches workspaces with **over 2,000,000 symbols** with 95% less RAM.
-
-## How it works
-
-The extension indexes the whole workspace using an embedded **SQLite WebAssembly** database. It scans both files and all symbols for each file according to configured patterns. The scan can be initialized automatically on startup of Visual Studio Code or postponed until the first launch.
-
-After the scan is completed, the extension continuously tracks changes in the workspace:
-* add, rename, or delete functions, classes, variables, or React components
-* add, rename, delete, or move files across directories or different projects in a multi-root workspace
-
-### Next-Gen Performance Highlights (v3.0)
-
-| Metric | Before (v2.x In-Memory) | Now (v3.0 SQLite WASM) | Improvement |
-| :--- | :---: | :---: | :---: |
-| **Search Response Time** | ~8.8 ms | **~0.20 ms** (0.00 ms cached) | **44x faster** |
-| **Peak RAM Usage (2M symbols)** | > 1,500 MB (1.5 GB) | **< 80 MB** | **95% less RAM** |
-| **Workspace Scalability** | Crashes / freezes on large repos | **2,000,000+ symbols** | **Enterprise-grade** |
-| **Live Typing Lag** | Noticeable editor stutter | **Zero stutter** (300 ms debounce) | **Smooth typing** |
+One quick pick that finds files and symbols across the whole workspace, modelled on the
+"Search Everywhere" feature of JetBrains IDEs. A fully customizable alternative to VS Code's
+"Go to Symbol in Workspace...".
 
 ![How it works](img/how-it-works.gif)
 
+## Install
+
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.jetbrain-search-everywhere)
+- [Open VSX](https://open-vsx.org/extension/tranphucbol/jetbrain-search-everywhere)
+
+Or run `ext install tranphucbol.jetbrain-search-everywhere` from the command palette quick open
+(`cmd + p` / `ctrl + p`).
+
+> Coming from `kbysiec.vscode-search-everywhere`? This extension is a fork of it and keeps the
+> same `searchEverywhere.*` settings and command IDs, so your settings carry over. Uninstall or
+> disable the original, otherwise both register the same commands and keybindings.
+
+## Quick start
+
+1. Press `alt + cmd + p` (mac) or `ctrl + alt + p` (win/linux). The first call indexes the
+   workspace; set `searchEverywhere.shouldInitOnStartup` to index on startup instead.
+2. Type part of a file or symbol name and press `enter` to open it.
+3. Press `cmd + enter` / `ctrl + enter` to open it to the side, or `alt + right` on a file to
+   search the symbols inside it.
+
+## How it works
+
+The extension indexes the workspace into an embedded SQLite database (`sql.js`, WebAssembly):
+every file matching the include and exclude patterns, and every symbol the language's document
+symbol provider reports for it. Each query runs against B-tree indexes and returns at most 500
+ranked results, so the quick pick stays responsive on large workspaces.
+
+After the first scan the index is kept up to date as you work:
+
+- functions, classes, variables or React components added, renamed or deleted in a file
+- files added, renamed, deleted or moved between directories or folders of a multi-root workspace
+
+The index is cached, so the next start of VS Code reads it instead of scanning again. Git
+worktrees and local clones of the same repository share one cache.
+
 ## Features
 
-* Init on startup or first call
+### Query syntax
 
-* Notification placeholder
+| Query | Finds |
+| :--- | :--- |
+| `USI`, `usi`, `SerImp` | `UserServiceImpl` (CamelHumps) |
+| `UserService.save`, `UserService#save`, `Outer::Inner::run` | a member through its container |
+| `UserService.` | every member of `UserService` |
+| `src/models/User`, `models/User.find` | names inside a directory |
+| `impl user` | `UserServiceImpl` (words in any order) |
+| `user*impl` | `UserServiceImpl` (wildcard) |
+| `HTTPServer.ts:13`, `src/user.ts:10:5` | opens the item at that line and column |
+| `@@order` | classes only (filter phrase) |
+| `?` | the list of filter phrases |
+
+![Query syntax](img/query-syntax.gif)
+
+- **CamelHumps**: a query with a capital after its first letter, or with `_` or `-` between its
+  parts, matches each part against the start of a word, in order, skipping words in between
+  (`USI`, `uSerImp` or `SerImp` find `UserServiceImpl`, `HTTPSer` finds `HTTPServer`, `MV` and
+  `max_v` find `MAX_VALUE`). Matches that start at the first word rank above matches that start
+  later. An all-lowercase query of two or more characters also matches one letter per word
+  (`usi` finds `UserServiceImpl`). CamelHumps matches rank after prefix matches and before
+  substring matches.
+- **Qualified names**: search a member through its class or namespace with `.`, `#` or `::`. End
+  the query with a separator (`UserService.`) to list every member of that container. Members
+  under the exact parent rank above members found deeper in the container chain, and an exact
+  file match such as `user.service.ts` still comes first.
+- **Directory + name**: a query with `/` matches the part after the last `/` against names inside
+  that directory, then falls back to matching the path.
+- **Multi-word search**: space-separated words match in any order. Every word must match; exact
+  and in-order matches rank first.
+- **Wildcards**: `*` matches any run of characters within a word, in order (`user*impl` finds
+  `UserServiceImpl`, `impl*user` does not). `?` is not a wildcard, and `%` and `_` match
+  literally. Queries containing `/` use the directory search instead of multi-word and `*`
+  matching.
+- **Jump to line**: append `:line` or `:line:column` to the query to open the selected item at
+  that position.
+
+  ![Jump to line](img/jump-to-line.gif)
+
+- **Filter phrases**: start the query with a phrase to search one item type only, e.g. `@@` for
+  classes or `$$` for files. Type the help phrase (`?`) to list them. Both are configurable with
+  `searchEverywhere.itemsFilterPhrases` and `searchEverywhere.helpPhrase`.
+
+  ![Filter phrases](img/filter-phrases.gif)
+
+### Ranking
+
+- Results are ranked by how well they match: exact, then prefix, then CamelHumps, then substring.
+- **Recently used results first**: while you type, files and symbols you opened recently, and
+  open editor tabs, come first among results that match equally well. Typing `index` in a
+  monorepo puts the `index.ts` you were just working in above the other `index.ts` files. Recency
+  never beats a better match: an exact match you never opened stays above a recent prefix match.
+  Turn it off with `searchEverywhere.rankRecentItemsHigher`.
+- **Recent items on an empty query**: with nothing typed, the quick pick lists recently opened
+  items and open editors.
+
+  ![Recent items](img/recent-items.gif)
+
+- Set `searchEverywhere.shouldItemsBeSorted` to group results by item type instead of ranking
+  them strictly by relevance.
+
+### Navigation
+
+- **Search in a file**: drill into any file with `alt + right` or the right-arrow button on a
+  file item to search the symbols inside it, and go back to the workspace search with
+  `alt + left` or the Back button; your previous query is restored.
+  `searchEverywhere.searchCurrentFile` (`alt + cmd + o` / `ctrl + alt + o`) opens the search
+  scoped to the active editor.
+
+  ![Search in a file](img/file-scope.gif)
+
+- **Open to the side**: open the selected item in an editor beside the active one with
+  `cmd + enter` / `ctrl + enter`, `alt + enter`, or the split-editor button on the item.
+
+  ![Open to the side](img/open-to-the-side.gif)
+
+- **Highlight of the selected symbol** (`searchEverywhere.shouldHighlightSymbol`)
+
+  enabled
+
+  ![Highlight enabled](img/highlight-on.gif)
+
+  disabled
+
+  ![Highlight disabled](img/highlight-off.gif)
+
+- The selection in the active editor is put in the search
+  (`searchEverywhere.shouldSearchSelection`).
+
+### Indexing and cache
+
+- Index on startup or on the first call (`searchEverywhere.shouldInitOnStartup`).
+- Choose what is indexed: include and exclude globs, or VS Code's "Files: Exclude" and
+  "Search: Exclude", or the `.gitignore` file (`searchEverywhere.excludeMode`).
+- Drop item kinds or names from the index with `searchEverywhere.itemsFilter`,
+  `searchEverywhere.excludeProperties` and `searchEverywhere.excludeVariables`.
+- The index is cached between sessions (`searchEverywhere.shouldWorkspaceDataBeCached`) and shared
+  across git worktrees and local clones of the same repository
+  (`searchEverywhere.shareCacheAcrossWorktrees`).
+- A dedicated output channel logs triggered actions, scanned directories and indexing times.
+
+### Display
+
+- **Indexing notification** in a toast or in the status bar
+  (`searchEverywhere.shouldDisplayNotificationInStatusBar`)
 
   toast
 
@@ -47,375 +162,313 @@ After the scan is completed, the extension continuously tracks changes in the wo
 
   ![Notification in status bar](img/notification-status-bar.gif)
 
-
-
-* Debounce of search results while filtering
+- **Debounce** of search results while typing (`searchEverywhere.shouldUseDebounce`), useful on
+  large workspaces
 
   enabled
 
   ![Debounce enabled](img/debounce-on.gif)
 
-
   disabled
 
   ![Debounce disabled](img/debounce-off.gif)
 
+- A configurable icon for each item type (`searchEverywhere.icons`), or file icons from the
+  active file icon theme (`searchEverywhere.useFileIconTheme`).
 
-* Highlight of selected symbol
+## Performance
 
-  enabled
+`node scripts/benchmark.js` indexes 50,000 generated files and symbols and runs 170 queries
+against them. Measured on an Apple M4:
 
-  ![Highlight enabled](img/highlight-on.gif)
-
-
-  disabled
-
-  ![Highlight disabled](img/highlight-off.gif)
-
-* Customizable icon for each item type
-
-* Customizable filter phrase for each item type
-
-  ![Filter phrase](img/filter-phrases.gif)
-
-* Customizable items filter to reduce items set
-
-* Customizable help phrase
-
-* Customizable exclude patterns
-
-* Customizable include pattern
-
-* Ability to decide whether use extension exclude patterns or "Files: Exclude" and "Search: Exclude" patterns
-
-* Item icon to open it to the side
-
-* Drill-down search in a specific file: search symbols inside any file by clicking the right-arrow icon button or using a shortcut (`alt + right`). Return to workspace search anytime with `alt + left` or the Back button.
-
-* Jump to line: append `:line` or `:line:column` to the query (e.g. `UserService.java:42` or `src/user.ts:10:5`) to open the selected item at that position.
-
-* Qualified names: search a member through its class or namespace with `.`, `#` or `::` (e.g. `UserService.save`, `UserService#save`, `Outer::Inner::run`). End the query with a separator (`UserService.`) to list every member of that container. Members under the exact parent rank above members found deeper in the container chain, and an exact file match such as `user.service.ts` still comes first.
-
-* Directory + name: a query with `/` matches the part after the last `/` against names inside that directory (e.g. `src/models/User` or `models/User.find`), then falls back to matching the path.
-
-* Multi-word search: space-separated words match in any order (e.g. `impl user` or `service impl` finds `UserServiceImpl`). Every word must match; exact and in-order matches rank first.
-
-* Wildcards: `*` matches any run of characters within a word, in order (e.g. `user*impl` finds `UserServiceImpl`). `?` is not a wildcard, and `%` and `_` are never SQL wildcards. Queries containing `/` use the directory search above instead of multi-word and `*` matching.
-
-* CamelHumps: a query with a capital after its first letter, or with `_` or `-` between its parts, matches each part against the start of a word, in order, skipping words in between (e.g. `USI`, `uSerImp` or `SerImp` find `UserServiceImpl`, `HTTPSer` finds `HTTPServer`, `MV` and `max_v` find `MAX_VALUE`). Matches that start at the first word rank above matches that start later. An all-lowercase query of two or more characters also matches one letter per word (`usi` finds `UserServiceImpl`). CamelHumps matches rank after prefix matches and before substring matches. The first start after upgrading fills in the new word columns without reindexing.
-
-* Recently used results first: while you type, files and symbols you opened recently, and open editor tabs, come first among results that match the query equally well. Typing `index` in a monorepo puts the `index.ts` you were just working in above the other `index.ts` files. Recency never beats a better match: an exact match you never opened stays above a recent prefix match. Turn it off with `searchEverywhere.rankRecentItemsHigher`.
-
-* Dedicated output with logs related to triggered actions, scanned directories structure, etc.
-
-* Ability to decide whether the items should be sorted by type
-
-* Ability to cache the scanned workspaceData to as a result scan the workspace only once
-
-* Shared cache across git worktrees and local clones of the same repository
-
-* Recent items and currently open editor files displayed when search query is empty
+| | In-memory array (v2.x design) | SQLite WASM index |
+| :--- | :---: | :---: |
+| JS heap used by the items | +46.6 MB | ~0 MB (rows live in the 37 MB database) |
+| Cache | 18.2 MB of JSON in workspace state, 41 ms to write and read | the SQLite database |
+| Average query time | 4.45 ms | 2.65 ms (repeated queries come from an LRU cache) |
+| Uncached query time | | 10–43 ms, depending on the query |
+| Items handed to the quick pick | all 50,000 | at most 500 |
 
 ## Commands
 
-* `searchEverywhere.search`
+| Command | Title | mac | win/linux |
+| :--- | :--- | :--- | :--- |
+| `searchEverywhere.search` | Search everywhere: Search | `alt + cmd + p` | `ctrl + alt + p` |
+| `searchEverywhere.searchCurrentFile` | Search everywhere: Search in Current File | `alt + cmd + o` | `ctrl + alt + o` |
+| `searchEverywhere.navigateIntoFile` | Search everywhere: Navigate into File | `alt + right` | `alt + right` |
+| `searchEverywhere.navigateBack` | Search everywhere: Navigate Back to Workspace | `alt + left` | `alt + left` |
+| `searchEverywhere.openToTheSide` | Search everywhere: Open to the Side | `cmd + enter`, `alt + enter` | `ctrl + enter`, `alt + enter` |
+| `searchEverywhere.reload` | Search everywhere: Reload | | |
+| `searchEverywhere.clearSharedCache` | Search everywhere: Clear Shared Worktree Cache | | |
 
-  Search any symbol/file in the currently opened workspace.
-
-  Default keybinding for the command is:
-  * mac: `alt + cmd + p`
-  * win/linux: `ctrl + alt + p`
-
-* `searchEverywhere.searchCurrentFile`
-
-  Search symbols within the currently active editor file (scoped file search / outline).
-
-  Default keybinding:
-  * mac: `alt + cmd + o`
-  * win/linux: `ctrl + alt + o`
-
-* `searchEverywhere.navigateIntoFile`
-
-  Drill down into the selected file item to search symbols within it while inside Search Everywhere. Also available via the right-arrow button on file items.
-
-  Default keybinding: `alt + right` (mac/win/linux, configurable)
-
-* `searchEverywhere.navigateBack`
-
-  Navigate back to the workspace search from a file search, preserving your previous query. Also available via the Back button on the title bar.
-
-  Default keybinding: `alt + left` (mac/win/linux, configurable)
-
-* `searchEverywhere.openToTheSide`
-
-  Open the selected symbol or file into a split editor beside the active editor. Also available via the split editor icon button on each item.
-
-  Default keybindings:
-  * mac: `cmd + enter` or `alt + enter` (configurable)
-  * win/linux: `ctrl + enter` or `alt + enter` (configurable)
-
-* `searchEverywhere.reload`
-
-  Re-index the whole workspace.
-
-* `searchEverywhere.clearSharedCache`
-
-  Clear the shared repository cache used across git worktrees and clones.
+- **Search** searches every file and symbol in the workspace.
+- **Search in Current File** searches the symbols of the active editor.
+- **Navigate into File** searches the symbols of the selected file item; it applies while Search
+  Everywhere is open and not already scoped to a file.
+- **Navigate Back to Workspace** returns from a file search to the workspace search and restores
+  the previous query; it applies while scoped to a file.
+- **Open to the Side** opens the selected item beside the active editor; it applies while Search
+  Everywhere is open.
+- **Reload** re-indexes the whole workspace.
+- **Clear Shared Worktree Cache** clears the repository cache shared across git worktrees and
+  clones.
 
 ## Extension Settings
 
-* `searchEverywhere.shouldInitOnStartup`
+### Indexing
 
-Should indexing be initialized on Visual Studio Code startup.
-Default value: `false`.
+- `searchEverywhere.shouldInitOnStartup`, default `false`
 
-* `searchEverywhere.shouldDisplayNotificationInStatusBar`
+  Should indexing be initialized on Visual Studio Code startup.
 
-Should display indexing notification in toast or status bar.
-Default value: `false`.
+- `searchEverywhere.include`, default `"**/*.{js,jsx,ts,tsx}"`
 
-* `searchEverywhere.shouldHighlightSymbol`
+  A glob. Any file matching it is indexed.
 
-Should the selected symbol be highlighted.
-Default value: `false`.
+- `searchEverywhere.exclude`
 
-* `searchEverywhere.shouldUseDebounce`
+  An array of globs. Any file matching these globs is excluded from indexing.
 
-Should the debounce function be used while returning filter results (useful in case of the large workspace).
-Default value: `true`.
+  Default value:
 
-* `searchEverywhere.icons`
+  ```json
+  [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.CVS",
+    "**/.DS_Store",
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/coverage/**",
+    "**/.vscode/**",
+    "**/.vscode-test/**",
+    "**/.history/**",
+    "**/.cache/**",
+    "**/.cache-loader/**",
+    "**/out/**",
+    "**/dist/**"
+  ]
+  ```
 
-Ability to define icons that should be displayed for appropriate item types. According to VSC API, only Octicons are allowed. Not defined item type will not have any icon.
+- `searchEverywhere.excludeMode`, default `"search everywhere"`
 
-Default value:
-```json
-{
-  "0": "symbol-file",
-  "1": "file-submodule",
-  "2": "symbol-namespace",
-  "3": "package",
-  "4": "symbol-class",
-  "5": "symbol-method",
-  "6": "symbol-property",
-  "7": "symbol-field",
-  "8": "symbol-constructor",
-  "9": "symbol-enum",
-  "10": "symbol-interface",
-  "11": "symbol-function",
-  "12": "symbol-variable",
-  "13": "symbol-constant",
-  "14": "symbol-string",
-  "15": "symbol-numeric",
-  "16": "symbol-boolean",
-  "17": "symbol-array",
-  "18": "symbol-keyword",
-  "19": "symbol-key",
-  "20": "remove",
-  "21": "symbol-enum-member",
-  "22": "symbol-structure",
-  "23": "symbol-event",
-  "24": "symbol-operator",
-  "25": "type-hierarchy-sub"
-}
-```
+  Which exclude patterns apply: `search everywhere` (`searchEverywhere.exclude`),
+  `files and search` (VS Code's "Files: Exclude" and "Search: Exclude") or `gitignore`. If the
+  gitignore file is not found or is empty, `searchEverywhere.exclude` is used as a fallback. Run
+  `Search everywhere: Reload` after changing the gitignore file.
 
-Below you can find the table with information which symbol kind refers to which symbol name:
+- `searchEverywhere.itemsFilter`
 
-| kind | icon               | symbol name    |
-|------|:------------------:|:--------------:|
-|   0  | symbol-file        | file           |
-|   1  | file-submodule     | module         |
-|   2  | symbol-namespace   | namespace      |
-|   3  | package            | package        |
-|   4  | symbol-class       | class          |
-|   5  | symbol-method      | method         |
-|   6  | symbol-property    | property       |
-|   7  | symbol-field       | field          |
-|   8  | symbol-constructor | constructor    |
-|   9  | symbol-enum        | enum           |
-|  10  | symbol-interface   | interface      |
-|  11  | symbol-function    | function       |
-|  12  | symbol-variable    | variable       |
-|  13  | symbol-constant    | constant       |
-|  14  | symbol-string      | string         |
-|  15  | symbol-numeric     | number         |
-|  16  | symbol-boolean     | boolean        |
-|  17  | symbol-array       | array          |
-|  18  | symbol-keyword     | object         |
-|  19  | symbol-key         | key            |
-|  20  | remove             | null           |
-|  21  | symbol-enum-member | enum member    |
-|  22  | symbol-structure   | struct         |
-|  23  | symbol-event       | event          |
-|  24  | symbol-operator    | operator       |
-|  25  | type-hierarchy-sub | type parameter |
+  A filter applied to items before they are indexed. Kinds are the numbers in the
+  [icons table](#icons) below, see also the
+  [SymbolKind reference](https://code.visualstudio.com/api/references/vscode-api#SymbolKind).
 
-* `searchEverywhere.itemsFilter`
+  Default value:
 
-Ability to define a filter that should be applied to items.
-All kinds can be find here: https://code.visualstudio.com/api/references/vscode-api#SymbolKind
+  ```json
+  {
+    "allowedKinds": [],
+    "ignoredKinds": [],
+    "ignoredNames": []
+  }
+  ```
 
-Default value:
+  This example removes arrays (17), booleans (16) and every item whose name contains `foo`:
 
-```json
-{
-  "allowedKinds": [],
-  "ignoredKinds": [],
-  "ignoredNames": []
-}
-```
+  ```json
+  {
+    "allowedKinds": [],
+    "ignoredKinds": [16, 17],
+    "ignoredNames": ["foo"]
+  }
+  ```
 
-Below is an example which will remove from items all arrays (17), booleans (16) and the ones containing "foo" string in the name:
+- `searchEverywhere.excludeProperties`, default `true`
 
-```json
-{
-  "allowedKinds": [],
-  "ignoredKinds": [16, 17],
-  "ignoredNames": ["foo"]
-}
-```
+  Exclude object properties (kind 6). Reduces the index size by more than 50% and removes property
+  noise in large codebases. Listing 6 in `itemsFilter.allowedKinds` keeps them.
 
-* `searchEverywhere.shouldUseItemsFilterPhrases`
+- `searchEverywhere.excludeVariables`, default `false`
 
-Should be a possibility to filter by assigned filter phrases.
-Default value: `true`.
+  Exclude variables (kind 12). Disabled by default so newly written variables and React function
+  components stay searchable. Constants (kind 13) are not affected; add 13 to
+  `itemsFilter.ignoredKinds` to drop them too. Listing 12 in `itemsFilter.allowedKinds` keeps
+  variables.
 
+### Cache
 
-* `searchEverywhere.itemsFilterPhrases`
+- `searchEverywhere.shouldWorkspaceDataBeCached`, default `true`
 
-Phrases for item type which could be used for narrowing the results down.
+  Index the workspace only once. Each next start of Visual Studio Code reads the index from the
+  cache.
 
-Default value:
+- `searchEverywhere.shareCacheAcrossWorktrees`, default `true`
 
-```json
-{
-  "0": "$$",
-  "4": "@@",
-  "11": "!!",
-  "14": "##",
-  "17": "%%"
-}
-```
+  Share and seed the indexed database cache across git worktrees and local clones of the same
+  repository, for a near-instant start. `Search everywhere: Clear Shared Worktree Cache` clears it.
 
-* `searchEverywhere.helpPhrase`
+### Search and results
 
-A phrase which should invoke help.
-Default value: `?`
+- `searchEverywhere.shouldUseDebounce`, default `true`
 
-* `searchEverywhere.shouldItemsBeSorted`
+  Debounce the results while typing; useful in a large workspace.
 
-Ability to decide whether items should be sorted by type.
-Default value: `true`
+- `searchEverywhere.shouldSearchSelection`, default `true`
 
-* `searchEverywhere.exclude`
+  Put the selection of the active editor in the search.
 
-An array of globs. Any file matching these globs will be excluded from indexing.
+- `searchEverywhere.shouldItemsBeSorted`, default `false`
 
-Default value:
+  Group and sort results by item type. When `false` (recommended), results are ranked strictly by
+  relevance.
 
-```json
-[
-  "**/.git",
-  "**/.svn",
-  "**/.hg",
-  "**/.CVS",
-  "**/.DS_Store",
-  "**/package-lock.json",
-  "**/yarn.lock",
-  "**/node_modules/**",
-  "**/bower_components/**",
-  "**/coverage/**",
-  "**/.vscode/**",
-  "**/.vscode-test/**",
-  "**/.history/**",
-  "**/.cache/**",
-  "**/.cache-loader/**",
-  "**/out/**",
-  "**/dist/**"
-]
-```
+- `searchEverywhere.rankRecentItemsHigher`, default `true`
 
-* `searchEverywhere.include`
+  Show recently opened files and symbols first among equally good matches while typing.
 
-String with include pattern. Any file matching this glob will be included in indexing.
+- `searchEverywhere.showRecentItemsOnEmptyQuery`, default `true`
 
-Default value:
+  Show recent items and open editors when the search query is empty.
 
-```json
-"**/*.{js,jsx,ts,tsx}"
-```
+- `searchEverywhere.recentItemsLimit`, default `10`
 
-* `searchEverywhere.excludeMode`
+  Maximum number of recent items shown when the search query is empty.
 
-Ability to choose which exclude option should be applied. If gitignore file is not found or is empty, the extension option is used as a fallback. Available options: `search everywhere`, `files and search`, `gitignore`. To see the changes from the updated gitignore file after indexing, the reload must be done.
-Default value: `search everywhere`.
+- `searchEverywhere.shouldUseItemsFilterPhrases`, default `true`
 
-* `searchEverywhere.shouldWorkspaceDataBeCached`
+  Allow narrowing the results down with the filter phrases below.
 
-Ability to decide if the workspace should be indexed only once. Each next startup of Visual Studio Code will collect data from cache.
-Default value: `true`
+- `searchEverywhere.itemsFilterPhrases`
 
-* `searchEverywhere.shouldSearchSelection`
+  Phrases that narrow the results down to one item type, keyed by kind.
 
-Ability to decide whether selection in the active editor is put in the search.
-Default value: `true`
+  Default value:
 
-* `searchEverywhere.excludeProperties`
+  ```json
+  {
+    "0": "$$",
+    "4": "@@",
+    "11": "!!",
+    "14": "##",
+    "17": "%%"
+  }
+  ```
 
-Ability to exclude object properties (symbol kind 6) from indexing to drastically reduce memory usage and speed up search in large projects.
-Default value: `true`
+- `searchEverywhere.helpPhrase`, default `"?"`
 
-* `searchEverywhere.excludeVariables`
+  A phrase that lists the filter phrases.
 
-Ability to exclude variables and constants (symbol kind 12) from indexing. Keeping this `false` ensures variables and React functional components remain searchable.
-Default value: `false`
+### Display
 
-* `searchEverywhere.shareCacheAcrossWorktrees`
+- `searchEverywhere.shouldDisplayNotificationInStatusBar`, default `false`
 
-Ability to share the indexed database cache across git worktrees and local clones of the same repository.
-Default value: `true`
+  Show the indexing notification in the status bar instead of a toast.
 
-* `searchEverywhere.showRecentItemsOnEmpty`
+- `searchEverywhere.shouldHighlightSymbol`, default `false`
 
-Ability to show recently visited items and active editor tabs when the search query is empty.
-Default value: `true`
+  Highlight the selected symbol after opening it.
 
-* `searchEverywhere.recentItemsLimit`
+- `searchEverywhere.useFileIconTheme`, default `false`
 
-Maximum number of recent items to show when the search query is empty.
-Default value: `10`
+  Show file results with icons from the active VS Code file icon theme (e.g. Seti, Material Icon
+  Theme) instead of the built-in icon. Symbols keep their built-in icons. Requires VS Code 1.108
+  or newer; older versions keep the built-in icon.
 
-* `searchEverywhere.rankRecentItemsHigher`
+- `searchEverywhere.icons`
 
-Ability to show recently opened files and symbols first among equally good matches while typing.
-Default value: `true`
+  <a id="icons"></a>The icon displayed for each item type. Only
+  [codicons](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing) are
+  allowed; an item type left out has no icon.
 
-* `searchEverywhere.useFileIconTheme`
+  Default value:
 
-Ability to show file icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme) instead of the built-in icon. Symbols keep their built-in icons. Requires VS Code 1.108 or newer; older versions keep the built-in icon.
-Default value: `false`
+  ```json
+  {
+    "0": "symbol-file",
+    "1": "file-submodule",
+    "2": "symbol-namespace",
+    "3": "package",
+    "4": "symbol-class",
+    "5": "symbol-method",
+    "6": "symbol-property",
+    "7": "symbol-field",
+    "8": "symbol-constructor",
+    "9": "symbol-enum",
+    "10": "symbol-interface",
+    "11": "symbol-function",
+    "12": "symbol-variable",
+    "13": "symbol-constant",
+    "14": "symbol-string",
+    "15": "symbol-numeric",
+    "16": "symbol-boolean",
+    "17": "symbol-array",
+    "18": "symbol-keyword",
+    "19": "symbol-key",
+    "20": "remove",
+    "21": "symbol-enum-member",
+    "22": "symbol-structure",
+    "23": "symbol-event",
+    "24": "symbol-operator",
+    "25": "type-hierarchy-sub"
+  }
+  ```
+
+  Which kind refers to which item type:
+
+  | kind | icon               | item type      |
+  |------|:------------------:|:--------------:|
+  |   0  | symbol-file        | file           |
+  |   1  | file-submodule     | module         |
+  |   2  | symbol-namespace   | namespace      |
+  |   3  | package            | package        |
+  |   4  | symbol-class       | class          |
+  |   5  | symbol-method      | method         |
+  |   6  | symbol-property    | property       |
+  |   7  | symbol-field       | field          |
+  |   8  | symbol-constructor | constructor    |
+  |   9  | symbol-enum        | enum           |
+  |  10  | symbol-interface   | interface      |
+  |  11  | symbol-function    | function       |
+  |  12  | symbol-variable    | variable       |
+  |  13  | symbol-constant    | constant       |
+  |  14  | symbol-string      | string         |
+  |  15  | symbol-numeric     | number         |
+  |  16  | symbol-boolean     | boolean        |
+  |  17  | symbol-array       | array          |
+  |  18  | symbol-keyword     | object         |
+  |  19  | symbol-key         | key            |
+  |  20  | remove             | null           |
+  |  21  | symbol-enum-member | enum member    |
+  |  22  | symbol-structure   | struct         |
+  |  23  | symbol-event       | event          |
+  |  24  | symbol-operator    | operator       |
+  |  25  | type-hierarchy-sub | type parameter |
 
 ## Release Notes
 
-Please check changelog for release details.
+See [CHANGELOG.md](CHANGELOG.md).
 
-## How to run it locally
+## Development
 
-If you would like to run the extension locally, go through the following steps:
+```sh
+npm install
+npm run compile          # clean dist/ and type check
+npm test                 # mocha suite inside a downloaded VS Code
+node scripts/benchmark.js # search benchmark; run npm run compile first
+```
 
-  1. clone the repository
-  2. run `npm install` to install all dependencies
-  3. open `run and debug` view
-  4. run `run extension`
-  5. enjoy development!
+To try the extension, open the repository in VS Code, open the "Run and Debug" view and start
+"Run Extension".
 
-## Author
+## Credits
 
-[Kamil Bysiec](https://github.com/kbysiec)
+Created by [Kamil Bysiec](https://github.com/kbysiec)
+([kbysiec/vscode-search-everywhere](https://github.com/kbysiec/vscode-search-everywhere)).
+This fork is maintained by [tranphucbol](https://github.com/tranphucbol).
 
-## Acknowledgment
-
-If you found it useful somehow, I would be grateful if you could leave a "Rating & Review" in Marketplace or/and leave a star in the project's GitHub repository.
-
-Thank you.
+If you find it useful, a rating on the
+[Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.jetbrain-search-everywhere&ssr=false#review-details)
+or a star on [GitHub](https://github.com/tranphucbol/vscode-search-everywhere) is appreciated.
