@@ -23,6 +23,7 @@ const USAGE = `usage: node se.js <command> [options]
   search "<query>" [--file]   open Search Everywhere (or Search in Current File), type, list rows
   type "<text>"               replace the text of the open quick pick, list rows
   key <key>...                press keys (Playwright names: Enter, Alt+ArrowRight, Meta+Enter)
+  click "<tooltip>"           click the quick input button with this tooltip, list rows
   text "<text>"               type text into whatever has focus (an editor, a simple dialog)
   open <relative path>        open a workspace file through Quick Open
   command "<palette title>"   run a command palette entry, e.g. "Search everywhere: Reload"
@@ -292,9 +293,21 @@ async function readQuickInput(page) {
     };
     const input = widget.querySelector(".quick-input-box input");
     const progress = widget.querySelector(".monaco-progress-container");
-    const titleButtons = [...widget.querySelectorAll(".quick-input-titlebar .action-label")]
-      .map((button) => button.getAttribute("aria-label") || button.title)
-      .filter(Boolean);
+    // Toggle buttons (VS Code 1.109+) are .monaco-custom-toggle with aria-checked; plain ones
+    // are .action-label links.
+    const buttonsIn = (query) =>
+      [...widget.querySelectorAll(query)]
+        .filter((button) => !button.closest(".quick-input-list"))
+        .filter(visible)
+        .map((button) => {
+          const label = button.getAttribute("aria-label") || button.title;
+          return button.getAttribute("aria-checked") === "true" ? `[${label}]` : label;
+        })
+        .filter(Boolean);
+    const BUTTON = ".action-label, .monaco-custom-toggle:not(.monaco-checkbox)";
+    const titleButtons = buttonsIn(`.quick-input-titlebar :is(${BUTTON})`);
+    const inlineButtons = buttonsIn(`.quick-input-inline-action-bar :is(${BUTTON})`);
+    const inputButtons = buttonsIn(`.quick-input-box .monaco-action-bar :is(${BUTTON})`);
     const rows = [...widget.querySelectorAll(".quick-input-list .monaco-list-row")]
       .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
       .map((row) => {
@@ -325,6 +338,8 @@ async function readQuickInput(page) {
       busy: !!progress && progress.classList.contains("active") && progress.offsetHeight > 0,
       message: text(widget, ".quick-input-message"),
       titleButtons,
+      inlineButtons,
+      inputButtons,
       rows,
     };
   }, QUICK_INPUT);
@@ -363,6 +378,12 @@ function printQuickInput(view) {
   }
   if (view.titleButtons.length) {
     header.push(`buttons: ${view.titleButtons.join(", ")}`);
+  }
+  if (view.inlineButtons.length) {
+    header.push(`inline buttons: ${view.inlineButtons.join(", ")}`);
+  }
+  if (view.inputButtons.length) {
+    header.push(`input buttons: ${view.inputButtons.join(", ")}`);
   }
   console.log(header.join(" | "));
   if (view.message) {
@@ -653,6 +674,43 @@ const commands = {
       throw new Error('no quick pick is open; use "search" first');
     }
     await replaceText(page, positional.join(" "));
+    printQuickInput(await settle(page, { minimum: 600 }));
+  },
+
+  async click(p, { positional }) {
+    const state = requireState(p);
+    const { page } = await connect(state);
+    const label = positional.join(" ");
+    const found = await page.evaluate(
+      ({ selector, label }) => {
+        const widget = document.querySelector(selector);
+        if (!widget || widget.offsetHeight === 0) {
+          return "closed";
+        }
+        document.querySelectorAll("[data-se-click]").forEach((element) => element.removeAttribute("data-se-click"));
+        const target = [...widget.querySelectorAll(".action-label, .monaco-custom-toggle")]
+          .filter((button) => button.getClientRects().length > 0)
+          .find((button) => (button.getAttribute("aria-label") || button.title) === label);
+        if (!target) {
+          return "missing";
+        }
+        target.setAttribute("data-se-click", "");
+        return "found";
+      },
+      { selector: QUICK_INPUT, label }
+    );
+    if (found === "closed") {
+      throw new Error('no quick pick is open; use "search" first');
+    }
+    if (found === "missing") {
+      printQuickInput(await readQuickInput(page));
+      throw new Error(`no visible quick input button is labelled "${label}"`);
+    }
+    // The hover of the button clicked last can cover the next one and swallow the click.
+    await page.mouse.move(0, 0);
+    await page.keyboard.press("Shift");
+    await sleep(150);
+    await page.click("[data-se-click]", { timeout: 5000 });
     printQuickInput(await settle(page, { minimum: 600 }));
   },
 

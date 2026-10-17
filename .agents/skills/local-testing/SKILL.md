@@ -67,6 +67,7 @@ SE stop
 | `search "<query>" [--file]` | Open Search Everywhere (`--file`: Search in Current File), type the query, print the rows |
 | `type "<text>"` | Replace the text in the open quick pick, print the rows |
 | `key <key>...` | Press keys, then print the quick pick or the workbench state. Playwright names: `Enter`, `Escape`, `ArrowDown`, `Alt+ArrowRight`, `Meta+Enter`, `Meta+S` |
+| `click "<tooltip>"` | Click the quick input button (title bar, inline or in the input) whose tooltip is exactly this, then print the rows: `click "Types (@@) · Tab"`, `click "Back (⌃-)"` |
 | `text "<text>"` | Type into whatever has focus: an editor, a rename box, a save dialog |
 | `open <relative path>` | Open a sample file through Quick Open, e.g. `open src/models/Order.ts` |
 | `command "<palette title>"` | Run a Command Palette entry by its exact title. For `Search everywhere: Reload` it also prints the progress seen while indexing and waits for the scan to finish |
@@ -90,6 +91,9 @@ quick pick: "USI"
   (only rendered rows are listed; scroll with key PageDown for more)
 ```
 
+- The header line lists the quick input's own buttons by tooltip: `buttons:` in the title bar,
+  `inline buttons:` to the right of the input, `input buttons:` inside it. A pressed toggle is in
+  brackets: `inline buttons: [All · Tab], Types (@@) · Tab, Members (!!) · Tab, Files ($$) · Tab`.
 - `>` marks the focused row, the one `Enter` opens. Buttons are listed for the focused row only.
 - After the label: the description (filter-phrase tag and kind with lines), then the icon.
   The indented line is the detail (path).
@@ -144,6 +148,10 @@ the repository.
 - **TypeScript reports `const` as a variable** (kind 12), not a constant, so `MAX_VALUE` shows as
   `Variable` and `excludeVariables` removes it.
 - **Keys are macOS keys.** `Meta` is Cmd. The driver is macOS only.
+- **Clicking a toggle button moves focus to it.** After `SE click` on an inline or in-input
+  toggle, `SE type` and `SE text` go to the button and the query does not change; run
+  `SE search` again to put focus back in the input. Tab and Shift+Tab still work from the
+  button. A title-bar button leaves focus in the input. This is what a user gets too.
 - **Screenshots get a new path each time** because image viewers cache by path.
 
 ## When something fails
