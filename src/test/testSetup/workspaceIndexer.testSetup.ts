@@ -12,7 +12,7 @@ import * as dataServiceEventsEmitter from "../../dataServiceEventsEmitter";
 import { logger } from "../../logger";
 import { utils } from "../../utils";
 import { workspaceIndexer } from "../../workspaceIndexer";
-import { retryQueue } from "../../workspaceUpdater";
+import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
 import { getWorkspaceData } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
 import { stubMultiple } from "../util/stubHelpers";
@@ -63,6 +63,19 @@ export const getTestSetups = () => {
               object: actionProcessor,
               method: "register",
             },
+          ],
+          sandbox
+        );
+      },
+    },
+
+    reindex: {
+      setupForClearingAndIndexing: () => {
+        return stubMultiple(
+          [
+            { object: cache, method: "clear" },
+            { object: database, method: "clearAll" },
+            { object: workspaceIndexer, method: "index" },
           ],
           sandbox
         );
@@ -315,13 +328,17 @@ export const getTestSetups = () => {
           sandbox
         );
         const callOrder: string[] = [];
-        sandbox.stub(retryQueue, "stop").callsFake(() => {
-          callOrder.push("stop");
-        });
-        sandbox.stub(retryQueue, "start").callsFake((uris) => {
-          callOrder.push("start");
-          assert.deepEqual(uris, urisToRetry);
-        });
+        sandbox
+          .stub(workspaceEventsEmitter.onWillIndexWorkspaceEventEmitter, "fire")
+          .callsFake(() => {
+            callOrder.push("will index");
+          });
+        sandbox
+          .stub(workspaceEventsEmitter.onDidIndexWorkspaceEventEmitter, "fire")
+          .callsFake((uris) => {
+            callOrder.push("did index");
+            assert.deepEqual(uris, urisToRetry);
+          });
         return callOrder;
       },
 

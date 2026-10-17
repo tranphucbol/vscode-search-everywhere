@@ -37,6 +37,19 @@ describe("WorkspaceIndexer", () => {
     });
   });
 
+  describe("reindex", () => {
+    it("should clear the cache and the database before registering a rebuild", async () => {
+      const [clearStub, clearAllStub, indexStub] =
+        setups.reindex.setupForClearingAndIndexing();
+      await workspaceIndexer.reindex("test comment");
+
+      assert.equal(clearStub.calledOnce, true);
+      assert.equal(clearAllStub.calledOnce, true);
+      assert.isTrue(indexStub.calledOnceWith("test comment"));
+      assert.isTrue(clearAllStub.calledBefore(indexStub));
+    });
+  });
+
   describe("indexWithProgress", () => {
     it("should utils.hasWorkspaceAnyFolder method be invoked", async () => {
       const [hasWorkspaceAnyFolderStub] =
@@ -138,7 +151,7 @@ describe("WorkspaceIndexer", () => {
       assert.equal(token.onCancellationRequested.calledOnce, true);
     });
 
-    it("should hand files indexed without symbols to the retry queue", async () => {
+    it("should announce files indexed without symbols when the index finishes", async () => {
       const urisToRetry = [vscode.Uri.file("/fake/server.go")];
       const callOrder =
         setups.indexWithProgressTask.setupForRetryQueue(urisToRetry);
@@ -147,7 +160,7 @@ describe("WorkspaceIndexer", () => {
       };
       await workspaceIndexer.indexWithProgressTask(getProgress(), token as any);
 
-      assert.deepEqual(callOrder, ["stop", "start"]);
+      assert.deepEqual(callOrder, ["will index", "did index"]);
     });
 
     it("should flush the index to disk when a full index finishes", async () => {

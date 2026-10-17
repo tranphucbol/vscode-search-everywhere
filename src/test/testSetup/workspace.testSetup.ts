@@ -13,6 +13,7 @@ import { utils } from "../../utils";
 import { workspace } from "../../workspace";
 import * as events from "../../workspaceEventsEmitter";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
+import { retryQueue } from "../../workspaceUpdater";
 import { getItems } from "../util/itemMockFactory";
 import { getEventEmitter } from "../util/mockFactory";
 import { getFileSystemWatcherStub } from "../util/stubFactory";
@@ -139,32 +140,12 @@ export const getTestSetups = () => {
     },
 
     index: {
-      setupForInvokingCommonIndexMethod: () => {
+      setupForInvokingReindexMethod: () => {
         return stubMultiple(
           [
             {
               object: indexer,
-              method: "index",
-            },
-            {
-              object: cache,
-              method: "clear",
-            },
-          ],
-          sandbox
-        );
-      },
-
-      setupForInvokingCacheClearMethod: () => {
-        return stubMultiple(
-          [
-            {
-              object: indexer,
-              method: "index",
-            },
-            {
-              object: cache,
-              method: "clear",
+              method: "reindex",
             },
           ],
           sandbox
@@ -260,6 +241,14 @@ export const getTestSetups = () => {
               method: "onWillExecuteAction",
             },
             {
+              object: events,
+              method: "onWillIndexWorkspace",
+            },
+            {
+              object: events,
+              method: "onDidIndexWorkspace",
+            },
+            {
               object: vscode.workspace,
               method: "createFileSystemWatcher",
               callsFake: getFileSystemWatcherStub,
@@ -273,6 +262,10 @@ export const getTestSetups = () => {
           sandbox
         );
       },
+      setupForRetryQueue: () => ({
+        stopStub: sandbox.stub(retryQueue, "stop"),
+        startStub: sandbox.stub(retryQueue, "start"),
+      }),
     },
 
     getData: {

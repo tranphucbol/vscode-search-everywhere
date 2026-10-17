@@ -17,7 +17,10 @@ import { logger } from "./logger";
 import { getActivePresets } from "./presets";
 import { Action, ActionType, QuickPickItem, WorkspaceData } from "./types";
 import { utils } from "./utils";
-import { retryQueue } from "./workspaceUpdater";
+import {
+  onDidIndexWorkspaceEventEmitter,
+  onWillIndexWorkspaceEventEmitter,
+} from "./workspaceEventsEmitter";
 
 function getData(query?: string, limit?: number): QuickPickItem[] {
   if (!database.isReady()) {
@@ -29,6 +32,12 @@ function getData(query?: string, limit?: number): QuickPickItem[] {
 
 async function index(trigger: string): Promise<void> {
   await registerAction(ActionType.Rebuild, indexWithProgress, trigger);
+}
+
+async function reindex(trigger: string): Promise<void> {
+  cache.clear();
+  database.clearAll();
+  await workspaceIndexer.index(trigger);
 }
 
 async function indexWithProgress(): Promise<void> {
@@ -145,7 +154,7 @@ async function indexWorkspace(
     increment?: number | undefined;
   }>
 ): Promise<WorkspaceData> {
-  retryQueue.stop();
+  onWillIndexWorkspaceEventEmitter.fire();
   database.clearAll();
   logEffectiveConfig();
   cache.updateIndexedConfig(fetchIndexedConfigSnapshot());
@@ -177,7 +186,7 @@ async function indexWorkspace(
 
   progress?.report({ message: "Saving index database..." });
   database.flushPersist();
-  retryQueue.start(data.urisToRetry || []);
+  onDidIndexWorkspaceEventEmitter.fire(data.urisToRetry || []);
 
   return data;
 }
@@ -280,6 +289,7 @@ export const workspaceIndexer = {
   getCurrentProgressValue,
   getData,
   index,
+  reindex,
   indexWithProgress,
   indexWithProgressTask,
   registerAction,

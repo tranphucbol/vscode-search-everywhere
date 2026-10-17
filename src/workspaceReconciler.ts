@@ -3,7 +3,6 @@ import { dataService } from "./dataService";
 import { database, FileState } from "./database";
 import { logger } from "./logger";
 import { ActionTrigger, ActionType, DetailedActionType } from "./types";
-import { workspace } from "./workspace";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
 import { removeFromCacheByPath } from "./workspaceRemover";
 import { updateCacheByPath } from "./workspaceUpdater";
@@ -100,7 +99,7 @@ export async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult
   if (result.added + result.changed > threshold) {
     result.fullIndex = true;
     logger.log(`Reconciled with disk: full index in ${Date.now() - startedAt} ms`);
-    await workspace.index(trigger);
+    await indexer.reindex(trigger);
     return result;
   }
 

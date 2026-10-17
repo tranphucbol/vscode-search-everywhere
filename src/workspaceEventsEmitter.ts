@@ -13,6 +13,10 @@ export const onWillReindexOnConfigurationChangeEventEmitter: vscode.EventEmitter
   new vscode.EventEmitter();
 export const onDidSortingConfigToggleEventEmitter: vscode.EventEmitter<void> =
   new vscode.EventEmitter();
+export const onWillIndexWorkspaceEventEmitter: vscode.EventEmitter<void> =
+  new vscode.EventEmitter();
+export const onDidIndexWorkspaceEventEmitter: vscode.EventEmitter<vscode.Uri[]> =
+  new vscode.EventEmitter();
 export const onWillProcessing: vscode.Event<void> =
   onWillProcessingEventEmitter.event;
 export const onDidProcessing: vscode.Event<void> =
@@ -25,3 +29,7 @@ export const onWillReindexOnConfigurationChange: vscode.Event<void> =
   onWillReindexOnConfigurationChangeEventEmitter.event;
 export const onDidSortingConfigToggle: vscode.Event<void> =
   onDidSortingConfigToggleEventEmitter.event;
+export const onWillIndexWorkspace: vscode.Event<void> =
+  onWillIndexWorkspaceEventEmitter.event;
+export const onDidIndexWorkspace: vscode.Event<vscode.Uri[]> =
+  onDidIndexWorkspaceEventEmitter.event;

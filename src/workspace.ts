@@ -5,7 +5,6 @@ import {
   onWillProcessing,
 } from "./actionProcessorEventsEmitter";
 import {
-  clear,
   clearConfig,
   clearNotSavedUriPaths as clearNotSavedUriPathsFromCache,
   getIndexedConfig,
@@ -34,15 +33,17 @@ import {
 import { utils } from "./utils";
 import {
   onDidDebounceConfigToggleEventEmitter,
+  onDidIndexWorkspace,
   onDidProcessingEventEmitter,
   onDidSortingConfigToggleEventEmitter,
   onWillExecuteActionEventEmitter,
+  onWillIndexWorkspace,
   onWillProcessingEventEmitter,
   onWillReindexOnConfigurationChangeEventEmitter,
 } from "./workspaceEventsEmitter";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
 import { removeFromCacheByPath } from "./workspaceRemover";
-import { updateCacheByPath } from "./workspaceUpdater";
+import { retryQueue, updateCacheByPath } from "./workspaceUpdater";
 
 const debounce = utils.debounce;
 
@@ -259,9 +260,7 @@ async function init() {
 }
 
 async function index(indexActionType: ActionTrigger): Promise<void> {
-  clear();
-  database.clearAll();
-  await indexer.index(indexActionType);
+  await indexer.reindex(indexActionType);
 }
 
 async function removeDataForUnsavedUris() {
@@ -322,6 +321,9 @@ function registerEventListeners(): void {
   onDidProcessing(handleDidActionProcessorProcessing);
   onWillProcessing(handleWillActionProcessorProcessing);
   onWillExecuteAction(handleWillActionProcessorExecuteAction);
+
+  onWillIndexWorkspace(() => retryQueue.stop());
+  onDidIndexWorkspace((urisToRetry) => retryQueue.start(urisToRetry));
 }
 
 function getData(): QuickPickItem[] {

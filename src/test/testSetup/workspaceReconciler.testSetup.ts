@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import { dataService } from "../../dataService";
 import { database, FileState } from "../../database";
 import { logger } from "../../logger";
-import { workspace } from "../../workspace";
 import { workspaceIndexer } from "../../workspaceIndexer";
 import { stubMultiple } from "../util/stubHelpers";
 
@@ -25,8 +24,8 @@ function stubDisk(
         returns: Promise.resolve(),
       },
       {
-        object: workspace,
-        method: "index",
+        object: workspaceIndexer,
+        method: "reindex",
         returns: Promise.resolve(),
       },
       {

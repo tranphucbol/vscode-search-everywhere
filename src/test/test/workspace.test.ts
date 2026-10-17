@@ -81,18 +81,11 @@ describe("Workspace", () => {
   });
 
   describe("index", () => {
-    it("should common.index method be invoked", async () => {
-      const [indexStub] = setups.index.setupForInvokingCommonIndexMethod();
+    it("should indexer.reindex method be invoked", async () => {
+      const [reindexStub] = setups.index.setupForInvokingReindexMethod();
       await workspace.index(ActionTrigger.Search);
 
-      assert.equal(indexStub.calledOnce, true);
-    });
-
-    it("should cache.clear method be invoked", async () => {
-      const [clearStub] = setups.index.setupForInvokingCacheClearMethod();
-      await workspace.index(ActionTrigger.Search);
-
-      assert.equal(clearStub.calledOnce, true);
+      assert.isTrue(reindexStub.calledOnceWith(ActionTrigger.Search));
     });
   });
 
@@ -123,6 +116,8 @@ describe("Workspace", () => {
         onWillProcessingStub,
         onDidProcessingStub,
         onWillExecuteActionStub,
+        onWillIndexWorkspaceStub,
+        onDidIndexWorkspaceStub,
       ] =
         setups.registerEventListeners.setupForRegisteringWorkspaceEventListeners();
 
@@ -135,6 +130,23 @@ describe("Workspace", () => {
       assert.equal(onWillProcessingStub.calledOnce, true);
       assert.equal(onDidProcessingStub.calledOnce, true);
       assert.equal(onWillExecuteActionStub.calledOnce, true);
+      assert.equal(onWillIndexWorkspaceStub.calledOnce, true);
+      assert.equal(onDidIndexWorkspaceStub.calledOnce, true);
+    });
+
+    it("should stop the retry queue when an index starts and restart it with the files to retry when it finishes", () => {
+      const stubs =
+        setups.registerEventListeners.setupForRegisteringWorkspaceEventListeners();
+      const { stopStub, startStub } =
+        setups.registerEventListeners.setupForRetryQueue();
+      const urisToRetry = [vscode.Uri.file("/fake/server.go")];
+
+      workspace.registerEventListeners();
+      stubs[7].firstCall.args[0]();
+      stubs[8].firstCall.args[0](urisToRetry);
+
+      assert.equal(stopStub.calledOnce, true);
+      assert.deepEqual(startStub.firstCall.args[0], urisToRetry);
     });
   });
 
