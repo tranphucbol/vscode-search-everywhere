@@ -2,7 +2,7 @@
   "name": "jetbrain-search-everywhere",
   "displayName": "Jetbrain Search Everywhere",
   "description": "Fast and customizable files, symbols search engine. An alternative for 'Go to symbol in workspace' built-in feature.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "preview": false,
   "publisher": "tranphucbol",
   "author": {

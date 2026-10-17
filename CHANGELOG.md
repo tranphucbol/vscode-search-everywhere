@@ -2,7 +2,7 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
-## [Unreleased]
+## [0.0.3] - 2026-10-17
 ### 🐛 Fixes
 - Fixed filter phrases (`$$`, `@@`, `!!`, `##`, `%%`) showing an empty list: VS Code hid every result because its label does not contain the phrase.
 
