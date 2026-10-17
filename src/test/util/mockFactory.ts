@@ -7,7 +7,7 @@ import {
   IndexStats,
   Item,
   WorkspaceData,
-} from "../../types";
+} from "../../shared/types";
 
 export const getExtensionContext = (): vscode.ExtensionContext => {
   return {

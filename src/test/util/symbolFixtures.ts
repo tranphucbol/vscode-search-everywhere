@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { utils } from "../../utils";
+import { dataConverter } from "../../symbols/dataConverter";
 
 interface RawSymbol {
   name: string;
@@ -19,7 +19,7 @@ interface RawRange {
 
 const FIXTURES_DIR = path.resolve(
   __dirname,
-  "../../../src/test/testSetup/fixtures"
+  "../../../src/test/fixtures"
 );
 
 function toRange(range: RawRange): vscode.Range {
@@ -58,7 +58,7 @@ export function flattenSymbols(
   const flat: vscode.DocumentSymbol[] = [];
   for (const symbol of symbols) {
     const flatSymbol = new vscode.DocumentSymbol(
-      parentName ? `${parentName}${utils.getSplitter()}${symbol.name}` : symbol.name,
+      parentName ? `${parentName}${dataConverter.getSplitter()}${symbol.name}` : symbol.name,
       symbol.detail,
       symbol.kind,
       symbol.range,
