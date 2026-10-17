@@ -1197,6 +1197,7 @@ describe("QuickPick", () => {
         .stub(quickPick, "getCategories")
         .returns([{ name: "Types", phrase: "@@", kinds: [4, 10] }]);
       sandbox.stub(quickPick, "getItemsFilterPhrases").returns({ 11: "ff" });
+      sandbox.stub(quickPick, "getHandOffPrefixes").returns(false);
       sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
       sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
       sandbox.stub(quickPick, "fetchConfig");

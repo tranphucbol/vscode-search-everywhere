@@ -85,6 +85,10 @@ async function openSelected(qpItem: QuickPickItem): Promise<void> {
   if (qpItem.kind === vscode.QuickPickItemKind.Separator) {
     return;
   }
+  if (qpItem.handOff && qpItem.filterPhrase) {
+    await handOff(qpItem.handOff, qpItem.filterPhrase, "");
+    return;
+  }
   shouldLoadItemsForFilterPhrase(qpItem)
     ? loadItemsForFilterPhrase(qpItem)
     : await quickPick.openItem(qpItem);
@@ -372,6 +376,12 @@ function collectHelpItems(): QuickPickItem[] {
   for (const category of quickPick.getCategories() || []) {
     items.push(getHelpItemForCategory(category));
   }
+  if (quickPick.getHandOffPrefixes()) {
+    items.push(
+      getHelpItemForHandOff(">", "search VS Code commands"),
+      getHelpItemForHandOff("%", "search text in files")
+    );
+  }
   const itemsFilterPhrases = quickPick.getItemsFilterPhrases();
   for (const kind in itemsFilterPhrases) {
     const filterPhrase = itemsFilterPhrases[kind];
@@ -386,6 +396,17 @@ function getHelpItemForCategory(category: Category): QuickPickItem {
     label: `${quickPick.getHelpPhrase()} Type ${category.phrase} for limit results to ${category.name} only (Tab)`,
     symbolKind: category.kinds[0],
     filterPhrase: category.phrase,
+    isHelp: true,
+    uri: vscode.Uri.parse("#"),
+  } as QuickPickItem;
+}
+
+function getHelpItemForHandOff(prefix: string, action: string): QuickPickItem {
+  return {
+    label: `${quickPick.getHelpPhrase()} Type ${prefix} to ${action}`,
+    symbolKind: vscode.SymbolKind.File,
+    filterPhrase: prefix,
+    handOff: HAND_OFF_PREFIXES[prefix],
     isHelp: true,
     uri: vscode.Uri.parse("#"),
   } as QuickPickItem;

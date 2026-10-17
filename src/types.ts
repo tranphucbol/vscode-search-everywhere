@@ -99,6 +99,7 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   namePosition?: vscode.Position;
   isHelp?: boolean;
   filterPhrase?: string;
+  handOff?: HandOffTarget;
   targetPosition?: vscode.Position;
   containerName?: string;
   matchBand?: MatchBand;

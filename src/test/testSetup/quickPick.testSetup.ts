@@ -291,6 +291,11 @@ export const getTestSetups = () => {
             },
             {
               object: quickPick,
+              method: "getHandOffPrefixes",
+              returns: false,
+            },
+            {
+              object: quickPick,
               method: "getItemsFilterPhrases",
               returns: {
                 "0": "$$",
