@@ -49,7 +49,7 @@ const CORRUPT_SUFFIX = ".corrupt";
 // Worktrees of one repository share a template, and their windows may write it at the same time.
 const TEMPLATE_TEMP_SUFFIX = `.${process.pid}${TEMP_SUFFIX}`;
 const TEMPLATE_EXIT_TEMP_SUFFIX = `.${process.pid}${EXIT_TEMP_SUFFIX}`;
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -506,7 +506,9 @@ function createTables(): void {
       range_start_char INTEGER DEFAULT 0,
       range_end_line INTEGER DEFAULT 0,
       range_end_char INTEGER DEFAULT 0,
-      is_secondary INTEGER DEFAULT 0
+      is_secondary INTEGER DEFAULT 0,
+      name_start_line INTEGER,
+      name_start_char INTEGER
     )
   `);
   createFileStateTable();
@@ -603,6 +605,8 @@ function getSchemaVersion(): number {
 // anything older is emptied and rebuilt. Version 4 added is_secondary, which derives from the uri
 // alone and is backfilled in place. Version 5 added the file_state table and keeps every symbol:
 // the first reconcile records a baseline instead of reindexing (docs/decisions/006).
+// Version 6 added name_start_line and name_start_char; existing rows keep NULL and open at the
+// range start until their file is re-indexed, so nothing is deleted.
 function migrateSchema(): void {
   const version = getSchemaVersion();
   if (version >= SCHEMA_VERSION) {
@@ -636,6 +640,14 @@ function migrateSchema(): void {
   if (version < 5) {
     createFileStateTable();
   }
+  if (version < 6) {
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN name_start_line INTEGER");
+    } catch {}
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN name_start_char INTEGER");
+    } catch {}
+  }
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -653,8 +665,8 @@ export function insertSymbol(item: QuickPickItem): void {
     `INSERT INTO symbols
      (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
       label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char,
-      is_secondary)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_secondary, name_start_line, name_start_char)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.uri.toString(),
       name,
@@ -672,6 +684,8 @@ export function insertSymbol(item: QuickPickItem): void {
       item.range ? item.range.end.line : 0,
       item.range ? item.range.end.character : 0,
       classifySecondary(item.uri.path, fetchSecondaryCode()),
+      item.namePosition?.line ?? null,
+      item.namePosition?.character ?? null,
     ]
   );
 }
@@ -687,8 +701,8 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
     INSERT INTO symbols
     (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
      label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char,
-     is_secondary)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     is_secondary, name_start_line, name_start_char)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const secondaryGlobs = fetchSecondaryCode();
   const secondaryByUri = new Map<string, number>();
@@ -720,6 +734,8 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
         item.range ? item.range.end.line : 0,
         item.range ? item.range.end.character : 0,
         secondary,
+        item.namePosition?.line ?? null,
+        item.namePosition?.character ?? null,
       ]);
     }
     stmt.free();
@@ -920,10 +936,12 @@ export interface RecentKey {
 }
 
 const QUERY_COLUMNS =
-  "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char, is_secondary";
+  "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char, is_secondary, name_start_line, name_start_char";
 const SECONDARY_COLUMN = 9;
+const NAME_LINE_COLUMN = 10;
+const NAME_CHAR_COLUMN = 11;
 // The tier or relevance a query selects after QUERY_COLUMNS.
-const TIER_COLUMN = 10;
+const TIER_COLUMN = 12;
 const SECONDARY_LAST = "is_secondary != 0 ASC,";
 
 // Tier 1: exact member under its immediate parent, 2: prefix member under its
@@ -1625,6 +1643,11 @@ function rowToQuickPickItem(row: any[]): QuickPickItem {
     description += " · generated";
   }
 
+  const nameLine = row[NAME_LINE_COLUMN];
+  const nameChar = row[NAME_CHAR_COLUMN];
+  const hasNamePosition =
+    nameLine !== null && nameLine !== undefined && nameChar !== null && nameChar !== undefined;
+
   return {
     uri,
     symbolKind: row[1] as number,
@@ -1635,6 +1658,9 @@ function rowToQuickPickItem(row: any[]): QuickPickItem {
       start: new vscode.Position(row[5] as number, row[6] as number),
       end: new vscode.Position(row[7] as number, row[8] as number),
     },
+    ...(hasNamePosition
+      ? { namePosition: new vscode.Position(nameLine as number, nameChar as number) }
+      : {}),
     ...(secondary ? { isSecondary: true } : {}),
   } as QuickPickItem;
 }

@@ -93,6 +93,8 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   uri: vscode.Uri;
   symbolKind: number;
   range?: Range;
+  // Start of the symbol's name; range covers the whole declaration, doc comment included.
+  namePosition?: vscode.Position;
   isHelp?: boolean;
   filterPhrase?: string;
   targetPosition?: vscode.Position;

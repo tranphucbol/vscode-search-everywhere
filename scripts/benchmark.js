@@ -95,6 +95,7 @@ function generateMockItems(count) {
         start: new vscodeMock.Position(i % 500, 0),
         end: new vscodeMock.Position((i % 500) + 10, 0),
       },
+      namePosition: kind === 0 ? undefined : new vscodeMock.Position((i % 500) + 2, 4),
     });
   }
   return items;

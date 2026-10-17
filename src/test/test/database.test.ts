@@ -1466,12 +1466,12 @@ describe("Database", () => {
       );
     });
 
-    it("should set the schema version to 5 after migrating", async () => {
+    it("should set the schema version to 6 after migrating", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
         await reopenVersion2Database();
 
-        assert.equal(await readSchemaVersion(), 5);
+        assert.equal(await readSchemaVersion(), 6);
       } finally {
         logStub.restore();
       }
@@ -1489,7 +1489,7 @@ describe("Database", () => {
         mtime: 1,
         size: 2,
       });
-      assert.equal(await readSchemaVersion(), 5);
+      assert.equal(await readSchemaVersion(), 6);
     });
 
     it("should report no baseline when file_state is empty and symbols exist", async () => {
