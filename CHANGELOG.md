@@ -2,6 +2,10 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
+## [0.0.2] - 2026-10-17
+### 🎨 New Logo
+- A new icon: a search bar picking the fuzzy-matched letters out of noise. The Marketplace page header now uses the icon's dark colour.
+
 ## [0.0.1] - 2026-10-17
 ### 🕘 Recently Used Results First
 - While typing, recently opened files and symbols, and open editor tabs, come first among results that match the query equally well (exact, prefix, substring, fuzzy). Typing `index` puts the `index.ts` you were just working in above the other `index.ts` files.
