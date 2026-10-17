@@ -61,7 +61,7 @@ worktrees and local clones of the same repository share one cache.
 | `@@order` | types only: classes, enums, interfaces, structs (category) |
 | `!!save` | members only: methods, fields, constructors, functions… (category) |
 | `$$order` | files only (category) |
-| `tab` / `shift + tab` | switches between All and each category |
+| `tab` / `shift + tab`, or a category button | switches between All and each category |
 | `?` | the list of categories and filter phrases |
 
 ![Query syntax](img/query-syntax.gif)
@@ -94,9 +94,12 @@ worktrees and local clones of the same repository share one cache.
   `@@` Types (classes, enums, interfaces, structs), `!!` Members (methods, properties, fields,
   constructors, functions, variables, constants, enum members, events, operators) and `$$` Files.
   Press `tab` / `shift + tab` to cycle All → Types → Members → Files; the query keeps its text and
-  only the leading phrase changes. The title shows the active category in brackets:
-  `[All] · Types · Members · Files   (Tab)`. Categories are configurable with
-  `searchEverywhere.categories`.
+  only the leading phrase changes. Or click a category button: All and one button per category
+  sit next to the input as toggles (VS Code 1.109 and later), with the active one pressed, and in
+  the title bar before 1.109, with a check on the active one. The title names the active category:
+  `Search Everywhere` for All, `Search Everywhere · Types` for Types. After a click the keyboard
+  focus is on the results list, where arrows, `enter` and `alt + arrow` keys work; click the input
+  to type again. Categories are configurable with `searchEverywhere.categories`.
 - **Filter phrases**: map a phrase to a single item type with
   `searchEverywhere.itemsFilterPhrases` (none by default). When a phrase is used by both, the
   category wins. Type the help phrase (`?`, `searchEverywhere.helpPhrase`) to list the categories
@@ -450,15 +453,18 @@ against them. Measured on an Apple M4:
 - `searchEverywhere.categories`
 
   Groups of item kinds, each with a phrase. Starting the query with the phrase limits results to
-  those kinds, and `tab` / `shift + tab` cycle through the categories in this order.
+  those kinds, and `tab` / `shift + tab` and the category buttons go through the categories in
+  this order. `icon` is the [codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html)
+  id shown on the category's button (lowercase letters, digits and `-`); a missing or invalid
+  icon shows `filter`.
 
   Default value:
 
   ```json
   [
-    { "name": "Types", "phrase": "@@", "kinds": [4, 9, 10, 22] },
-    { "name": "Members", "phrase": "!!", "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24] },
-    { "name": "Files", "phrase": "$$", "kinds": [0] }
+    { "name": "Types", "phrase": "@@", "kinds": [4, 9, 10, 22], "icon": "symbol-class" },
+    { "name": "Members", "phrase": "!!", "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24], "icon": "symbol-method" },
+    { "name": "Files", "phrase": "$$", "kinds": [0], "icon": "files" }
   ]
   ```
 

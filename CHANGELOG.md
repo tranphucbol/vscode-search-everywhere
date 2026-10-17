@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### ✨ Features
+- **Clickable category buttons**: All and one button per category (`list-flat`, `symbol-class`, `symbol-method`, `files`; set your own with `icon` in `searchEverywhere.categories`) switch the category like `tab`, keeping the query text. On VS Code 1.109 and later they are toggles next to the input with the active one pressed, and keyboard focus moves to the results list after a click; on older versions they sit in the title bar with a check on the active one. The title changes from `[All] · Types · Members · Files   (Tab)` to `Search Everywhere` or `Search Everywhere · Types`.
 
 ## [0.1.0] - 2026-10-17
 ### 🐹☕ Comfortable on Go and Java Workspaces

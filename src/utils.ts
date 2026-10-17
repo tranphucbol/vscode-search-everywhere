@@ -375,8 +375,10 @@ function supportsQuickPickFileIconTheme(): boolean {
   return isVscodeVersionAtLeast(1, 108);
 }
 
-function supportsQuickInputButtonToggle(): boolean {
-  return isVscodeVersionAtLeast(1, 109);
+function supportsQuickInputButtonToggle(
+  version: string = vscode.version
+): boolean {
+  return isVscodeVersionAtLeast(1, 109, version);
 }
 
 export const utils = {

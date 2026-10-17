@@ -129,6 +129,32 @@ describe("Config", () => {
         configuration.searchEverywhere.categories = original;
       }
     });
+
+    it("should keep a valid category icon", () => {
+      const original = configuration.searchEverywhere.categories;
+      configuration.searchEverywhere.categories = [
+        { name: "Types", phrase: "@@", kinds: [4], icon: "symbol-class" },
+      ];
+      try {
+        assert.equal(config.fetchCategories()[0].icon, "symbol-class");
+      } finally {
+        configuration.searchEverywhere.categories = original;
+      }
+    });
+
+    it("should drop an invalid category icon", () => {
+      const original = configuration.searchEverywhere.categories;
+      configuration.searchEverywhere.categories = [
+        { name: "Types", phrase: "@@", kinds: [4], icon: "Symbol Class!" },
+      ];
+      try {
+        assert.deepEqual(config.fetchCategories(), [
+          { name: "Types", phrase: "@@", kinds: [4] },
+        ]);
+      } finally {
+        configuration.searchEverywhere.categories = original;
+      }
+    });
   });
 
   describe("fetchHelpPhrase", () => {

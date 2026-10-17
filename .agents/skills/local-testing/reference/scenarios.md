@@ -79,6 +79,27 @@ e.g. `Payment1Service.ts`, `Payment2Service.ts`.
 The phrase tag (`[@@Order]`) in the description is how VS Code matches the label filter; every
 row of a phrase query carries it.
 
+## Categories
+
+On VS Code 1.109 and later the category buttons are inline toggles; the pressed one is in
+brackets.
+
+```sh
+SE search "order"                # title "Search Everywhere",
+                                 # inline buttons: [All · Tab], Types (@@) · Tab, Members (!!) · Tab, Files ($$) · Tab
+SE click "Types (@@) · Tab"      # query "@@order", title "Search Everywhere · Types", [Types (@@) · Tab]
+SE click "Types (@@) · Tab"      # stays on Types: the active button keeps its pressed state
+SE search "@@order"              # puts focus back in the input
+SE key Tab                       # query "!!order", title "Search Everywhere · Members", [Members (!!) · Tab]
+SE click "All · Tab"             # query "order", title "Search Everywhere", [All · Tab]
+SE key Alt+ArrowRight            # on a file row: title "Search in …", buttons: Back (⌃-) only
+SE key Alt+ArrowLeft             # title and inline buttons are back
+```
+
+After a click focus is on the results list, so `SE key Tab` there moves into the row's buttons
+instead of cycling, and `SE type` does not reach the query; run `SE search` first. With
+`SE set shouldUseItemsFilterPhrases=false` there is no title and no category button.
+
 ## Ranking and recent items
 
 ```sh
@@ -122,10 +143,11 @@ when Search Everywhere opens.
 
 ```sh
 SE search "OrderService"
-SE key Alt+ArrowRight   # title "Search in OrderService.ts", title button "Back (⌃-)",
+SE key Alt+ArrowRight   # title "Search in OrderService.ts", only button "Back (⌃-)",
                         # rows OrderService, place, findByOwner, callbacks, totalRevenue
 SE type "find"          # findByOwner only
-SE key Alt+ArrowLeft    # back to the workspace search with the query "OrderService"
+SE key Alt+ArrowLeft    # back to the workspace search with the query "OrderService",
+                        # title "Search Everywhere" and the category buttons
 ```
 
 `Alt+ArrowRight` works on a file row only (`when: searchEverywhereOpen &&

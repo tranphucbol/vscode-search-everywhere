@@ -479,4 +479,13 @@ describe("Utils", () => {
       assert.equal(utils.isVscodeVersionAtLeast(1, 108, "invalid"), false);
     });
   });
+
+  describe("supportsQuickInputButtonToggle", () => {
+    it("should support quick input button toggles from VS Code 1.109", () => {
+      assert.equal(utils.supportsQuickInputButtonToggle("1.109.0"), true);
+      assert.equal(utils.supportsQuickInputButtonToggle("1.142.0"), true);
+      assert.equal(utils.supportsQuickInputButtonToggle("1.108.2"), false);
+      assert.equal(utils.supportsQuickInputButtonToggle("1.64.0"), false);
+    });
+  });
 });

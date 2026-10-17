@@ -63,7 +63,7 @@ export const getConfiguration = (): { [key: string]: any } => {
         "4": "@@",
       },
       categories: [
-        { name: "Types", phrase: "@@", kinds: [4, 10] },
+        { name: "Types", phrase: "@@", kinds: [4, 10], icon: "symbol-class" },
         { name: "Files", phrase: "$$", kinds: [0] },
       ],
       helpPhrase: "?",
