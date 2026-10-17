@@ -294,9 +294,10 @@ against them. Measured on an Apple M4:
 - `searchEverywhere.excludeVariables`, default `false`
 
   Exclude variables (kind 12). Disabled by default so newly written variables and React function
-  components stay searchable. Constants (kind 13) are not affected; add 13 to
-  `itemsFilter.ignoredKinds` to drop them too. Listing 12 in `itemsFilter.allowedKinds` keeps
-  variables.
+  components stay searchable. The TypeScript and JavaScript language server reports `const`
+  declarations as variables too, so they are dropped with it; symbols reported as constants
+  (kind 13) need 13 in `itemsFilter.ignoredKinds`. Listing 12 in `itemsFilter.allowedKinds`
+  keeps variables.
 
 ### Cache
 
