@@ -730,6 +730,18 @@ export function getFileStates(): Map<string, FileState> {
   return states;
 }
 
+export function getFileState(uri: string): FileState | undefined {
+  if (!db) {
+    return undefined;
+  }
+  const result = db.exec("SELECT mtime, size FROM file_state WHERE uri = ?", [uri]);
+  if (!result || !result.length) {
+    return undefined;
+  }
+  const [mtime, size] = result[0].values[0];
+  return { mtime: mtime as number, size: size as number };
+}
+
 export function getIndexedUris(): string[] {
   if (!db) {
     return [];
@@ -1691,6 +1703,7 @@ export const database = {
   deleteByUriPrefix,
   upsertFileStates,
   getFileStates,
+  getFileState,
   getIndexedUris,
   clearFileStates,
   hasFileStateBaseline,

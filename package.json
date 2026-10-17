@@ -283,6 +283,11 @@
           "default": true,
           "description": "Share and seed indexed database cache across git worktrees and clones of the same repository for near-instant startup."
         },
+        "searchEverywhere.watchFileSystem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch the file system and update the index when files are created, changed or deleted outside VS Code, for example by git, a code generator or a terminal command."
+        },
         "searchEverywhere.showRecentItemsOnEmptyQuery": {
           "type": "boolean",
           "default": true,

@@ -15,6 +15,7 @@ import * as events from "../../workspaceEventsEmitter";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
 import { getItems } from "../util/itemMockFactory";
 import { getEventEmitter } from "../util/mockFactory";
+import { getFileSystemWatcherStub } from "../util/stubFactory";
 import { stubMultiple } from "../util/stubHelpers";
 
 export const getTestSetups = () => {
@@ -257,6 +258,16 @@ export const getTestSetups = () => {
             {
               object: actionProcessorEventsEmitter,
               method: "onWillExecuteAction",
+            },
+            {
+              object: vscode.workspace,
+              method: "createFileSystemWatcher",
+              callsFake: getFileSystemWatcherStub,
+            },
+            {
+              object: config,
+              method: "fetchWatchFileSystem",
+              returns: true,
             },
           ],
           sandbox

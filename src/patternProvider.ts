@@ -6,6 +6,7 @@ import {
   fetchInclude,
 } from "./config";
 import { ExcludeMode } from "./types";
+import { matchesGlob } from "./utils";
 
 const endLineRegex = /[^\r\n]+/g;
 const gitignoreFilePattern = "**/.gitignore";
@@ -61,7 +62,7 @@ function getExcludePatternsAsString(patterns: string[]): string {
   return excludePatternsFormat[patterns.length];
 }
 
-async function getExcludePatterns(): Promise<string> {
+function getActiveExcludePatterns(): string[] {
   const excludePatterns: { [k: string]: string[] } = {
     [ExcludeMode.SearchEverywhere]:
       patternProvider.getExtensionExcludePatterns(),
@@ -70,8 +71,21 @@ async function getExcludePatterns(): Promise<string> {
     [ExcludeMode.Gitignore]: patternProvider.getGitignoreExcludePatterns(),
   };
 
-  return getExcludePatternsAsString(
-    excludePatterns[patternProvider.getExcludeMode()]
+  return excludePatterns[patternProvider.getExcludeMode()];
+}
+
+async function getExcludePatterns(): Promise<string> {
+  return getExcludePatternsAsString(getActiveExcludePatterns());
+}
+
+function isExcluded(relativePath: string): boolean {
+  return matchesGlob(relativePath, getActiveExcludePatterns());
+}
+
+function isIncluded(relativePath: string): boolean {
+  return (
+    matchesGlob(relativePath, patternProvider.getIncludePatterns()) &&
+    !patternProvider.isExcluded(relativePath)
   );
 }
 
@@ -160,5 +174,7 @@ export const patternProvider = {
   getGitignoreExcludePatterns,
   getFallbackExcludePatterns,
   getExcludePatterns,
+  isExcluded,
+  isIncluded,
   fetchConfig,
 };

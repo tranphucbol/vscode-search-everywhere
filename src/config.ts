@@ -106,6 +106,10 @@ const keys = {
     name: "shareCacheAcrossWorktrees",
     value: true,
   },
+  watchFileSystem: {
+    name: "watchFileSystem",
+    value: true,
+  },
   showRecentItemsOnEmptyQuery: {
     name: "showRecentItemsOnEmptyQuery",
     value: true,
@@ -400,6 +404,10 @@ export function fetchShareCacheAcrossWorktrees(): boolean {
     keys.shareCacheAcrossWorktrees.name,
     keys.shareCacheAcrossWorktrees.value
   );
+}
+
+export function fetchWatchFileSystem(): boolean {
+  return get(keys.watchFileSystem.name, keys.watchFileSystem.value);
 }
 
 export function fetchShowRecentItemsOnEmptyQuery(): boolean {

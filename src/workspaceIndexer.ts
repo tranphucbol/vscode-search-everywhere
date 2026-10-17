@@ -59,6 +59,14 @@ async function registerAction(
   await actionProcessor.register(action);
 }
 
+function isRebuilding(): boolean {
+  const current = actionProcessor.getPreviousAction();
+  return (
+    (!!current && current.type === ActionType.Rebuild) ||
+    actionProcessor.queue.some((action) => action.type === ActionType.Rebuild)
+  );
+}
+
 async function downloadData(
   uris?: vscode.Uri[],
   fileStates?: Array<[string, FileState]>
@@ -275,6 +283,7 @@ export const workspaceIndexer = {
   indexWithProgress,
   indexWithProgressTask,
   registerAction,
+  isRebuilding,
   downloadData,
   cancelIndexing,
   handleCancellationRequested,
