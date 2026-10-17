@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import { controller } from "../../controller";
-import { ActionType } from "../../types";
+import { ActionTrigger, ActionType } from "../../types";
 import { getTestSetups } from "../testSetup/controller.testSetup";
 import { getAction, getExtensionContext } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
@@ -277,6 +277,15 @@ describe("Controller", () => {
 
       assert.equal(getDataStub.calledOnce, false);
       assert.equal(setItemsStub.calledOnce, false);
+    });
+
+    it("should reconcile a cached index on startup when shouldInitOnStartup is off", async () => {
+      const [reconcileStub, indexStub] =
+        setups.startup.setupForReconcilingCachedIndexWhenInitOnStartupDisabled();
+      await controller.startup();
+
+      assert.isTrue(reconcileStub.calledOnceWith(ActionTrigger.Reconcile));
+      assert.equal(indexStub.called, false);
     });
   });
 

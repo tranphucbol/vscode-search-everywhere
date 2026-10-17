@@ -12,6 +12,7 @@ export enum ActionTrigger {
   DidDeleteFiles = "DidDeleteFiles",
   ReloadUnsavedUri = "ReloadUnsavedUri",
   RetryWithoutSymbols = "RetryWithoutSymbols",
+  Reconcile = "Reconcile",
 }
 
 export enum ActionType {

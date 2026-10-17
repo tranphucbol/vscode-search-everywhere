@@ -13,6 +13,7 @@ import { quickPick } from "./quickPick";
 import { Action, ActionTrigger, ActionType, DetailedActionType } from "./types";
 import { utils } from "./utils";
 import { workspace } from "./workspace";
+import { workspaceReconciler } from "./workspaceReconciler";
 import { updateCacheByPath } from "./workspaceUpdater";
 import {
   onDidDebounceConfigToggle,
@@ -267,6 +268,8 @@ async function startup(): Promise<void> {
     return;
   }
 
+  const shouldReconcile = controller.shouldReconcileOnStartup();
+
   if (controller.shouldIndexOnStartup()) {
     await workspace.index(ActionTrigger.Startup);
   }
@@ -277,6 +280,18 @@ async function startup(): Promise<void> {
     await workspace.removeDataForUnsavedUris();
     // Data is already in SQLite — no need to setQuickPickData
   }
+
+  shouldReconcile && reconcileInBackground();
+}
+
+function shouldReconcileOnStartup() {
+  return fetchShouldWorkspaceDataBeCached() && !isDataEmpty();
+}
+
+function reconcileInBackground() {
+  workspaceReconciler
+    .reconcile(ActionTrigger.Reconcile)
+    .catch((error) => logger.log(`Error reconciling the index with disk: ${error}`));
 }
 
 let extensionContext: vscode.ExtensionContext;
@@ -350,6 +365,7 @@ export const controller = {
   shouldLoadDataFromCacheOnQuickPickOpen,
   shouldIndexOnStartup,
   shouldLoadDataFromCacheOnStartup,
+  shouldReconcileOnStartup,
   shouldSearchSelection,
   restoreOnDidChangeValueEventListener,
   isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty,

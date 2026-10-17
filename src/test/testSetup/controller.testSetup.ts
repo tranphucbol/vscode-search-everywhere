@@ -9,6 +9,7 @@ import { quickPick } from "../../quickPick";
 import { utils } from "../../utils";
 import { workspace } from "../../workspace";
 import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
+import { workspaceReconciler } from "../../workspaceReconciler";
 import { getExtensionContext } from "../util/mockFactory";
 import { getQpItem, getQpItems } from "../util/qpItemMockFactory";
 import { getTextEditorStub } from "../util/stubFactory";
@@ -105,10 +106,28 @@ function stubComponentsForStartup(
         method: "shouldLoadDataFromCacheOnStartup",
         returns: returnsValues.shouldLoadDataFromCacheOnStartup,
       },
+      {
+        object: controller,
+        method: "shouldReconcileOnStartup",
+        returns: !!returnsValues.shouldReconcileOnStartup,
+      },
+      {
+        object: workspaceReconciler,
+        method: "reconcile",
+        returns: Promise.resolve(emptyReconcileResult),
+      },
     ],
     sandbox
   );
 }
+
+const emptyReconcileResult = {
+  added: 0,
+  changed: 0,
+  removed: 0,
+  fullIndex: false,
+  baseline: false,
+};
 
 function stubComponentsForSearch(
   sandbox: sinon.SinonSandbox,
@@ -799,6 +818,49 @@ export const getTestSetups = () => {
           shouldIndexOnStartup: false,
           shouldLoadDataFromCacheOnStartup: true,
         });
+      },
+
+      setupForReconcilingCachedIndexWhenInitOnStartupDisabled: () => {
+        stubComponents(sandbox);
+        return stubMultiple(
+          [
+            {
+              object: workspaceReconciler,
+              method: "reconcile",
+              returns: Promise.resolve(emptyReconcileResult),
+            },
+            {
+              object: workspace,
+              method: "index",
+            },
+            {
+              object: config,
+              method: "fetchShouldInitOnStartup",
+              returns: false,
+            },
+            {
+              object: config,
+              method: "fetchShouldWorkspaceDataBeCached",
+              returns: true,
+            },
+            {
+              object: database,
+              method: "isEmpty",
+              returns: false,
+            },
+            {
+              object: database,
+              method: "wasSeededFromTemplate",
+              returns: false,
+            },
+            {
+              object: quickPick,
+              method: "isInitialized",
+              returns: false,
+            },
+          ],
+          sandbox
+        );
       },
     },
 
