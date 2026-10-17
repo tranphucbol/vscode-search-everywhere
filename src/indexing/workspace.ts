@@ -62,6 +62,7 @@ async function handleDidChangeConfiguration(
     onDidSortingConfigToggleEventEmitter.fire();
   } else if (event.affectsConfiguration(`${defaultSection}.secondaryCode`)) {
     database.recomputeSecondary(fetchSecondaryCode());
+    database.schedulePersist();
   } else if (workspace.shouldRestartFileWatcher(event)) {
     fileWatcher.startWatching();
   }

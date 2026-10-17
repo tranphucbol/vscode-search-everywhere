@@ -485,6 +485,10 @@ export const getTestSetups = () => {
               object: cache,
               method: "clearConfig",
             },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
           ],
           sandbox
         );

@@ -267,8 +267,8 @@ describe("Workspace", () => {
       assert.equal(eventEmitter.fire.calledOnce, true);
     });
 
-    it("should recompute secondary code without reindexing when secondaryCode changes", async () => {
-      const [, indexStub, , , , recomputeSecondaryStub] =
+    it("should recompute secondary code and schedule a save without reindexing when secondaryCode changes", async () => {
+      const [, indexStub, , , , recomputeSecondaryStub, , schedulePersistStub] =
         setups.handleDidChangeConfiguration.setupForRecomputingSecondaryCode();
 
       await workspace.handleDidChangeConfiguration({
@@ -278,6 +278,7 @@ describe("Workspace", () => {
 
       assert.equal(indexStub.called, false);
       assert.deepEqual(recomputeSecondaryStub.firstCall.args, [["**/*_test.go"]]);
+      assert.equal(schedulePersistStub.calledOnce, true);
     });
 
     it("should do nothing if extension configuration has not changed", async () => {
