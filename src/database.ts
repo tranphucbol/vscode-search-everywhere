@@ -1,10 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { fetchShareCacheAcrossWorktrees } from "./config";
+import { fetchSecondaryCode, fetchShareCacheAcrossWorktrees } from "./config";
 import { gitService } from "./gitService";
 import { logger } from "./logger";
 import { MatchBand, QuickPickItem } from "./types";
+import { matchesGlob, utils } from "./utils";
 
 let db: any;
 let dbPath: string;
@@ -14,7 +15,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 
 const SEARCH_LIMIT = 500;
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -442,7 +443,8 @@ function createTables(): void {
       range_start_line INTEGER DEFAULT 0,
       range_start_char INTEGER DEFAULT 0,
       range_end_line INTEGER DEFAULT 0,
-      range_end_char INTEGER DEFAULT 0
+      range_end_char INTEGER DEFAULT 0,
+      is_secondary INTEGER DEFAULT 0
     )
   `);
 
@@ -524,7 +526,8 @@ function getSchemaVersion(): number {
 // The word columns derive from name and symbol_kind, so version 1 is backfilled in place.
 // Version 3 changed how names, containers and descriptions are built from the language
 // server's output (Go receivers, Java parameter lists), which needs the raw symbol names, so
-// anything older is emptied and rebuilt.
+// anything older is emptied and rebuilt. Version 4 added is_secondary, which derives from the uri
+// alone and is backfilled in place.
 function migrateSchema(): void {
   const version = getSchemaVersion();
   if (version >= SCHEMA_VERSION) {
@@ -548,6 +551,12 @@ function migrateSchema(): void {
     seededFromTemplate = false;
     logger.log("Index schema upgraded; the workspace will be reindexed.");
   }
+  if (version < 4) {
+    try {
+      db.run("ALTER TABLE symbols ADD COLUMN is_secondary INTEGER DEFAULT 0");
+    } catch {}
+    updateSecondaryColumn(fetchSecondaryCode());
+  }
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
@@ -563,8 +572,9 @@ export function insertSymbol(item: QuickPickItem): void {
   db.run(
     `INSERT INTO symbols
      (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
-      label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char,
+      is_secondary)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.uri.toString(),
       name,
@@ -581,6 +591,7 @@ export function insertSymbol(item: QuickPickItem): void {
       item.range ? item.range.start.character : 0,
       item.range ? item.range.end.line : 0,
       item.range ? item.range.end.character : 0,
+      classifySecondary(item.uri.path, fetchSecondaryCode()),
     ]
   );
 }
@@ -594,16 +605,25 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
   const stmt = db.prepare(`
     INSERT INTO symbols
     (uri, name, clean_name, clean_stem, clean_container, clean_words, clean_initials, symbol_kind,
-     label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char,
+     is_secondary)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const secondaryGlobs = fetchSecondaryCode();
+  const secondaryByUri = new Map<string, number>();
   try {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      const uri = item.uri.toString();
       const name = extractName(item.label);
+      let secondary = secondaryByUri.get(uri);
+      if (secondary === undefined) {
+        secondary = classifySecondary(item.uri.path, secondaryGlobs);
+        secondaryByUri.set(uri, secondary);
+      }
       const [cleanWords, cleanInitials] = extractWordColumns(name, item.symbolKind);
       stmt.run([
-        item.uri.toString(),
+        uri,
         name,
         extractCleanName(name),
         extractCleanStem(name, item.symbolKind),
@@ -618,6 +638,7 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
         item.range ? item.range.start.character : 0,
         item.range ? item.range.end.line : 0,
         item.range ? item.range.end.character : 0,
+        secondary,
       ]);
     }
     stmt.free();
@@ -645,6 +666,69 @@ export function deleteByUriPrefix(uriPath: string): void {
   db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, [escapeLike(uriPath) + "%"]);
 }
 
+const enum Secondary {
+  None = 0,
+  Test = 1,
+  Generated = 2,
+}
+
+const TEST_GLOB = /test|spec/i;
+
+function classifySecondary(uriPath: string, globs: string[]): Secondary {
+  const relativePath = utils.normalizeUriPath(uriPath);
+  let secondary = Secondary.None;
+  for (const glob of globs) {
+    if (matchesGlob(relativePath, glob)) {
+      if (TEST_GLOB.test(glob)) {
+        return Secondary.Test;
+      }
+      secondary = Secondary.Generated;
+    }
+  }
+  return secondary;
+}
+
+function updateSecondaryColumn(globs: string[]): void {
+  const result = db.exec("SELECT DISTINCT uri FROM symbols");
+  const uris: string[] = result && result.length ? result[0].values.map((row: any[]) => row[0]) : [];
+  if (!uris.length) {
+    return;
+  }
+  db.run("BEGIN TRANSACTION");
+  const stmt = db.prepare(
+    "UPDATE symbols SET is_secondary = ? WHERE uri = ? AND is_secondary IS NOT ?"
+  );
+  try {
+    for (const uri of uris) {
+      let uriPath: string;
+      try {
+        uriPath = vscode.Uri.parse(uri).path;
+      } catch {
+        uriPath = uri;
+      }
+      const secondary = classifySecondary(uriPath, globs);
+      stmt.run([secondary, uri, secondary]);
+    }
+    stmt.free();
+    db.run("COMMIT");
+  } catch (e) {
+    stmt.free();
+    db.run("ROLLBACK");
+    throw e;
+  }
+}
+
+// Runs when searchEverywhere.secondaryCode changes: the column derives from the uri alone, so no
+// reindex is needed.
+export function recomputeSecondary(globs: string[]): void {
+  if (!db) {
+    return;
+  }
+  clearSearchCache();
+  updateSecondaryColumn(globs);
+  schedulePersist();
+}
+
 export interface SearchOptions {
   symbolKinds?: number[];
   allowedKinds?: number[];
@@ -664,7 +748,11 @@ export interface RecentKey {
 }
 
 const QUERY_COLUMNS =
-  "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char";
+  "uri, symbol_kind, label, description, detail, range_start_line, range_start_char, range_end_line, range_end_char, is_secondary";
+const SECONDARY_COLUMN = 9;
+// The tier or relevance a query selects after QUERY_COLUMNS.
+const TIER_COLUMN = 10;
+const SECONDARY_LAST = "is_secondary != 0 ASC,";
 
 // Tier 1: exact member under its immediate parent, 2: prefix member under its
 // immediate parent, 3: member match anywhere below a container chain containing the query.
@@ -694,6 +782,7 @@ function queryQualifiedRows(
     ORDER BY
       ${kindSort}
       tier ASC,
+      ${SECONDARY_LAST}
       LENGTH(name) ASC,
       name COLLATE NOCASE ASC
     LIMIT ${limit}
@@ -744,6 +833,7 @@ function queryPatternRows(
     ORDER BY
       ${kindSort}
       tier ASC,
+      ${SECONDARY_LAST}
       CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
       LENGTH(name) ASC,
       name COLLATE NOCASE ASC
@@ -805,6 +895,7 @@ function queryCamelHumpsRows(
     ORDER BY
       ${kindSort}
       tier ASC,
+      ${SECONDARY_LAST}
       CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
       LENGTH(name) ASC,
       name COLLATE NOCASE ASC
@@ -844,6 +935,7 @@ function queryFuzzyRows(
     ${where}
     ORDER BY
       ${kindSort}
+      ${SECONDARY_LAST}
       CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
       LENGTH(name) ASC,
       name COLLATE NOCASE ASC
@@ -869,7 +961,7 @@ const searchCache = new Map<string, QuickPickItem[]>();
 const bandByTier =
   (...bands: MatchBand[]) =>
   (row: any[]): MatchBand =>
-    bands[(row[9] as number) - 1] ?? bands[bands.length - 1];
+    bands[(row[TIER_COLUMN] as number) - 1] ?? bands[bands.length - 1];
 
 export function clearSearchCache(): void {
   searchCache.clear();
@@ -970,6 +1062,27 @@ function boostRecent(
     result.push(...restByBand[band]);
   }
   return result.slice(0, limit);
+}
+
+// Each stage's SQL already sorts secondary rows last, but a band can span stages (a prefix row
+// from stage 1 and a CamelHumps row share band 2), so the bands are regrouped here.
+function secondaryLastWithinBand(items: QuickPickItem[]): QuickPickItem[] {
+  if (!items.some((item) => item.isSecondary)) {
+    return items;
+  }
+  const result: QuickPickItem[] = [];
+  let secondary: QuickPickItem[] = [];
+  let band: MatchBand | undefined;
+  for (const item of items) {
+    if (item.matchBand !== band) {
+      result.push(...secondary);
+      secondary = [];
+      band = item.matchBand;
+    }
+    (item.isSecondary ? secondary : result).push(item);
+  }
+  result.push(...secondary);
+  return result;
 }
 
 function searchItems(
@@ -1085,7 +1198,7 @@ function searchItems(
     addItemsFromRows(patternRows, bandByTier(1, 2, 3, 3));
 
     if (
-      !patternRows.some((row) => row[9] === 1) &&
+      !patternRows.some((row) => row[TIER_COLUMN] === 1) &&
       matchedItems.length < FUZZY_MIN_THRESHOLD &&
       matchedItems.length < limit &&
       pattern.joined.length >= 2
@@ -1122,6 +1235,7 @@ function searchItems(
           ORDER BY
             ${kindSort}
             tier ASC,
+            ${SECONDARY_LAST}
             CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
             LENGTH(name) ASC,
             name COLLATE NOCASE ASC
@@ -1146,7 +1260,7 @@ function searchItems(
       const matchClause = `uri LIKE ? ${esc}`;
       const fullWhere = baseWhere ? `${baseWhere} AND ${matchClause}` : `WHERE ${matchClause}`;
       const results = db.exec(
-        `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${fullWhere} ORDER BY CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
+        `SELECT ${QUERY_COLUMNS} FROM ${symbolsSource} ${fullWhere} ORDER BY ${SECONDARY_LAST} CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC, LENGTH(name) ASC, name COLLATE NOCASE ASC LIMIT ${limit}`,
         [...params, `%${escapeLike(query)}%`]
       );
       if (results && results.length) {
@@ -1182,6 +1296,7 @@ function searchItems(
       ORDER BY
         ${kindSort}
         relevance ASC,
+        ${SECONDARY_LAST}
         CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
         LENGTH(name) ASC,
         name COLLATE NOCASE ASC
@@ -1203,12 +1318,12 @@ function searchItems(
 
     const stage1Results = db.exec(stage1Sql, stage1Params);
     const stage1Rows: any[][] = stage1Results && stage1Results.length ? stage1Results[0].values : [];
-    let hasExactMatch = stage1Rows.some((row) => row[9] === 1);
+    let hasExactMatch = stage1Rows.some((row) => row[TIER_COLUMN] === 1);
 
     const qualified = parseQualifiedQuery(query);
     if (qualified) {
       // An exact name match (e.g. the file "user.service.ts") still outranks qualified members.
-      addItemsFromRows(stage1Rows.filter((row) => row[9] === 1), 1);
+      addItemsFromRows(stage1Rows.filter((row) => row[TIER_COLUMN] === 1), 1);
       const qualifiedRows = queryQualifiedRows(
         qualified,
         baseWhere,
@@ -1218,8 +1333,8 @@ function searchItems(
         esc
       );
       addItemsFromRows(qualifiedRows, bandByTier(1, 2, 2));
-      hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[9] === 1);
-      addItemsFromRows(stage1Rows.filter((row) => row[9] !== 1), 2);
+      hasExactMatch = hasExactMatch || qualifiedRows.some((row) => row[TIER_COLUMN] === 1);
+      addItemsFromRows(stage1Rows.filter((row) => row[TIER_COLUMN] !== 1), 2);
       matchedItems = matchedItems.slice(0, limit);
     }
     const notPrefixedParams = [`${cleanLike}%`, `${cleanLike}%`, `${rawLike}%`];
@@ -1260,6 +1375,7 @@ function searchItems(
         ${stage2Where}
         ORDER BY
           ${kindSort}
+          ${SECONDARY_LAST}
           CASE WHEN symbol_kind = 0 THEN 0 ELSE 1 END ASC,
           LENGTH(name) ASC,
           name COLLATE NOCASE ASC
@@ -1304,6 +1420,10 @@ function searchItems(
     }
   }
 
+  if (query && !options?.sortByKind) {
+    matchedItems = secondaryLastWithinBand(matchedItems);
+  }
+
   // Save to LRU cache
   if (searchCache.size >= SEARCH_CACHE_MAX_SIZE) {
     const oldestKey = searchCache.keys().next().value;
@@ -1325,16 +1445,25 @@ function rowToQuickPickItem(row: any[]): QuickPickItem {
     uri = vscode.Uri.file(uriStr);
   }
 
+  const secondary = row[SECONDARY_COLUMN] as Secondary;
+  let description = (row[3] as string) || "";
+  if (secondary === Secondary.Test) {
+    description += " · test";
+  } else if (secondary === Secondary.Generated) {
+    description += " · generated";
+  }
+
   return {
     uri,
     symbolKind: row[1] as number,
     label: row[2] as string,
-    description: (row[3] as string) || "",
+    description,
     detail: (row[4] as string) || "",
     range: {
       start: new vscode.Position(row[5] as number, row[6] as number),
       end: new vscode.Position(row[7] as number, row[8] as number),
     },
+    ...(secondary ? { isSecondary: true } : {}),
   } as QuickPickItem;
 }
 
@@ -1474,6 +1603,7 @@ export const database = {
   insertSymbolsBatch,
   deleteByUri,
   deleteByUriPrefix,
+  recomputeSecondary,
   search,
   clearSearchCache,
   clearAll,

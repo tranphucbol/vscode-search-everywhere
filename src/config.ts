@@ -127,6 +127,23 @@ const keys = {
     value:
       "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum}",
   },
+  secondaryCode: {
+    name: "secondaryCode",
+    value: [
+      "**/*_test.go",
+      "**/mock_*.go",
+      "**/mocks/**",
+      "**/*.pb.go",
+      "**/*_gen.go",
+      "**/*.gen.go",
+      "**/zz_generated*",
+      "**/src/test/**",
+      "**/generated/**",
+      "**/generated-sources/**",
+      "**/__tests__/**",
+      "**/*.{test,spec}.{ts,tsx,js,jsx}",
+    ],
+  },
 };
 
 function getConfigurationByKey<T>(
@@ -267,6 +284,13 @@ export function fetchRestoreLastQuery(): boolean {
 
 export function fetchIndexNamesOnly(): string {
   return get(keys.indexNamesOnly.name, keys.indexNamesOnly.value);
+}
+
+export function fetchSecondaryCode(): string[] {
+  const globs = get(keys.secondaryCode.name, keys.secondaryCode.value);
+  return Array.isArray(globs)
+    ? globs.filter((glob) => typeof glob === "string" && glob.length > 0)
+    : [];
 }
 
 export function fetchExclude(): string[] {

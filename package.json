@@ -221,6 +221,27 @@
           "default": "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum}",
           "description": "Glob, matched against the workspace-relative path, of included files that are indexed by file name only. Their symbols are never requested from a language server. An empty string asks for symbols of every included file."
         },
+        "searchEverywhere.secondaryCode": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*_test.go",
+            "**/mock_*.go",
+            "**/mocks/**",
+            "**/*.pb.go",
+            "**/*_gen.go",
+            "**/*.gen.go",
+            "**/zz_generated*",
+            "**/src/test/**",
+            "**/generated/**",
+            "**/generated-sources/**",
+            "**/__tests__/**",
+            "**/*.{test,spec}.{ts,tsx,js,jsx}"
+          ],
+          "description": "Globs, matched against the workspace-relative path, of test, mock and generated files. Their items stay searchable but rank after other items of the same match quality and are tagged `· test` or `· generated`. Changing it does not reindex."
+        },
         "searchEverywhere.excludeMode": {
           "type": "string",
           "enum": [

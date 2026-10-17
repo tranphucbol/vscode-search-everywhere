@@ -5,6 +5,7 @@ import * as cache from "../../cache";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
 import { dataService } from "../../dataService";
+import { database } from "../../database";
 import { ExcludeMode } from "../../types";
 import { utils } from "../../utils";
 import { workspace } from "../../workspace";
@@ -403,6 +404,46 @@ export const getTestSetups = () => {
         );
 
         return eventEmitter;
+      },
+
+      setupForRecomputingSecondaryCode: () => {
+        return stubMultiple(
+          [
+            {
+              object: workspace,
+              method: "shouldReindexOnConfigurationChange",
+              returns: false,
+            },
+            {
+              object: workspace,
+              method: "index",
+            },
+            {
+              object: utils,
+              method: "isDebounceConfigurationToggled",
+              returns: false,
+            },
+            {
+              object: utils,
+              method: "isSortingConfigurationToggled",
+              returns: false,
+            },
+            {
+              object: config,
+              method: "fetchSecondaryCode",
+              returns: ["**/*_test.go"],
+            },
+            {
+              object: database,
+              method: "recomputeSecondary",
+            },
+            {
+              object: cache,
+              method: "clearConfig",
+            },
+          ],
+          sandbox
+        );
       },
 
       setupForDoingNothingWhenExtensionConfigurationNotChanged: () => {

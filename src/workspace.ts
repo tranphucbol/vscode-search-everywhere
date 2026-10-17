@@ -11,7 +11,7 @@ import {
   getNotSavedUriPaths as getNotSavedUriPathsFromCache,
   updateNotSavedUriPaths,
 } from "./cache";
-import { fetchExcludeMode } from "./config";
+import { fetchExcludeMode, fetchSecondaryCode } from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
@@ -55,6 +55,8 @@ async function handleDidChangeConfiguration(
     onDidDebounceConfigToggleEventEmitter.fire();
   } else if (utils.isSortingConfigurationToggled(event)) {
     onDidSortingConfigToggleEventEmitter.fire();
+  } else if (event.affectsConfiguration(`${defaultSection}.secondaryCode`)) {
+    database.recomputeSecondary(fetchSecondaryCode());
   }
 }
 
@@ -187,6 +189,7 @@ function shouldReindexOnConfigurationChange(
     "helpPhrase",
     "previewOnSelect",
     "restoreLastQuery",
+    "secondaryCode",
   ].map((config: string) => `${defaultSection}.${config}`);
 
   return (

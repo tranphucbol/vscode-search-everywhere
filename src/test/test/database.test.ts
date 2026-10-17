@@ -4,6 +4,7 @@ import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { dataConverter } from "../../dataConverter";
+import * as config from "../../config";
 import { database, RecentKey } from "../../database";
 import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
@@ -1239,6 +1240,99 @@ describe("Database", () => {
     });
   });
 
+  describe("secondary code", () => {
+    const fileItem = (path: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.File,
+      label: `$(file) ${path.slice(path.lastIndexOf("/") + 1)}`,
+      description: "file",
+    });
+    const method = (name: string, path: string, container: string): QuickPickItem => ({
+      uri: vscode.Uri.file(path),
+      symbolKind: vscode.SymbolKind.Method,
+      label: `$(symbol-method) ${name}`,
+      description: `${container} · method`,
+      containerName: container,
+      range: new vscode.Range(new vscode.Position(3, 0), new vscode.Position(5, 0)),
+    });
+    const paths = (results: QuickPickItem[]) => results.map((item) => item.uri.path);
+
+    it("should rank a test file below a source file of the same band", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/server_test.go"),
+        fileItem("/workspace/server_tools.go"),
+      ]);
+
+      assert.deepEqual(paths(database.search("server")), [
+        "/workspace/server_tools.go",
+        "/workspace/server_test.go",
+      ]);
+    });
+
+    it("should keep an exact secondary match above a prefix source match", () => {
+      database.insertSymbolsBatch([
+        method("Start", "/workspace/mocks/server.go", "MockServer"),
+        method("StartAll", "/workspace/server.go", "Server"),
+      ]);
+
+      assert.deepEqual(paths(database.search("Start")), [
+        "/workspace/mocks/server.go",
+        "/workspace/server.go",
+      ]);
+    });
+
+    it("should keep a recent secondary item above other items of its band", () => {
+      const secondary = method("Start", "/workspace/mocks/server.go", "MockServer");
+      const source = method("Start", "/workspace/server.go", "Server");
+      database.insertSymbolsBatch([secondary, source]);
+
+      assert.deepEqual(paths(database.search("Start")), [
+        "/workspace/server.go",
+        "/workspace/mocks/server.go",
+      ]);
+      const recent: RecentKey = {
+        uri: secondary.uri.toString(),
+        symbolKind: secondary.symbolKind,
+        name: "Start",
+      };
+      assert.deepEqual(paths(database.search("Start", 500, { recent: [recent] })), [
+        "/workspace/mocks/server.go",
+        "/workspace/server.go",
+      ]);
+    });
+
+    it("should tag test and generated rows in the description", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/api/user.pb.go"),
+        fileItem("/workspace/api/user_test.go"),
+        fileItem("/workspace/api/user.go"),
+      ]);
+
+      const descriptions = Object.fromEntries(
+        database.search("user").map((item) => [item.uri.path, item.description])
+      );
+      assert.deepEqual(descriptions, {
+        "/workspace/api/user.go": "file",
+        "/workspace/api/user_test.go": "file · test",
+        "/workspace/api/user.pb.go": "file · generated",
+      });
+    });
+
+    it("should recompute is_secondary without reindexing", () => {
+      database.insertSymbolsBatch([
+        fileItem("/workspace/fixtures/order.go"),
+        fileItem("/workspace/order_test.go"),
+      ]);
+
+      database.recomputeSecondary(["**/fixtures/**"]);
+
+      const descriptions = database.search("order").map((item) => item.description);
+      assert.deepEqual(descriptions, ["file · generated", "file"]);
+      assert.equal(database.getCount(), 2);
+      database.recomputeSecondary(config.fetchSecondaryCode());
+    });
+  });
+
   describe("schema migration", () => {
     const dbFile = path.join(fakeContext.storageUri.fsPath, "search-everywhere-index.db");
 
@@ -1281,7 +1375,13 @@ describe("Database", () => {
       }
     });
 
-    const writeVersion2Database = async () => {
+    const writeVersion2Database = async (
+      version = 2,
+      rows: [string, string, number][] = [
+        ["file:///workspace/server.go", "(*Server).Start", 5],
+        ["file:///workspace/server.go", "server.go", 0],
+      ]
+    ) => {
       const initSqlJs = require("sql.js");
       const SQL = await initSqlJs({
         locateFile: () =>
@@ -1295,18 +1395,14 @@ describe("Database", () => {
         symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
         range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
         range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
-      const rows = [
-        ["file:///workspace/server.go", "(*Server).Start", 5],
-        ["file:///workspace/server.go", "server.go", 0],
-      ];
       for (const [uri, name, kind] of rows) {
         legacy.run(
-          "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?)",
+          "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [uri, name, database.extractCleanName(name as string),
-            database.extractCleanStem(name as string), kind, name]
+            database.extractCleanStem(name as string), kind, name, kind === 0 ? "file" : "method"]
         );
       }
-      legacy.run("PRAGMA user_version = 2");
+      legacy.run(`PRAGMA user_version = ${version}`);
       fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
       legacy.close();
     };
@@ -1348,12 +1444,27 @@ describe("Database", () => {
       }
     });
 
-    it("should set the schema version to 3 after migrating", async () => {
+    it("should backfill is_secondary when opening a version 3 index", async () => {
+      database.closeDatabase();
+      await writeVersion2Database(3, [
+        ["file:///workspace/server_test.go", "server_test.go", 0],
+        ["file:///workspace/server.go", "server.go", 0],
+      ]);
+      await database.initDatabase(fakeContext);
+
+      assert.equal(database.getCount(), 2);
+      assert.deepEqual(
+        database.search("server").map((item) => `${item.label} ${item.description}`),
+        ["server.go file", "server_test.go file · test"]
+      );
+    });
+
+    it("should set the schema version to 4 after migrating", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
         await reopenVersion2Database();
 
-        assert.equal(await readSchemaVersion(), 3);
+        assert.equal(await readSchemaVersion(), 4);
       } finally {
         logStub.restore();
       }

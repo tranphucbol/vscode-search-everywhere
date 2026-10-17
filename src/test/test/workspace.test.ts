@@ -232,6 +232,19 @@ describe("Workspace", () => {
       assert.equal(eventEmitter.fire.calledOnce, true);
     });
 
+    it("should recompute secondary code without reindexing when secondaryCode changes", async () => {
+      const [, indexStub, , , , recomputeSecondaryStub] =
+        setups.handleDidChangeConfiguration.setupForRecomputingSecondaryCode();
+
+      await workspace.handleDidChangeConfiguration({
+        affectsConfiguration: (section: string) =>
+          section === "searchEverywhere" || section === "searchEverywhere.secondaryCode",
+      });
+
+      assert.equal(indexStub.called, false);
+      assert.deepEqual(recomputeSecondaryStub.firstCall.args, [["**/*_test.go"]]);
+    });
+
     it("should do nothing if extension configuration has not changed", async () => {
       const [registerActionStub, onDidDebounceConfigToggleEventEmitterStub] =
         setups.handleDidChangeConfiguration.setupForDoingNothingWhenExtensionConfigurationNotChanged();

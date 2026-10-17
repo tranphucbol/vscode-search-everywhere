@@ -18,6 +18,11 @@ Amended for version 3: Go receiver methods (`(*Server).Start`) and Java names wi
 description and detail change format. The raw names were never stored, so the rows cannot be rewritten
 in place: a version 2 database is cleared and reindexed once.
 
+Amended for version 4: `is_secondary` marks rows of test, mock and generated files
+(`searchEverywhere.secondaryCode`, see 004). It derives from the uri alone, so a version 3 database keeps
+its rows and `migrateSchema` backfills the column with one `UPDATE` per distinct uri. The same update
+runs when the setting changes, without a reindex.
+
 ## Rationale
 
 Columns added before (`clean_name`, `clean_stem`) were introduced with a `try/catch` around
