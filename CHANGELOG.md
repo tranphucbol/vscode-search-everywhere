@@ -2,6 +2,10 @@
 
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
+## [Unreleased]
+### 🐛 Fixes
+- Fixed filter phrases (`$$`, `@@`, `!!`, `##`, `%%`) showing an empty list: VS Code hid every result because its label does not contain the phrase.
+
 ## [0.0.2] - 2026-10-17
 ### 🎨 New Logo
 - A new icon: a search bar picking the fuzzy-matched letters out of noise. The Marketplace page header now uses the icon's dark colour.

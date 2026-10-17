@@ -623,6 +623,46 @@ describe("QuickPick", () => {
     });
   });
 
+  describe("loadItems with a filter phrase", () => {
+    const loadWithQuery = (query: string) => {
+      const control = vscode.window.createQuickPick<any>();
+      control.value = query;
+      const item = { ...getQpItems()[0] };
+      delete item.alwaysShow;
+      const sandbox = sinon.createSandbox();
+      sandbox.stub(quickPick, "getControl").returns(control);
+      sandbox.stub(quickPick, "getShouldUseItemsFilterPhrases").returns(true);
+      sandbox.stub(quickPick, "getItemsFilterPhrases").returns({ 4: "@@" });
+      sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(database, "isReady").returns(true);
+      const searchStub = sandbox.stub(database, "search").returns([item]);
+
+      quickPick.loadItems();
+
+      const loaded = control.items[0];
+      sandbox.restore();
+      control.dispose();
+      return { item, loaded, searchStub };
+    };
+
+    it("should search the given kind without the phrase and keep results visible", () => {
+      const { item, loaded, searchStub } = loadWithQuery("@@order");
+
+      assert.equal(searchStub.firstCall.args[0], "order");
+      assert.equal(searchStub.firstCall.args[2]?.symbolKind, 4);
+      assert.isTrue(loaded.alwaysShow);
+      assert.isUndefined(item.alwaysShow);
+    });
+
+    it("should keep results visible for a bare filter phrase", () => {
+      assert.isTrue(loadWithQuery("@@").loaded.alwaysShow);
+    });
+
+    it("should not set alwaysShow for a query without a filter phrase", () => {
+      assert.isUndefined(loadWithQuery("order").loaded.alwaysShow);
+    });
+  });
+
   describe("ensureUri", () => {
     it("should return vscode.Uri instance as-is", () => {
       const uri = vscode.Uri.file("/home/user/file.ts");
