@@ -736,9 +736,17 @@ export function deleteByUri(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  markDirty();
-  db.run("DELETE FROM symbols WHERE uri = ?", [uriPath]);
-  db.run("DELETE FROM file_state WHERE uri = ?", [uriPath]);
+  const removed =
+    runAndCountChanges("DELETE FROM symbols WHERE uri = ?", [uriPath]) +
+    runAndCountChanges("DELETE FROM file_state WHERE uri = ?", [uriPath]);
+  removed && markDirty();
+}
+
+// File events for paths that were never indexed (such as .git/index.lock, which every git
+// command creates) must not trigger a save; each save reads git state and would create another.
+function runAndCountChanges(sql: string, params: any[]): number {
+  db.run(sql, params);
+  return db.getRowsModified();
 }
 
 export function deleteByUriPrefix(uriPath: string): void {
@@ -746,10 +754,11 @@ export function deleteByUriPrefix(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  markDirty();
   const prefix = [escapeLike(uriPath) + "%"];
-  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
-  db.run(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+  const removed =
+    runAndCountChanges(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix) +
+    runAndCountChanges(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+  removed && markDirty();
 }
 
 export interface FileState {

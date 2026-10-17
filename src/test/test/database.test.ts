@@ -1554,6 +1554,19 @@ describe("Database", () => {
       assert.isTrue(writeFileSpy.notCalled);
     });
 
+    it("should not write the file after removing a path that is not indexed", async () => {
+      await setups.init();
+      database.insertSymbol(item1);
+      await database.persistToFile();
+      const writeFileSpy = setups.spyWriteFile();
+
+      database.deleteByUri("file:///project/.git/index.lock");
+      database.deleteByUriPrefix("file:///project/.git/index.lock");
+      await database.persistToFile();
+
+      assert.isTrue(writeFileSpy.notCalled);
+    });
+
     it("should write the file after an insert marks the database dirty", async () => {
       await setups.init();
       await database.persistToFile();
