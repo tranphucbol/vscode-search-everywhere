@@ -1,4 +1,4 @@
-# Search everywhere
+# Jetbrain Search Everywhere
 
 The extension is inspired by JetBrains IDEs feature "Search Everywhere".
 It allows user to easily navigate through files and symbols in the whole workspace.
