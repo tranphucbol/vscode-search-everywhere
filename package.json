@@ -346,11 +346,11 @@
       },
       {
         "command": "searchEverywhere.copyReference",
-        "title": "Search everywhere: Copy reference of the selected result"
+        "title": "Search everywhere: Copy Reference"
       },
       {
         "command": "searchEverywhere.copyLocation",
-        "title": "Search everywhere: Copy path and line of the selected result"
+        "title": "Search everywhere: Copy Path and Line"
       },
       {
         "command": "searchEverywhere.nextCategory",
@@ -362,7 +362,7 @@
       },
       {
         "command": "searchEverywhere.toggleIncludeLibraries",
-        "title": "Search everywhere: Include libraries"
+        "title": "Search everywhere: Include Libraries"
       },
       {
         "command": "searchEverywhere.reload",

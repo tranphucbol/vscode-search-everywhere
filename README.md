@@ -10,6 +10,18 @@ One quick pick that finds files and symbols across the whole workspace, modelled
 
 ![How it works](img/how-it-works.gif)
 
+## Highlights
+
+- [CamelHumps and qualified names](#query-syntax): `USI` finds `UserServiceImpl`, `UserService#save`
+  finds the method.
+- [Recently used results first](#ranking) among equally good matches.
+- [Search in a file](#navigation): drill into a file's symbols and back without leaving the search.
+- [Copy reference](#copying): `com.acme.user.UserService#save` or `path:line`, without opening it.
+- [Opens before indexing ends](#beyond-the-index): the language servers fill in what the index
+  does not have yet, and libraries are one key away.
+- [Follows `git checkout`](#indexing-and-cache) and other changes made outside VS Code.
+- [Go and Java presets](#go-and-java) for include and exclude patterns and method names.
+
 ## Install
 
 - [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.jetbrain-search-everywhere)
@@ -24,11 +36,13 @@ Or run `ext install tranphucbol.jetbrain-search-everywhere` from the command pal
 
 ## Quick start
 
-1. Press `alt + cmd + p` (mac) or `ctrl + alt + p` (win/linux). The first call indexes the
-   workspace; set `searchEverywhere.shouldInitOnStartup` to index on startup instead.
+1. Press `alt + cmd + p` (mac) or `ctrl + alt + p` (win/linux). The search opens at once and the
+   workspace is indexed in the background; until it finishes, symbols not indexed yet come from
+   the language servers. Set `searchEverywhere.shouldInitOnStartup` to index on startup instead.
 2. Type part of a file or symbol name and press `enter` to open it.
 3. Press `cmd + enter` / `ctrl + enter` to open it to the side, or `alt + right` on a file to
    search the symbols inside it.
+4. Type `?` to list the categories, filter phrases and the `>` / `%` prefixes.
 
 ## How it works
 
@@ -48,11 +62,8 @@ The index is cached, so the next start of VS Code reads it instead of scanning a
 made while VS Code was closed are picked up in the background. Git worktrees and local clones of
 the same repository share one cache.
 
-The search opens at once, even before the first index finishes. While the workspace is indexing,
-each query of two or more characters is also sent to the language servers' workspace symbol
-search, and symbols the index does not have yet are listed after the indexed results under
-`Not indexed yet` (`searchEverywhere.searchLanguageServersWhileIndexing`). These results are never
-written to the index.
+The search does not wait for the index: see [Beyond the index](#beyond-the-index) for what it asks
+the language servers while indexing, and for libraries, commands and text search.
 
 ## Features
 
@@ -71,8 +82,8 @@ written to the index.
 | `!!save` | members only: methods, fields, constructors, functions… (category) |
 | `$$order` | files only (category) |
 | `tab` / `shift + tab`, or a category button | switches between All and each category |
-| `>sort` | VS Code commands: opens the command palette with `sort` |
-| `%TODO` | text in files: opens VS Code's text search with `TODO` |
+| `>sort` | VS Code commands: opens the command palette with `sort` ([more](#beyond-the-index)) |
+| `%TODO` | text in files: opens VS Code's text search with `TODO` ([more](#beyond-the-index)) |
 | `?` | the list of categories, filter phrases and `>` / `%` |
 
 ![Query syntax](img/query-syntax.gif)
@@ -92,10 +103,10 @@ written to the index.
   that directory, then falls back to matching the path.
 - **Multi-word search**: space-separated words match in any order. Every word must match; exact
   and in-order matches rank first.
-- **Wildcards**: `*` matches any run of characters within a word, in order (`user*impl` finds
-  `UserServiceImpl`, `impl*user` does not). `?` is not a wildcard, and `%` and `_` match
-  literally, except that a query typed with a leading `%` opens text search (see below). Queries containing `/` use the directory search instead of multi-word and `*`
-  matching.
+- **Wildcards**: `*` is the only wildcard. It matches any run of characters within a word, in
+  order (`user*impl` finds `UserServiceImpl`, `impl*user` does not). `?`, `%` and `_` match
+  literally inside a query; a leading `>` or `%` is a [hand-off](#beyond-the-index). Queries
+  containing `/` use the directory search instead of multi-word and `*` matching.
 - **Jump to line**: append `:line` or `:line:column` to the query to open the selected item at
   that position.
 
@@ -121,12 +132,28 @@ written to the index.
 
   ![Filter phrases](img/filter-phrases.gif)
 
+### Beyond the index
+
 - **Commands and text**: type `>` as the first character to open VS Code's command palette with
   the rest of the query (`>sort` lists the sort commands), or `%` to open VS Code's text search
   with it (`%TODO`). On VS Code versions without the quick text search, `%` opens the Search view
   with the query. Reopening Search Everywhere shows the query without the prefix. A category or
   filter phrase that starts with the same character wins, and a selection or restored query that
   starts with one is still searched here. Turn it off with `searchEverywhere.handOffPrefixes`.
+- **Not indexed yet**: the search opens at once, even before the first index finishes. While the
+  workspace is indexing, each query of two or more characters is also sent to the language
+  servers' workspace symbol search, and symbols the index does not have yet are listed after the
+  indexed results under `Not indexed yet`. They are never written to the index. Turn it off with
+  `searchEverywhere.searchLanguageServersWhileIndexing`.
+- **Include libraries**: press `alt + cmd + p` / `ctrl + alt + p` again while the search is open,
+  or click the library button in its title, to also search symbols outside the indexed files:
+  the JDK and dependencies, `node_modules`, the Go standard library. They are listed after the
+  workspace results under `Libraries`, and the title ends with `including libraries`. The toggle
+  is off each time the search opens. What it finds depends on the language server: jdtls covers
+  the JDK and the project's dependencies, gopls covers dependencies with its default
+  `symbolScope` of `all`, and the TypeScript server covers what the project loads, such as
+  `lib.*.d.ts` and imported packages, once `typescript.workspaceSymbols.excludeLibrarySymbols`
+  is `false` (it is `true` by default).
 
 ### Ranking
 
@@ -164,32 +191,6 @@ written to the index.
 
   ![Open to the side](img/open-to-the-side.gif)
 
-- **Copy reference**: the copy button on a result, or `alt + shift + cmd + c` /
-  `ctrl + alt + shift + c`, copies a reference to it without opening it, ready to paste into a
-  review comment, a ticket or a prompt. The quick pick stays open, so you can copy several in a
-  row, and the status bar shows what was copied.
-
-  | Result | Reference |
-  | :--- | :--- |
-  | Java or Kotlin member | `com.acme.user.UserService#save` |
-  | Java or Kotlin type | `com.acme.user.User.Builder` |
-  | Go method or function | `api.Server.Start`, `api.NewServer` (the form `go doc` accepts) |
-  | any other symbol | `UserService.save` |
-  | file | `src/user/service.ts`, the workspace-relative path |
-
-- **Copy path and line**: `alt + cmd + c` / `ctrl + alt + c` copies the result's
-  workspace-relative path and line, as shown under it (`src/user/service.ts:42`); a file copies
-  its path alone. In a multi-root workspace the path starts with the folder name.
-
-- **Include libraries**: press `alt + cmd + p` / `ctrl + alt + p` again while the search is open,
-  or click the library button in its title, to also search symbols outside the indexed files:
-  the JDK and dependencies, `node_modules`, the Go standard library. They are listed after the
-  workspace results under `Libraries`, and the title ends with `including libraries`. The toggle
-  is off each time the search opens. What it finds depends on the language server: jdtls covers
-  the JDK and the project's dependencies, gopls covers dependencies with its default
-  `symbolScope` of `all`, and the TypeScript server covers what the project loads, such as
-  `lib.*.d.ts` and imported packages, once `typescript.workspaceSymbols.excludeLibrarySymbols`
-  is `false` (it is `true` by default).
 - **Highlight of the selected symbol** (`searchEverywhere.shouldHighlightSymbol`)
 
   enabled
@@ -208,16 +209,44 @@ written to the index.
 - The selection in the active editor is put in the search
   (`searchEverywhere.shouldSearchSelection`); a non-empty selection wins over the last query.
 
+### Copying
+
+- **Copy reference**: the copy button on a result, or `alt + shift + cmd + c` /
+  `ctrl + alt + shift + c`, copies a reference to it without opening it, ready to paste into a
+  review comment, a ticket or a prompt. The quick pick stays open, so you can copy several in a
+  row, and the status bar shows what was copied.
+
+  | Result | Reference |
+  | :--- | :--- |
+  | Java or Kotlin member | `com.acme.user.UserService#save` |
+  | Java or Kotlin type | `com.acme.user.User.Builder` |
+  | Go method or function | `api.Server.Start`, `api.NewServer` (the form `go doc` accepts) |
+  | any other symbol | `UserService.save` |
+  | file | `src/user/service.ts`, the workspace-relative path |
+
+- **Copy path and line**: `alt + cmd + c` / `ctrl + alt + c` copies the result's
+  workspace-relative path and line, as shown under it (`src/user/service.ts:42`); a file copies
+  its path alone. In a multi-root workspace the path starts with the folder name.
+
 ### Indexing and cache
 
-- Index on startup or on the first call (`searchEverywhere.shouldInitOnStartup`).
+**What is indexed**
+
+- Index on startup or on the first search (`searchEverywhere.shouldInitOnStartup`).
 - Choose what is indexed: include and exclude globs, or VS Code's "Files: Exclude" and
   "Search: Exclude", or the `.gitignore` file (`searchEverywhere.excludeMode`).
 - Drop item kinds or names from the index with `searchEverywhere.itemsFilter`,
   `searchEverywhere.excludeProperties` and `searchEverywhere.excludeVariables`.
-- The index is cached between sessions (`searchEverywhere.shouldWorkspaceDataBeCached`) and shared
-  across git worktrees and local clones of the same repository
-  (`searchEverywhere.shareCacheAcrossWorktrees`).
+- Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
+  file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
+- Before indexing, the extension opens one file per language and waits until its language server
+  returns symbols: up to 15 s, or 120 s for Java and Kotlin, whose servers import the build first.
+  Files indexed without symbols while their language server was still starting are retried every
+  30 s for 10 minutes. A language no installed extension provides (`.proto` without a protobuf
+  extension) is not waited for.
+
+**Keeping it current**
+
 - The index records each file's modification time and size. On startup a cached index is compared
   with the disk in the background, and only files added, changed or deleted since are reindexed;
   when more than a quarter of the files changed (at least 2000), the workspace is indexed again.
@@ -227,18 +256,17 @@ written to the index.
   startup comparison.
 - A worktree seeded from the shared cache reindexes the files that differ from the worktree the
   cache was written in: `git diff` between the two commits plus both worktrees' uncommitted files.
+
+**Saving and sharing**
+
+- The index is cached between sessions (`searchEverywhere.shouldWorkspaceDataBeCached`) and shared
+  across git worktrees and local clones of the same repository
+  (`searchEverywhere.shareCacheAcrossWorktrees`).
 - The index is saved in the background about 10 s after the last change and again when VS Code
   closes, through a temporary file so a crash never leaves a half-written index. An unchanged
   index is not written. The shared worktree cache is refreshed after a full index, and on exit
   when the index has not changed since the last background save. An index file that cannot be
   read is moved aside and the workspace is reindexed.
-- Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
-  file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
-- Before indexing, the extension opens one file per language and waits until its language server
-  returns symbols: up to 15 s, or 120 s for Java and Kotlin, whose servers import the build first.
-  Files indexed without symbols while their language server was still starting are retried every
-  30 s for 10 minutes. A language no installed extension provides (`.proto` without a protobuf
-  extension) is not waited for.
 - A dedicated output channel logs triggered actions, scanned directories, indexing times, the
   detected language presets and the effective include and exclude patterns.
 
@@ -263,7 +291,9 @@ written to the index.
 - **Java methods and constructors** drop the parameter list from the name: jdtls reports
   `save(User)`, which is found by `save` or `UserService.save` and shown as
   `save   UserService · method (User)`.
-- Each row shows the name, then the container and kind, and `path:line` on the second line.
+- **Rows** show the name, then the container and kind, and on the second line the `path:line` of
+  the symbol's name. The buttons on a row are search in this file (files only), open to the side
+  and copy reference.
 
 ### Display
 
@@ -299,10 +329,10 @@ against them. Measured on an Apple M4:
 
 | | In-memory array (v2.x design) | SQLite WASM index |
 | :--- | :---: | :---: |
-| JS heap used by the items | +46.6 MB | ~0 MB (rows live in the 37 MB database) |
-| Cache | 18.2 MB of JSON in workspace state, 41 ms to write and read | the SQLite database |
-| Average query time | 4.45 ms | 2.65 ms (repeated queries come from an LRU cache) |
-| Uncached query time | | 10–43 ms, depending on the query |
+| JS heap used by the items | +46.6 MB | ~0 MB (rows live in the 38 MB database) |
+| Cache | 18.2 MB of JSON in workspace state, 41 ms to write and read | the SQLite database, saved in 45 ms |
+| Average query time | 4.45 ms | 2.52 ms (repeated queries come from an LRU cache) |
+| Uncached query time | | 9–36 ms, depending on the query |
 | Items handed to the quick pick | all 50,000 | at most 500 |
 
 ## Commands
@@ -314,11 +344,11 @@ against them. Measured on an Apple M4:
 | `searchEverywhere.navigateIntoFile` | Search everywhere: Navigate into File | `alt + right` | `alt + right` |
 | `searchEverywhere.navigateBack` | Search everywhere: Navigate Back to Workspace | `alt + left` | `alt + left` |
 | `searchEverywhere.openToTheSide` | Search everywhere: Open to the Side | `cmd + enter`, `alt + enter` | `ctrl + enter`, `alt + enter` |
-| `searchEverywhere.copyReference` | Search everywhere: Copy reference of the selected result | `alt + shift + cmd + c` | `ctrl + alt + shift + c` |
-| `searchEverywhere.copyLocation` | Search everywhere: Copy path and line of the selected result | `alt + cmd + c` | `ctrl + alt + c` |
+| `searchEverywhere.copyReference` | Search everywhere: Copy Reference | `alt + shift + cmd + c` | `ctrl + alt + shift + c` |
+| `searchEverywhere.copyLocation` | Search everywhere: Copy Path and Line | `alt + cmd + c` | `ctrl + alt + c` |
 | `searchEverywhere.nextCategory` | Search everywhere: Next Category | `tab` | `tab` |
 | `searchEverywhere.previousCategory` | Search everywhere: Previous Category | `shift + tab` | `shift + tab` |
-| `searchEverywhere.toggleIncludeLibraries` | Search everywhere: Include libraries | `alt + cmd + p` (search open) | `ctrl + alt + p` (search open) |
+| `searchEverywhere.toggleIncludeLibraries` | Search everywhere: Include Libraries | `alt + cmd + p` (search open) | `ctrl + alt + p` (search open) |
 | `searchEverywhere.reload` | Search everywhere: Reload | | |
 | `searchEverywhere.clearSharedCache` | Search everywhere: Clear Shared Worktree Cache | | |
 
@@ -330,10 +360,12 @@ against them. Measured on an Apple M4:
   the previous query; it applies while scoped to a file.
 - **Open to the Side** opens the selected item beside the active editor; it applies while Search
   Everywhere is open.
-- **Copy reference** and **Copy path and line** copy the selected result's reference or
+- **Copy Reference** and **Copy Path and Line** copy the selected result's reference or
   `path:line` and keep Search Everywhere open; they apply while it is open.
 - **Next Category** and **Previous Category** switch between All and each category; they apply
   while Search Everywhere is open and not scoped to a file.
+- **Include Libraries** turns library symbols on or off for the open search; it applies while
+  Search Everywhere is open.
 - **Reload** re-indexes the whole workspace.
 - **Clear Shared Worktree Cache** clears the repository cache shared across git worktrees and
   clones.

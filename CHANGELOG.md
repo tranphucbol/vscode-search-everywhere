@@ -11,6 +11,9 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - **Include libraries**: press `alt + cmd + p` / `ctrl + alt + p` again while the search is open, or click the new library button in its title, to also list symbols outside the indexed files, such as the JDK, dependencies or `node_modules`, under `Libraries`. The title ends with `including libraries` while it is on, and it is off each time the search opens. New command `Search everywhere: Include libraries`.
 - The title `Search Everywhere` is now shown even when filter phrases are off, to hold the library button.
 
+### 🔧 Changes
+- Command titles: Copy Reference, Copy Path and Line and Include Libraries now use the same Title Case as the other commands.
+
 ## [0.3.0] - 2026-10-18
 ### ✨ Features
 - **Index follows changes made outside VS Code**: files created, changed or deleted by `git checkout`, `git pull`, a code generator or a terminal command are reindexed about half a second after the last change, and a deleted directory takes everything under it out of the index. Files open in an editor still follow the editor. Turn it off with `searchEverywhere.watchFileSystem` (default `true`).
