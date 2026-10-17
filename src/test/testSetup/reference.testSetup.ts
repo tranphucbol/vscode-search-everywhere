@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { dataConverter } from "../../dataConverter";
 import { dataService } from "../../dataService";
 import { QuickPickItem } from "../../types";
-import { utils } from "../../utils";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 
 const JAVA_TEXT = [
   "/* Copyright Acme */",
@@ -45,7 +45,7 @@ function getSymbol(
 }
 
 function nested(parent: string, name: string): string {
-  return `${parent}${utils.getSplitter()}${name}`;
+  return `${parent}${dataConverter.getSplitter()}${name}`;
 }
 
 function getDocument(languageId: string, text: string): vscode.TextDocument {
@@ -88,7 +88,7 @@ export const getTestSetups = () => {
       [vscode.SymbolKind.Class]: "symbol-class",
       [vscode.SymbolKind.Method]: "symbol-method",
     });
-    sandbox.stub(utils, "normalizeUriPath").callsFake((path: string) => path);
+    sandbox.stub(workspaceFolders, "normalizeUriPath").callsFake((path: string) => path);
     sandbox
       .stub(vscode.workspace, "openTextDocument")
       .resolves(getDocument(languageId, text) as any);

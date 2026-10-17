@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Action, IndexStats, WorkspaceData } from "./types";
-import { utils } from "./utils";
+import { workspaceFolders } from "./shared/workspaceFolders";
 
 function init() {
   const channel = vscode.window.createOutputChannel("Search everywhere");
@@ -27,8 +27,46 @@ function logScanTime(indexStats: IndexStats) {
 
 function logStructure(data: WorkspaceData) {
   const message = `Scanned files:
-  ${utils.getStructure(data)}`;
+  ${logger.getStructure(data)}`;
   logger.log(message);
+}
+
+function getDataForBuildingStructure(data: WorkspaceData) {
+  const uriWithNoOfItems = Array.from(data.items).map((keyValue) => {
+    const [key, value] = keyValue;
+    let normalizedPath = workspaceFolders.normalizeUriPath(key);
+    normalizedPath = normalizedPath.replace("/", "");
+    const itemsCount = value.elements.length;
+    return [normalizedPath, itemsCount] as const;
+  });
+  return new Map<string, number>(uriWithNoOfItems);
+}
+
+function buildStructure(paths: string[], normalizedData: Map<string, number>) {
+  const structure: { [key: string]: {} } = {};
+  paths.forEach(function (path) {
+    const splittedPath = path.split("/");
+    splittedPath.reduce((currentStructure, node, index) => {
+      let text: {} | string = {};
+      if (index === splittedPath.length - 1) {
+        const value = normalizedData.get(path) || 0;
+        text = `${value} ${value === 1 ? "item" : "items"}`;
+      }
+      return currentStructure[node] || (currentStructure[node] = text);
+    }, structure);
+  });
+  return structure;
+}
+
+function getStructure(data: WorkspaceData) {
+  if (data.items.size > 500) {
+    return `[Structure omitted for large workspace (${data.items.size} files, ${data.count} items)]`;
+  }
+  const normalizedData = getDataForBuildingStructure(data);
+  const paths = Array.from(normalizedData.keys());
+  const structure = buildStructure(paths, normalizedData);
+
+  return JSON.stringify(structure, null, 2);
 }
 
 function getTimestamp() {
@@ -58,5 +96,6 @@ export const logger = {
   log,
   logAction,
   logScanTime,
+  getStructure,
   logStructure,
 };

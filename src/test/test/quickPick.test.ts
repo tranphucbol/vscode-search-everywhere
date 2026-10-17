@@ -7,7 +7,7 @@ import { liveSymbols } from "../../liveSymbols";
 import { ensureUri, parseLineSuffix, quickPick } from "../../quickPick";
 import { recentItems } from "../../recentItems";
 import { CategoryButton, LibraryButton, QuickPickItem } from "../../types";
-import { utils } from "../../utils";
+import { vscodeVersion } from "../../shared/vscodeVersion";
 import { workspaceIndexer } from "../../workspaceIndexer";
 import { getTestSetups } from "../testSetup/quickPick.testSetup";
 import {
@@ -905,7 +905,7 @@ describe("QuickPick", () => {
       sandbox.stub(quickPick, "getCategories").returns(categories);
       sandbox.stub(quickPick, "getShouldItemsBeSorted").returns(false);
       sandbox
-        .stub(utils, "supportsQuickInputButtonToggle")
+        .stub(vscodeVersion, "supportsQuickInputButtonToggle")
         .returns(options.toggles ?? true);
       sandbox.stub(vscode.commands, "executeCommand").resolves();
       sandbox.stub(database, "isReady").returns(true);

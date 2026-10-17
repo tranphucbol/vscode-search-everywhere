@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { dataService } from "../../dataService";
 import { getTestSetups } from "../testSetup/dataService.testSetup";
 import { getItem, getItems } from "../util/itemMockFactory";
+import { getWorkspaceData } from "../util/mockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 
@@ -14,6 +15,23 @@ describe("DataService", () => {
     setups = getTestSetups();
   });
   afterEach(() => setups.afterEach());
+
+  describe("createWorkspaceData", () => {
+    it("should create workspaceData object", () => {
+      assert.deepEqual(dataService.createWorkspaceData(), getWorkspaceData());
+    });
+  });
+
+  describe("clearWorkspaceData", () => {
+    it("should clear workspaceData object", () => {
+      const workspaceData =
+        setups.clearWorkspaceData.setupForClearingWorkspaceDataObject();
+
+      dataService.clearWorkspaceData(workspaceData);
+      assert.equal(workspaceData.count, 0);
+      assert.equal(workspaceData.items.size, 0);
+    });
+  });
 
   describe("reload", () => {
     it("should fetchConfig method be invoked", () => {
@@ -56,7 +74,7 @@ describe("DataService", () => {
       assert.equal(items.count, 4);
     });
 
-    it("should utils.printErrorMessage method be invoked if error is thrown", async () => {
+    it("should messages.printErrorMessage method be invoked if error is thrown", async () => {
       const [printErrorMessageStub] =
         setups.fetchData.setupForPrintingErrorMessageWhenErrorThrown();
       await dataService.fetchData();

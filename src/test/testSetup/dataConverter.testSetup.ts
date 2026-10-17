@@ -3,7 +3,8 @@ import * as vscode from "vscode";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
 import { Icons, ItemsFilterPhrases } from "../../types";
-import { utils } from "../../utils";
+import { pathUtils } from "../../shared/paths";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 import { mocks } from "../mock/dataConverter.mock";
 import { getConfiguration, getWorkspaceData } from "../util/mockFactory";
 import { stubMultiple } from "../util/stubHelpers";
@@ -76,17 +77,17 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: pathUtils,
               method: "getNameFromUri",
               returns: "fake-1.ts",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "normalizeUriPath",
               returns: "/./fake/fake-1.ts",
             },
             {
-              object: utils,
+              object: dataConverter,
               method: "getSplitter",
               returns: "§&§",
             },
@@ -114,17 +115,17 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: pathUtils,
               method: "getNameFromUri",
               returns: "fake-1.ts",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "normalizeUriPath",
               returns: "/./fake/fake-1.ts",
             },
             {
-              object: utils,
+              object: dataConverter,
               method: "getSplitter",
               returns: "§&§",
             },
@@ -174,17 +175,17 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: pathUtils,
               method: "getNameFromUri",
               returns: "user.ts",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "normalizeUriPath",
               returns: "/./fake/user.ts",
             },
             {
-              object: utils,
+              object: dataConverter,
               method: "getSplitter",
               returns: "§&§",
             },

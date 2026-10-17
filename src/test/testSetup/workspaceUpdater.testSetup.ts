@@ -4,7 +4,8 @@ import * as config from "../../config";
 import { dataService } from "../../dataService";
 import { database } from "../../database";
 import { logger } from "../../logger";
-import { utils } from "../../utils";
+import { asyncUtils } from "../../shared/async";
+import { messages } from "../../shared/messages";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
 import { retryQueue, workspaceUpdater } from "../../workspaceUpdater";
 import { getDocumentSymbolItemSingleLineArray } from "../util/itemMockFactory";
@@ -41,7 +42,7 @@ export const getTestSetups = () => {
               throws: new Error("test error"),
             },
             {
-              object: utils,
+              object: messages,
               method: "printErrorMessage",
             },
           ],
@@ -196,7 +197,7 @@ export const getTestSetups = () => {
                   : [],
             },
             { object: vscode.workspace, method: "openTextDocument" },
-            { object: utils, method: "sleep" },
+            { object: asyncUtils, method: "sleep" },
             { object: config, method: "fetchIndexNamesOnly", returns: "" },
             { object: dataService, method: "getItemsFilter", returns: {} },
             { object: logger, method: "log" },

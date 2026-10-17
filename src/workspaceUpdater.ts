@@ -7,7 +7,7 @@ import {
   DetailedActionType,
   QuickPickItem,
 } from "./types";
-import { utils } from "./utils";
+import { messages } from "./shared/messages";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
 
 async function updateUri(uri: vscode.Uri): Promise<number> {
@@ -70,7 +70,7 @@ export async function updateCacheByPath(
     const updateFn = updateFnByDetailedActionType[detailedActionType];
     updateFn && (await updateFn());
   } catch (error) {
-    utils.printErrorMessage(error as Error);
+    messages.printErrorMessage(error as Error);
     await indexer.index("on error catch");
   }
 }

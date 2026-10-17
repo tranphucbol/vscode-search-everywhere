@@ -245,6 +245,18 @@ export function fetchShouldUseDebounce(): boolean {
   return get(keys.shouldUseDebounce.name, keys.shouldUseDebounce.value);
 }
 
+export function isDebounceConfigurationToggled(
+  event: vscode.ConfigurationChangeEvent
+): boolean {
+  return event.affectsConfiguration("searchEverywhere.shouldUseDebounce");
+}
+
+export function isSortingConfigurationToggled(
+  event: vscode.ConfigurationChangeEvent
+): boolean {
+  return event.affectsConfiguration("searchEverywhere.shouldItemsBeSorted");
+}
+
 export function fetchIcons(): Icons {
   return get(keys.icons.name, keys.icons.value);
 }

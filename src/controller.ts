@@ -14,7 +14,9 @@ import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
 import { quickPick } from "./quickPick";
 import { Action, ActionTrigger, ActionType, DetailedActionType } from "./types";
-import { utils } from "./utils";
+import { asyncUtils } from "./shared/async";
+import { messages } from "./shared/messages";
+import { workspaceFolders } from "./shared/workspaceFolders";
 import { workspace } from "./workspace";
 import { workspaceIndexer } from "./workspaceIndexer";
 import { workspaceReconciler } from "./workspaceReconciler";
@@ -224,7 +226,7 @@ async function search(): Promise<void> {
     );
     quickPick.setText(selectedText);
 
-    await utils.sleepAndExecute(timeInMsToAvoidListFlashing, () =>
+    await asyncUtils.sleepAndExecute(timeInMsToAvoidListFlashing, () =>
       controller.restoreOnDidChangeValueEventListener(selectedText)
     );
   }
@@ -248,9 +250,9 @@ async function reload(): Promise<void> {
   database.clearAll();
   clearNotSavedUriPaths();
 
-  utils.hasWorkspaceAnyFolder()
+  workspaceFolders.hasWorkspaceAnyFolder()
     ? await workspace.index(ActionTrigger.Reload)
-    : utils.printNoFolderOpenedMessage();
+    : messages.printNoFolderOpenedMessage();
 }
 
 async function startup(): Promise<void> {

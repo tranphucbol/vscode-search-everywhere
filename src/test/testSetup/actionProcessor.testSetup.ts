@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { actionProcessor } from "../../actionProcessor";
 import * as actionProcessorEventsEmitter from "../../actionProcessorEventsEmitter";
 import { Action, ActionType } from "../../types";
-import { utils } from "../../utils";
+import { collections } from "../../shared/collections";
 import { getAction, getActions, getEventEmitter } from "../util/mockFactory";
 import { stubMultiple } from "../util/stubHelpers";
 
@@ -91,12 +91,12 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: utils,
+              object: collections,
               method: "getLastFromArray",
               returns: action,
             },
             {
-              object: utils,
+              object: collections,
               method: "groupBy",
               returns: new Map<string, Action[]>(),
             },
@@ -174,7 +174,7 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: utils,
+              object: collections,
               method: "groupBy",
               returns: groupedActions,
             },
@@ -207,7 +207,7 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: utils,
+              object: collections,
               method: "groupBy",
               returns: groupedActions,
             },
@@ -275,7 +275,7 @@ export const getTestSetups = () => {
               returnsIsUndefined: true,
             },
             {
-              object: utils,
+              object: collections,
               method: "groupBy",
               returns: groupedActions,
             },
@@ -305,7 +305,7 @@ export const getTestSetups = () => {
               returns: getAction(ActionType.Rebuild),
             },
             {
-              object: utils,
+              object: collections,
               method: "groupBy",
               returns: groupedActions,
             },

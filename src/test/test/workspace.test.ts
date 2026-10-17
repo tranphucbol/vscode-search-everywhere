@@ -55,7 +55,7 @@ describe("Workspace", () => {
       assert.equal(clearAllStub.called, false);
     });
 
-    it("should utils.setWorkspaceFoldersCommonPath method be invoked", async () => {
+    it("should workspaceFolders.setWorkspaceFoldersCommonPath method be invoked", async () => {
       const [setWorkspaceFoldersCommonPathStub] =
         setups.init.setupForInvokingSetWorkspaceFoldersCommonPath();
       await workspace.init();

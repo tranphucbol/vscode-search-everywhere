@@ -3,7 +3,7 @@ import { getRecentItems as getStoredRecentItems, updateRecentItems, clearRecentI
 import { dataConverter } from "./dataConverter";
 import { extractName, RecentKey } from "./database";
 import { QuickPickItem } from "./types";
-import { utils } from "./utils";
+import { pathUtils } from "./shared/paths";
 
 export interface StoredRecentItem {
   uri: string;
@@ -160,7 +160,7 @@ export function getRecentItems(limit: number = 10): QuickPickItem[] {
         break;
       }
       const uriStr = uri.toString();
-      const fileKey = getItemKey(uriStr, 0, 0, 0, utils.getNameFromUri(uri));
+      const fileKey = getItemKey(uriStr, 0, 0, 0, pathUtils.getNameFromUri(uri));
       if (!seenKeys.has(fileKey)) {
         seenKeys.add(fileKey);
         try {
@@ -229,7 +229,7 @@ export function getRecentKeys(limit: number = RECENT_BOOST_LIMIT): RecentKey[] {
     if (keys.length >= limit) {
       break;
     }
-    add({ uri: uri.toString(), symbolKind: 0, name: utils.getNameFromUri(uri) });
+    add({ uri: uri.toString(), symbolKind: 0, name: pathUtils.getNameFromUri(uri) });
   }
   return keys;
 }

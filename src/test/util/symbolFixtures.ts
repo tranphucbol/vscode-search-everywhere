@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { utils } from "../../utils";
+import { dataConverter } from "../../dataConverter";
 
 interface RawSymbol {
   name: string;
@@ -58,7 +58,7 @@ export function flattenSymbols(
   const flat: vscode.DocumentSymbol[] = [];
   for (const symbol of symbols) {
     const flatSymbol = new vscode.DocumentSymbol(
-      parentName ? `${parentName}${utils.getSplitter()}${symbol.name}` : symbol.name,
+      parentName ? `${parentName}${dataConverter.getSplitter()}${symbol.name}` : symbol.name,
       symbol.detail,
       symbol.kind,
       symbol.range,

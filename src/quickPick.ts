@@ -31,9 +31,11 @@ import {
   LibraryButton,
   QuickPickItem,
 } from "./types";
-import { utils } from "./utils";
+import { asyncUtils } from "./shared/async";
+import { collections } from "./shared/collections";
+import { vscodeVersion } from "./shared/vscodeVersion";
 import { workspaceIndexer } from "./workspaceIndexer";
-const debounce = utils.debounce;
+const debounce = asyncUtils.debounce;
 
 const VIRTUAL_PAGE_SIZE = 500;
 const ICON_PREFIX_REGEX = /^\$\([^)]+\)\s+/;
@@ -199,7 +201,7 @@ function selectCategory(index: number): void {
 
 function buildCategoryButtons(active?: Category): CategoryButton[] {
   const categories = quickPick.getCategories() || [];
-  const toggles = utils.supportsQuickInputButtonToggle();
+  const toggles = vscodeVersion.supportsQuickInputButtonToggle();
   const entries = [
     { categoryIndex: -1, icon: ALL_ICON, tooltip: "All · Tab" },
     ...categories.map((category, categoryIndex) => ({
@@ -230,7 +232,7 @@ function buildCategoryButtons(active?: Category): CategoryButton[] {
 
 function buildLibraryButton(checked: boolean): LibraryButton {
   const tooltip = `Include libraries · ${INCLUDE_LIBRARIES_SHORTCUT}`;
-  return utils.supportsQuickInputButtonToggle()
+  return vscodeVersion.supportsQuickInputButtonToggle()
     ? {
         includeLibraries: true,
         iconPath: new vscode.ThemeIcon(LIBRARY_ICON),
@@ -804,7 +806,7 @@ async function handleDidTriggerButton(button: vscode.QuickInputButton) {
       selectCategory(categoryIndex);
     }
   }
-  if (utils.supportsQuickInputButtonToggle()) {
+  if (vscodeVersion.supportsQuickInputButtonToggle()) {
     // A clicked inline toggle keeps keyboard focus, and the extension API cannot focus the
     // input; the list is the closest place where arrows, Enter and Alt+Arrow keys still work.
     void vscode.commands.executeCommand(FOCUS_QUICK_INPUT_COMMAND);
@@ -1347,7 +1349,7 @@ function loadHelpItems() {
 }
 
 function addSeparatorItemForEachSymbolKind(items: QuickPickItem[]) {
-  const sortedItems = utils.groupBy(items, (item: QuickPickItem) =>
+  const sortedItems = collections.groupBy(items, (item: QuickPickItem) =>
     item.symbolKind.toString()
   );
   const sortedItemsEntries = sortedItems.entries();
@@ -1431,7 +1433,7 @@ function setItems(newItems: QuickPickItem[]): void {
 }
 
 function shouldUseFileIconTheme(): boolean {
-  return fetchUseFileIconTheme() && utils.supportsQuickPickFileIconTheme();
+  return fetchUseFileIconTheme() && vscodeVersion.supportsQuickPickFileIconTheme();
 }
 
 function applyItemIcon(item: QuickPickItem, useFileIconTheme: boolean): void {

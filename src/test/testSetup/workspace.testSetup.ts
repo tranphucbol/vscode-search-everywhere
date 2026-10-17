@@ -9,7 +9,8 @@ import { database } from "../../database";
 import { logger } from "../../logger";
 import * as presets from "../../presets";
 import { ExcludeMode } from "../../types";
-import { utils } from "../../utils";
+import { pathUtils } from "../../shared/paths";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspace } from "../../workspace";
 import * as events from "../../workspaceEventsEmitter";
 import { workspaceIndexer as indexer } from "../../workspaceIndexer";
@@ -62,7 +63,7 @@ export const getTestSetups = () => {
               returns: Promise.resolve(false),
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "setWorkspaceFoldersCommonPath",
             },
             {
@@ -82,7 +83,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: workspaceFolders,
               method: "setWorkspaceFoldersCommonPath",
             },
             {
@@ -106,7 +107,7 @@ export const getTestSetups = () => {
               method: "fetchConfig",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "setWorkspaceFoldersCommonPath",
             },
             {
@@ -130,7 +131,7 @@ export const getTestSetups = () => {
               method: "fetchConfig",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "setWorkspaceFoldersCommonPath",
             },
           ],
@@ -404,7 +405,7 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isDebounceConfigurationToggled",
               returns: true,
             },
@@ -436,12 +437,12 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isDebounceConfigurationToggled",
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isSortingConfigurationToggled",
               returns: true,
             },
@@ -475,12 +476,12 @@ export const getTestSetups = () => {
               method: "index",
             },
             {
-              object: utils,
+              object: config,
               method: "isDebounceConfigurationToggled",
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isSortingConfigurationToggled",
               returns: false,
             },
@@ -519,12 +520,12 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isDebounceConfigurationToggled",
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isSortingConfigurationToggled",
               returns: false,
             },
@@ -554,11 +555,11 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: utils,
+              object: config,
               method: "isDebounceConfigurationToggled",
             },
             {
-              object: utils,
+              object: config,
               method: "isSortingConfigurationToggled",
               returns: false,
             },
@@ -577,7 +578,7 @@ export const getTestSetups = () => {
               method: "index",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceChanged",
               returns: true,
             },
@@ -603,7 +604,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceChanged",
               returns: false,
             },
@@ -734,7 +735,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: false,
             },
@@ -751,7 +752,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: true,
             },
@@ -770,7 +771,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: false,
             },
@@ -787,7 +788,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: true,
             },
@@ -816,7 +817,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: true,
             },
@@ -835,7 +836,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: false,
             },
@@ -852,7 +853,7 @@ export const getTestSetups = () => {
               method: "registerAction",
             },
             {
-              object: utils,
+              object: pathUtils,
               method: "isDirectory",
               returns: true,
             },

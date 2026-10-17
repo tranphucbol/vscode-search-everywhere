@@ -8,7 +8,9 @@ import { gitService } from "../../gitService";
 import { logger } from "../../logger";
 import { patternProvider } from "../../patternProvider";
 import { quickPick } from "../../quickPick";
-import { utils } from "../../utils";
+import { asyncUtils } from "../../shared/async";
+import { messages } from "../../shared/messages";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspace } from "../../workspace";
 import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
 import { workspaceIndexer } from "../../workspaceIndexer";
@@ -721,7 +723,7 @@ export const getTestSetups = () => {
               method: "show",
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleepAndExecute",
             },
             {
@@ -807,7 +809,7 @@ export const getTestSetups = () => {
               returns: restoreLastQuery,
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleepAndExecute",
             },
             {
@@ -828,7 +830,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: messages,
               method: "printNoFolderOpenedMessage",
             },
             {
@@ -840,7 +842,7 @@ export const getTestSetups = () => {
               method: "clearNotSavedUriPaths",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceAnyFolder",
               returns: false,
             },
@@ -866,7 +868,7 @@ export const getTestSetups = () => {
               method: "clearNotSavedUriPaths",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceAnyFolder",
               returns: true,
             },
@@ -892,7 +894,7 @@ export const getTestSetups = () => {
               method: "index",
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceAnyFolder",
               returns: true,
             },

@@ -16,7 +16,9 @@ import { onDidItemIndexed } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { getActivePresets } from "./presets";
 import { Action, ActionType, QuickPickItem, WorkspaceData } from "./types";
-import { utils } from "./utils";
+import { asyncUtils } from "./shared/async";
+import { messages } from "./shared/messages";
+import { workspaceFolders } from "./shared/workspaceFolders";
 import {
   onDidIndexWorkspaceEventEmitter,
   onWillIndexWorkspaceEventEmitter,
@@ -41,7 +43,7 @@ async function reindex(trigger: string): Promise<void> {
 }
 
 async function indexWithProgress(): Promise<void> {
-  utils.hasWorkspaceAnyFolder()
+  workspaceFolders.hasWorkspaceAnyFolder()
     ? await vscode.window.withProgress(
         {
           location: workspaceIndexer.getNotificationLocation(),
@@ -50,7 +52,7 @@ async function indexWithProgress(): Promise<void> {
         },
         indexWithProgressTask
       )
-    : utils.printNoFolderOpenedMessage();
+    : messages.printNoFolderOpenedMessage();
 }
 
 async function registerAction(
@@ -119,10 +121,10 @@ async function indexWithProgressTask(
   handleDidItemIndexedSubscription.dispose();
 
   // necessary for proper way to complete progress
-  utils.sleep(250);
+  asyncUtils.sleep(250);
 
   const elapsedTimeInMs = getTimeElapsed(startMeasure);
-  const elapsedTimeInSec = utils.convertMsToSec(elapsedTimeInMs);
+  const elapsedTimeInSec = workspaceIndexer.convertMsToSec(elapsedTimeInMs);
 
   printStats(data, elapsedTimeInSec);
 }
@@ -143,7 +145,7 @@ function printStats(data: WorkspaceData, elapsedTime: number) {
     IndexedItemsCount: data.count,
   };
 
-  utils.printStatsMessage(indexStats);
+  messages.printStatsMessage(indexStats);
   logger.logScanTime(indexStats);
   logger.logStructure(data);
 }
@@ -284,7 +286,12 @@ let progressStep = 0;
 let currentProgressValue = 0;
 let countScannedUri = 0;
 
+function convertMsToSec(timeInMs: number) {
+  return Math.floor((timeInMs % (1000 * 60)) / 1000);
+}
+
 export const workspaceIndexer = {
+  convertMsToSec,
   getProgressStep,
   getCurrentProgressValue,
   getData,

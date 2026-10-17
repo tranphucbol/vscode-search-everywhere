@@ -4,7 +4,7 @@ import {
   onWillProcessingEventEmitter,
 } from "./actionProcessorEventsEmitter";
 import { Action, ActionType } from "./types";
-import { utils } from "./utils";
+import { collections } from "./shared/collections";
 
 function add(action: Action): void {
   assignId(action);
@@ -87,7 +87,7 @@ function reduceRebuildAction(actionType: ActionType, actions: Action[]) {
   if (isPreviousActionRebuildType()) {
     actionProcessor.queue = [];
   } else if (ifActionArrayContainsRebuildType(actions)) {
-    const last = utils.getLastFromArray(
+    const last = collections.getLastFromArray(
       actionProcessor.queue,
       (action: Action) => action.type === actionType
     );
@@ -105,7 +105,7 @@ function ifActionArrayContainsRebuildType(actions: Action[]): boolean {
 }
 
 function reduceUpdateRemoveAction(actionType: ActionType, actions: Action[]) {
-  const groupedActions = utils.groupBy(
+  const groupedActions = collections.groupBy(
     actions,
     (action: Action) => action.uri!.path
   );
@@ -118,7 +118,7 @@ function reduceByFsPath(
   _actionsByFsPath: Action[],
   fsPath: string
 ) {
-  const lastAction: Action = utils.getLastFromArray(
+  const lastAction: Action = collections.getLastFromArray(
     actionProcessor.queue,
     (action: Action) =>
       action.type === actionType && action.uri!.path === fsPath

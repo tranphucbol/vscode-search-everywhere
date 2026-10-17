@@ -96,4 +96,25 @@ describe("Logger", () => {
       fakeTimer.restore();
     });
   });
+
+  describe("getStructure", () => {
+    it("should return tree structure based on workspace data", () => {
+      const workspaceData =
+        setups.getStructure.setupForReturningTreeStructureFromWorkspaceData();
+      assert.equal(
+        logger.getStructure(workspaceData),
+        `{
+  "fake": {
+    "fake-1.ts": "4 items"
+  },
+  "fake-other": {
+    "fake-2.ts": "1 item"
+  },
+  "fake-another": {
+    "fake-3.ts": "0 items"
+  }
+}`
+      );
+    });
+  });
 });

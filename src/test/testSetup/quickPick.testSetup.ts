@@ -6,7 +6,7 @@ import { database } from "../../database";
 import { quickPick } from "../../quickPick";
 import { recentItems } from "../../recentItems";
 import { Icons } from "../../types";
-import { utils } from "../../utils";
+import { vscodeVersion } from "../../shared/vscodeVersion";
 import { getQuickPickOnDidChangeValueEventListeners } from "../util/eventMockFactory";
 import {
   getQpHelpItem,
@@ -786,7 +786,7 @@ export const getTestSetups = () => {
               returns: useFileIconTheme,
             },
             {
-              object: utils,
+              object: vscodeVersion,
               method: "supportsQuickPickFileIconTheme",
               returns: supported,
             },

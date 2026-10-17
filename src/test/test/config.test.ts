@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import * as config from "../../config";
 import { getTestSetups } from "../testSetup/config.testSetup";
+import { getConfigurationChangeEvent } from "../util/eventMockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 
@@ -71,6 +72,44 @@ describe("Config", () => {
       assert.equal(
         config.fetchShouldUseDebounce(),
         configuration[section][key]
+      );
+    });
+  });
+
+  describe("isDebounceConfigurationToggled", () => {
+    it("should return true if extension configuration related to debounce setting has changed", () => {
+      assert.equal(
+        config.isDebounceConfigurationToggled(
+          getConfigurationChangeEvent(true, false)
+        ),
+        true
+      );
+    });
+
+    it("should return false if extension configuration related to debounce setting has not changed", () => {
+      assert.equal(
+        config.isDebounceConfigurationToggled(
+          getConfigurationChangeEvent(false)
+        ),
+        false
+      );
+    });
+  });
+
+  describe("isSortingConfigurationToggled", () => {
+    it("should return true if extension configuration related to sorting setting has changed", () => {
+      assert.equal(
+        config.isSortingConfigurationToggled(
+          getConfigurationChangeEvent(true, false)
+        ),
+        true
+      );
+    });
+
+    it("should return false if extension configuration related to debounce setting has not changed", () => {
+      assert.equal(
+        config.isSortingConfigurationToggled(getConfigurationChangeEvent(false)),
+        false
       );
     });
   });

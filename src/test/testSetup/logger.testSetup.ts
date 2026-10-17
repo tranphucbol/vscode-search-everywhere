@@ -1,7 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { logger } from "../../logger";
-import { utils } from "../../utils";
 import {
   getAction,
   getIndexStats,
@@ -218,7 +217,7 @@ export const getTestSetups = () => {
               method: "appendLine",
             },
             {
-              object: utils,
+              object: logger,
               method: "getStructure",
               returns: structure,
             },
@@ -227,6 +226,77 @@ export const getTestSetups = () => {
         );
 
         return { stubs, expectedMessage, fakeTimer, workspaceData };
+      },
+    },
+
+    getStructure: {
+      setupForReturningTreeStructureFromWorkspaceData: () => {
+        const workspaceDataItems = [
+          {
+            uri: vscode.Uri.file("/fake/fake-1.ts"),
+            get elements() {
+              return [
+                this.uri,
+                {
+                  name: "fake-1.ts§&§test name",
+                  detail: "test details",
+                  kind: 1,
+                  range: new vscode.Range(
+                    new vscode.Position(0, 0),
+                    new vscode.Position(3, 0)
+                  ),
+                  selectionRange: new vscode.Range(
+                    new vscode.Position(0, 0),
+                    new vscode.Position(3, 0)
+                  ),
+                  children: [],
+                },
+                {
+                  name: "fake-1.ts§&§test name 2",
+                  detail: "test details 2",
+                  kind: 1,
+                  range: new vscode.Range(
+                    new vscode.Position(4, 0),
+                    new vscode.Position(5, 0)
+                  ),
+                  selectionRange: new vscode.Range(
+                    new vscode.Position(4, 0),
+                    new vscode.Position(5, 0)
+                  ),
+                  children: [],
+                },
+                {
+                  name: "test name 3",
+                  detail: "test details 3",
+                  kind: 1,
+                  range: new vscode.Range(
+                    new vscode.Position(9, 0),
+                    new vscode.Position(9, 0)
+                  ),
+                  selectionRange: new vscode.Range(
+                    new vscode.Position(9, 0),
+                    new vscode.Position(9, 0)
+                  ),
+                  children: [],
+                },
+              ];
+            },
+          },
+          {
+            uri: vscode.Uri.file("/fake-other/fake-2.ts"),
+            get elements() {
+              return [this.uri];
+            },
+          },
+          {
+            uri: vscode.Uri.file("/fake-another/fake-3.ts"),
+            get elements() {
+              return [];
+            },
+          },
+        ];
+
+        return getWorkspaceData(workspaceDataItems);
       },
     },
   };

@@ -6,7 +6,7 @@ import {
   fetchInclude,
 } from "./config";
 import { ExcludeMode } from "./types";
-import { matchesGlob } from "./utils";
+import { matchesGlob } from "./shared/glob";
 
 const endLineRegex = /[^\r\n]+/g;
 const gitignoreFilePattern = "**/.gitignore";

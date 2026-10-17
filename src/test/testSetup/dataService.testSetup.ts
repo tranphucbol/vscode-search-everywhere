@@ -4,7 +4,10 @@ import * as config from "../../config";
 import { dataService } from "../../dataService";
 import { patternProvider } from "../../patternProvider";
 import { ItemsFilter } from "../../types";
-import { utils } from "../../utils";
+import { asyncUtils } from "../../shared/async";
+import { dataConverter } from "../../dataConverter";
+import { messages } from "../../shared/messages";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 import {
   getDocumentSymbolItemSingleLineArray,
   getItems,
@@ -44,7 +47,7 @@ const stubConfig = (
         returns: Promise.resolve(["**/**/*"]),
       },
       {
-        object: utils,
+        object: dataConverter,
         method: "getSplitter",
         returns: "§&§",
       },
@@ -57,7 +60,7 @@ const stubFetchingItems = (sandbox: sinon.SinonSandbox) => {
   stubMultiple(
     [
       {
-        object: utils,
+        object: dataService,
         method: "createWorkspaceData",
         returns: getWorkspaceData(),
       },
@@ -86,6 +89,37 @@ export const getTestSetups = () => {
   return {
     afterEach: () => {
       sandbox.restore();
+    },
+
+    clearWorkspaceData: {
+      setupForClearingWorkspaceDataObject: () => {
+        const workspaceDataItems = [
+          {
+            uri: vscode.Uri.file("/./fake/fake-1.ts"),
+            get elements() {
+              return [
+                this.uri,
+                {
+                  name: "fake-1.ts§&§test name",
+                  detail: "test details",
+                  kind: 1,
+                  range: new vscode.Range(
+                    new vscode.Position(0, 0),
+                    new vscode.Position(3, 0)
+                  ),
+                  selectionRange: new vscode.Range(
+                    new vscode.Position(0, 0),
+                    new vscode.Position(3, 0)
+                  ),
+                  children: [],
+                },
+              ];
+            },
+          },
+        ];
+
+        return getWorkspaceData(workspaceDataItems);
+      },
     },
 
     reload: {
@@ -171,7 +205,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: messages,
               method: "printErrorMessage",
             },
             {
@@ -184,7 +218,7 @@ export const getTestSetups = () => {
               method: "executeCommand",
             },
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
             },
           ],
@@ -207,11 +241,11 @@ export const getTestSetups = () => {
               returns: Promise.resolve(undefined),
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -235,7 +269,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: dataService,
               method: "clearWorkspaceData",
             },
           ],
@@ -249,7 +283,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -275,7 +309,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -299,12 +333,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
@@ -353,12 +387,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(workspaceDataItems),
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
@@ -397,17 +431,17 @@ export const getTestSetups = () => {
               returns: namesOnlyGlob,
             },
             {
-              object: utils,
+              object: workspaceFolders,
               method: "normalizeUriPath",
               callsFake: (path: string) => path.replace("/./fake", ""),
             },
             {
-              object: utils,
+              object: dataService,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
@@ -461,7 +495,7 @@ export const getTestSetups = () => {
                   isReady(uri) ? getDocumentSymbolItemSingleLineArray(1) : [],
               },
               {
-                object: utils,
+                object: asyncUtils,
                 method: "sleep",
               },
               {
@@ -470,7 +504,7 @@ export const getTestSetups = () => {
                 returns: namesOnlyGlob,
               },
               {
-                object: utils,
+                object: workspaceFolders,
                 method: "normalizeUriPath",
                 callsFake: (path: string) => path.replace("/./fake", ""),
               },

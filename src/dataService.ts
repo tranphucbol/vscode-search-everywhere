@@ -7,7 +7,10 @@ import { onDidItemIndexedEventEmitter } from "./dataServiceEventsEmitter";
 import { logger } from "./logger";
 import { patternProvider } from "./patternProvider";
 import { Item, ItemsFilter, QuickPickItem, WorkspaceData } from "./types";
-import { matchesGlob, utils } from "./utils";
+import { matchesGlob } from "./shared/glob";
+import { asyncUtils } from "./shared/async";
+import { messages } from "./shared/messages";
+import { workspaceFolders } from "./shared/workspaceFolders";
 
 const CONTAINER_SEPARATOR = ".";
 
@@ -19,7 +22,7 @@ async function fetchUris(): Promise<vscode.Uri[]> {
   try {
     return await vscode.workspace.findFiles(includePatterns, excludePatterns);
   } catch (error) {
-    utils.printErrorMessage(error as Error);
+    messages.printErrorMessage(error as Error);
     return Promise.resolve([]);
   }
 }
@@ -172,7 +175,7 @@ async function warmupLanguageServer(
       return "ready";
     }
 
-    await utils.sleep(WARMUP_POLL_MS);
+    await asyncUtils.sleep(WARMUP_POLL_MS);
   }
 
   logger.log(
@@ -243,7 +246,7 @@ async function includeSymbols(
   await Promise.all(workers);
 
   if (dataService.getIsCancelled()) {
-    utils.clearWorkspaceData(workspaceData);
+    dataService.clearWorkspaceData(workspaceData);
   } else if (urisToRetry.length) {
     workspaceData.urisToRetry = urisToRetry;
   }
@@ -262,7 +265,7 @@ function isNonSymbolFile(uri: vscode.Uri): boolean {
 }
 
 function isNamesOnly(uri: vscode.Uri): boolean {
-  return matchesGlob(utils.normalizeUriPath(uri.path), fetchIndexNamesOnly());
+  return matchesGlob(workspaceFolders.normalizeUriPath(uri.path), fetchIndexNamesOnly());
 }
 
 async function tryToGetSymbolsForUri(
@@ -300,7 +303,7 @@ function includeUris(workspaceData: WorkspaceData, uris: vscode.Uri[]): void {
   for (let i = 0; i < validUris.length; i++) {
     const uri = validUris[i];
     if (dataService.getIsCancelled()) {
-      utils.clearWorkspaceData(workspaceData);
+      dataService.clearWorkspaceData(workspaceData);
       break;
     }
     addUriToWorkspaceData(workspaceData, uri);
@@ -401,7 +404,7 @@ function prepareSymbolNameIfHasParent(
   symbol: vscode.DocumentSymbol,
   parentName?: string
 ) {
-  const splitter = utils.getSplitter();
+  const splitter = dataConverter.getSplitter();
   if (parentName) {
     parentName = parentName.split(splitter).join(CONTAINER_SEPARATOR);
     symbol.name = `${parentName}${splitter}${symbol.name}`;
@@ -494,7 +497,7 @@ async function fetchData(
   }>,
   onBatch?: OnBatch
 ): Promise<WorkspaceData> {
-  const workspaceData: WorkspaceData = utils.createWorkspaceData();
+  const workspaceData: WorkspaceData = dataService.createWorkspaceData();
   const uriItems = await getUrisOrFetchIfEmpty(uris);
 
   await includeSymbols(workspaceData, uriItems, progress, onBatch);
@@ -568,7 +571,21 @@ function getItemsFilter() {
 let isCancelled = false;
 let itemsFilter: ItemsFilter = {};
 
+function createWorkspaceData(): WorkspaceData {
+  return {
+    items: new Map<string, Item>(),
+    count: 0,
+  };
+}
+
+function clearWorkspaceData(workspaceData: WorkspaceData) {
+  workspaceData.items.clear();
+  workspaceData.count = 0;
+}
+
 export const dataService = {
+  createWorkspaceData,
+  clearWorkspaceData,
   setIsCancelled,
   getIsCancelled,
   getItemsFilter,

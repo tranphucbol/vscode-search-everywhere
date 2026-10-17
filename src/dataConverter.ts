@@ -11,7 +11,8 @@ import {
   QuickPickItem,
   WorkspaceData,
 } from "./types";
-import { utils } from "./utils";
+import { pathUtils } from "./shared/paths";
+import { workspaceFolders } from "./shared/workspaceFolders";
 
 const GO_RECEIVER_METHOD = /^\((\*?)([A-Za-z_]\w*)(\[[^\]]*\])?\)\.(\w+)$/;
 // jdtls appends type parameters after the list: "convert(User, Class<T>) <T>".
@@ -80,7 +81,7 @@ function mapDocumentSymbolToQpItem(
   uri: vscode.Uri,
   symbol: vscode.DocumentSymbol
 ): QuickPickItem {
-  const splitter = utils.getSplitter();
+  const splitter = dataConverter.getSplitter();
   const symbolName = symbol.name.split(splitter);
   const splitParent =
     symbolName.length === 2
@@ -160,7 +161,7 @@ function mapSymbolInformationToQpItem(
 
 function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
   const symbolKind = 0;
-  const name = utils.getNameFromUri(uri);
+  const name = pathUtils.getNameFromUri(uri);
   const icons = dataConverter.getIcons();
   const icon = icons[symbolKind] ? `$(${icons[symbolKind]})` : "";
   const label = icon ? `${icon}  ${name}` : name;
@@ -175,7 +176,7 @@ function getDetail(
   symbolKind: number,
   position: vscode.Position
 ): string {
-  const path = utils.normalizeUriPath(uri.path);
+  const path = workspaceFolders.normalizeUriPath(uri.path);
   return symbolKind === 0 ? path : `${path}:${position.line + 1}`;
 }
 
@@ -289,7 +290,12 @@ let icons: Icons = {};
 let shouldUseItemsFilterPhrases = false;
 let itemsFilterPhrases: ItemsFilterPhrases = {};
 
+function getSplitter(): string {
+  return "§&§";
+}
+
 export const dataConverter = {
+  getSplitter,
   setCancelled,
   getIsCancelled,
   getIcons,

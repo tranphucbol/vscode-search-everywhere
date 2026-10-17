@@ -16,6 +16,12 @@ describe("WorkspaceIndexer", () => {
   });
   afterEach(() => setups.afterEach());
 
+  describe("convertMsToSec", () => {
+    it("should get value in ms and convert it to seconds", () => {
+      assert.equal(workspaceIndexer.convertMsToSec(2000), 2);
+    });
+  });
+
   describe("getData", () => {
     it("should return array of indexed symbols and files from cache", () => {
       const qpItems = setups.getData.setupForReturningData();
@@ -51,7 +57,7 @@ describe("WorkspaceIndexer", () => {
   });
 
   describe("indexWithProgress", () => {
-    it("should utils.hasWorkspaceAnyFolder method be invoked", async () => {
+    it("should workspaceFolders.hasWorkspaceAnyFolder method be invoked", async () => {
       const [hasWorkspaceAnyFolderStub] =
         setups.indexWithProgress.setupForWorkspaceFolderCheck();
       await workspaceIndexer.indexWithProgress();
@@ -59,7 +65,7 @@ describe("WorkspaceIndexer", () => {
       assert.equal(hasWorkspaceAnyFolderStub.calledOnce, true);
     });
 
-    it("should utils.printNoFolderOpenedMessage method be invoked if utils.hasWorkspaceAnyFolder returns false", async () => {
+    it("should messages.printNoFolderOpenedMessage method be invoked if workspaceFolders.hasWorkspaceAnyFolder returns false", async () => {
       const [printNoFolderOpenedMessageStub] =
         setups.indexWithProgress.setupForNoFolderMessage();
       await workspaceIndexer.indexWithProgress();
@@ -197,7 +203,7 @@ describe("WorkspaceIndexer", () => {
       assert.equal(performanceNowStub.calledTwice, true);
     });
 
-    it("should invoke utils.sleep method", async () => {
+    it("should invoke asyncUtils.sleep method", async () => {
       const [sleepStub] = setups.indexWithProgressTask.setupForSleepCall();
       const token = {
         onCancellationRequested: () => ({ dispose: () => {} }),
@@ -207,7 +213,7 @@ describe("WorkspaceIndexer", () => {
       assert.equal(sleepStub.calledOnce, true);
     });
 
-    it("should invoke utils.printStatsMessage, logger.logScanTime and logger.logStructure methods", async () => {
+    it("should invoke messages.printStatsMessage, logger.logScanTime and logger.logStructure methods", async () => {
       const [printStatsMessageStub, logScanTimeStub, logStructureStub] =
         setups.indexWithProgressTask.setupForStatsLogging();
       const token = {

@@ -10,7 +10,9 @@ import { dataService } from "../../dataService";
 import { database } from "../../database";
 import * as dataServiceEventsEmitter from "../../dataServiceEventsEmitter";
 import { logger } from "../../logger";
-import { utils } from "../../utils";
+import { asyncUtils } from "../../shared/async";
+import { messages } from "../../shared/messages";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspaceIndexer } from "../../workspaceIndexer";
 import * as workspaceEventsEmitter from "../../workspaceEventsEmitter";
 import { getWorkspaceData } from "../util/mockFactory";
@@ -87,7 +89,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceAnyFolder",
               returns: true,
             },
@@ -104,12 +106,12 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: workspaceFolders,
               method: "hasWorkspaceAnyFolder",
               returns: false,
             },
             {
-              object: utils,
+              object: messages,
               method: "printNoFolderOpenedMessage",
             },
           ],
@@ -273,16 +275,16 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
-              object: utils,
+              object: workspaceIndexer,
               method: "convertMsToSec",
               returns: 1,
             },
             {
-              object: utils,
+              object: messages,
               method: "printStatsMessage",
             },
             {
@@ -319,8 +321,8 @@ export const getTestSetups = () => {
               method: "fetchData",
               returns: Promise.resolve({ ...getWorkspaceData(), urisToRetry }),
             },
-            { object: utils, method: "sleep" },
-            { object: utils, method: "printStatsMessage" },
+            { object: asyncUtils, method: "sleep" },
+            { object: messages, method: "printStatsMessage" },
             { object: logger, method: "logScanTime" },
             { object: logger, method: "logStructure" },
             { object: logger, method: "log" },
@@ -361,8 +363,8 @@ export const getTestSetups = () => {
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
-            { object: utils, method: "sleep" },
-            { object: utils, method: "printStatsMessage" },
+            { object: asyncUtils, method: "sleep" },
+            { object: messages, method: "printStatsMessage" },
             { object: logger, method: "logScanTime" },
             { object: logger, method: "logStructure" },
             { object: logger, method: "log" },
@@ -395,16 +397,16 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
-              object: utils,
+              object: workspaceIndexer,
               method: "convertMsToSec",
               returns: 1,
             },
             {
-              object: utils,
+              object: messages,
               method: "printStatsMessage",
             },
             {
@@ -452,16 +454,16 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
-              object: utils,
+              object: workspaceIndexer,
               method: "convertMsToSec",
               returns: 1,
             },
             {
-              object: utils,
+              object: messages,
               method: "printStatsMessage",
             },
             {
@@ -485,7 +487,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
@@ -508,12 +510,12 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: utils,
+              object: workspaceIndexer,
               method: "convertMsToSec",
               returns: 1,
             },
             {
-              object: utils,
+              object: messages,
               method: "printStatsMessage",
             },
             {
@@ -537,7 +539,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: utils,
+              object: messages,
               method: "printStatsMessage",
             },
             {
@@ -572,11 +574,11 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: utils,
+              object: asyncUtils,
               method: "sleep",
             },
             {
-              object: utils,
+              object: workspaceIndexer,
               method: "convertMsToSec",
               returns: 1,
             },

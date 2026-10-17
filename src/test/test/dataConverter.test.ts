@@ -2,7 +2,6 @@ import { assert } from "chai";
 import * as vscode from "vscode";
 import { dataConverter, normalizeSymbolName } from "../../dataConverter";
 import { QuickPickItem } from "../../types";
-import { utils } from "../../utils";
 import { getTestSetups } from "../testSetup/dataConverter.testSetup";
 import {
   getDocumentSymbolItemWithDocComment,
@@ -218,7 +217,7 @@ describe("DataConverter", () => {
 
     it("should keep a container from the parent over one from the name", () => {
       const symbol = new vscode.DocumentSymbol(
-        `Outer${utils.getSplitter()}(*Server).Start`,
+        `Outer${dataConverter.getSplitter()}(*Server).Start`,
         "",
         vscode.SymbolKind.Method,
         new vscode.Range(0, 0, 1, 0),
@@ -299,6 +298,12 @@ describe("DataConverter", () => {
 
       assert.equal(nameOf(item), "Start");
       assert.equal(item.description, "(*Server) · method");
+    });
+  });
+
+  describe("getSplitter", () => {
+    it("should return splitter string", () => {
+      assert.equal(dataConverter.getSplitter(), "§&§");
     });
   });
 

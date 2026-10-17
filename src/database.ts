@@ -5,7 +5,8 @@ import { fetchSecondaryCode, fetchShareCacheAcrossWorktrees } from "./config";
 import { gitService } from "./gitService";
 import { logger } from "./logger";
 import { MatchBand, QuickPickItem } from "./types";
-import { matchesGlob, utils } from "./utils";
+import { matchesGlob } from "./shared/glob";
+import { workspaceFolders } from "./shared/workspaceFolders";
 
 let db: any;
 let dbPath: string;
@@ -862,7 +863,7 @@ const enum Secondary {
 const TEST_GLOB = /test|spec/i;
 
 function classifySecondary(uriPath: string, globs: string[]): Secondary {
-  const relativePath = utils.normalizeUriPath(uriPath);
+  const relativePath = workspaceFolders.normalizeUriPath(uriPath);
   let secondary = Secondary.None;
   for (const glob of globs) {
     if (matchesGlob(relativePath, glob)) {

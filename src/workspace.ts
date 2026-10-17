@@ -15,6 +15,8 @@ import {
   fetchExcludeMode,
   fetchIndexedConfigSnapshot,
   fetchSecondaryCode,
+  isDebounceConfigurationToggled,
+  isSortingConfigurationToggled,
 } from "./config";
 import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
@@ -30,7 +32,9 @@ import {
   ExcludeMode,
   QuickPickItem,
 } from "./types";
-import { utils } from "./utils";
+import { asyncUtils } from "./shared/async";
+import { pathUtils } from "./shared/paths";
+import { workspaceFolders } from "./shared/workspaceFolders";
 import {
   onDidDebounceConfigToggleEventEmitter,
   onDidIndexWorkspace,
@@ -45,7 +49,7 @@ import { workspaceIndexer as indexer } from "./workspaceIndexer";
 import { removeFromCacheByPath } from "./workspaceRemover";
 import { retryQueue, updateCacheByPath } from "./workspaceUpdater";
 
-const debounce = utils.debounce;
+const debounce = asyncUtils.debounce;
 
 function reloadComponents() {
   dataConverter.reload();
@@ -61,9 +65,9 @@ async function handleDidChangeConfiguration(
     workspace.shouldRestartFileWatcher(event) && fileWatcher.startWatching();
     onWillReindexOnConfigurationChangeEventEmitter.fire();
     await workspace.index(ActionTrigger.ConfigurationChange);
-  } else if (utils.isDebounceConfigurationToggled(event)) {
+  } else if (isDebounceConfigurationToggled(event)) {
     onDidDebounceConfigToggleEventEmitter.fire();
-  } else if (utils.isSortingConfigurationToggled(event)) {
+  } else if (isSortingConfigurationToggled(event)) {
     onDidSortingConfigToggleEventEmitter.fire();
   } else if (event.affectsConfiguration(`${defaultSection}.secondaryCode`)) {
     database.recomputeSecondary(fetchSecondaryCode());
@@ -83,8 +87,8 @@ function shouldRestartFileWatcher(
 async function handleDidChangeWorkspaceFolders(
   event: vscode.WorkspaceFoldersChangeEvent
 ) {
-  if (utils.hasWorkspaceChanged(event)) {
-    utils.setWorkspaceFoldersCommonPath();
+  if (workspaceFolders.hasWorkspaceChanged(event)) {
+    workspaceFolders.setWorkspaceFoldersCommonPath();
     await refreshPresets();
     await workspace.reloadConfig();
     await workspace.index(ActionTrigger.WorkspaceFoldersChange);
@@ -147,7 +151,7 @@ async function handleDidChangeTextDocument(
 
 async function handleDidRenameFiles(event: vscode.FileRenameEvent) {
   const firstFile = event.files[0];
-  const actionType = utils.isDirectory(firstFile.oldUri)
+  const actionType = pathUtils.isDirectory(firstFile.oldUri)
     ? DetailedActionType.RenameOrMoveDirectory
     : DetailedActionType.RenameOrMoveFile;
 
@@ -173,7 +177,7 @@ async function handleDidRenameFiles(event: vscode.FileRenameEvent) {
 
 async function handleDidCreateFiles(event: vscode.FileCreateEvent) {
   const uri = event.files[0];
-  const actionType = utils.isDirectory(uri)
+  const actionType = pathUtils.isDirectory(uri)
     ? DetailedActionType.CreateNewDirectory
     : DetailedActionType.CreateNewFile;
 
@@ -189,7 +193,7 @@ async function handleDidCreateFiles(event: vscode.FileCreateEvent) {
 
 async function handleDidDeleteFiles(event: vscode.FileDeleteEvent) {
   const uri = event.files[0];
-  const actionType = utils.isDirectory(uri)
+  const actionType = pathUtils.isDirectory(uri)
     ? DetailedActionType.RemoveDirectory
     : DetailedActionType.RemoveFile;
 
@@ -250,7 +254,7 @@ function shouldReindexOnConfigurationChange(
 }
 
 async function init() {
-  utils.setWorkspaceFoldersCommonPath();
+  workspaceFolders.setWorkspaceFoldersCommonPath();
   clearConfig();
   await refreshPresets();
   clearIndexBuiltWithOtherConfig();
