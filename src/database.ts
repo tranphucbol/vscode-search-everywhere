@@ -14,6 +14,26 @@ let persistTimer: NodeJS.Timeout | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 let seedMeta: SeedMeta | undefined;
+let dirty = false;
+let persistInFlight: Promise<void> | undefined;
+let persistPending = false;
+let persistPendingTemplate = false;
+// The shared template is written far less often than the index, so it tracks its own changes.
+let templateStale = false;
+let repoFingerprint: string | undefined;
+let repoFingerprintResolved = false;
+// Bumped by markDirty; the git state recorded for the template is valid only for the rows it saw.
+let changeEpoch = 0;
+let templateGitState: TemplateGitState | undefined;
+let templateGitStateEpoch = -1;
+// Bumped by closeDatabase so a background save that outlives its connection does not rename
+// its file over the newer one written on shutdown.
+let dbGeneration = 0;
+
+interface TemplateGitState {
+  commit?: string;
+  dirtyPaths: string[];
+}
 
 export interface SeedMeta {
   commit?: string;
@@ -21,6 +41,14 @@ export interface SeedMeta {
 }
 
 const SEARCH_LIMIT = 500;
+const PERSIST_DEBOUNCE_MS = 10000;
+const TEMP_SUFFIX = ".tmp";
+// The shutdown save may run while a background save still writes TEMP_SUFFIX.
+const EXIT_TEMP_SUFFIX = ".exit.tmp";
+const CORRUPT_SUFFIX = ".corrupt";
+// Worktrees of one repository share a template, and their windows may write it at the same time.
+const TEMPLATE_TEMP_SUFFIX = `.${process.pid}${TEMP_SUFFIX}`;
+const TEMPLATE_EXIT_TEMP_SUFFIX = `.${process.pid}${EXIT_TEMP_SUFFIX}`;
 const SCHEMA_VERSION = 5;
 
 export async function initDatabase(
@@ -73,69 +101,76 @@ export async function initDatabase(
     dbPath = path.join(storagePath, "search-everywhere-index.db");
   }
 
+  dirty = false;
+  templateStale = false;
+  repoFingerprint = undefined;
+  repoFingerprintResolved = false;
+  templateGitState = undefined;
+  templateGitStateEpoch = -1;
+  if (dbPath) {
+    removeLeftoverTempFiles();
+  }
+  if (dbPath && fetchShareCacheAcrossWorktrees()) {
+    await resolveRepoFingerprint();
+  }
+
   if (dbPath && fs.existsSync(dbPath)) {
     try {
       const fileBuffer = fs.readFileSync(dbPath);
       db = new sqlJs.Database(fileBuffer);
+      // SQLite reads the header lazily, so a damaged file only fails on the first query.
+      db.exec("SELECT count(*) FROM sqlite_master");
     } catch {
+      if (db) {
+        try {
+          db.close();
+        } catch {}
+      }
+      moveCorruptFileAside();
       db = new sqlJs.Database();
     }
   } else {
     let seeded = false;
-    if (
-      dbPath &&
-      fetchShareCacheAcrossWorktrees() &&
-      context &&
-      context.globalStorageUri
-    ) {
-      const workspaceFolder =
-        vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-      if (workspaceFolder) {
-        try {
-          const rootPath = workspaceFolder.uri.fsPath;
-          const fingerprint = await gitService.getRepoFingerprint(rootPath);
-          if (fingerprint) {
-            const globalDir = context.globalStorageUri.fsPath;
-            const templateDbPath = path.join(globalDir, `repo-${fingerprint}.db`);
-            const templateMetaPath = path.join(globalDir, `repo-${fingerprint}.json`);
+    const template = fetchShareCacheAcrossWorktrees() ? getTemplateTarget() : undefined;
+    if (dbPath && template) {
+      try {
+        if (fs.existsSync(template.dbPath) && fs.existsSync(template.metaPath)) {
+          const meta = JSON.parse(fs.readFileSync(template.metaPath, "utf8"));
+          seedMeta = { commit: meta.commit, dirtyPaths: meta.dirtyPaths };
+          const templateRootUriStr = meta.templateRootUri;
+          const currentRootUriStr = template.rootUri;
 
-            if (fs.existsSync(templateDbPath) && fs.existsSync(templateMetaPath)) {
-              const meta = JSON.parse(fs.readFileSync(templateMetaPath, "utf8"));
-              seedMeta = { commit: meta.commit, dirtyPaths: meta.dirtyPaths };
-              const templateRootUriStr = meta.templateRootUri;
-              const currentRootUriStr = workspaceFolder.uri.toString();
+          const fileBuffer = fs.readFileSync(template.dbPath);
+          db = new sqlJs.Database(fileBuffer);
 
-              const fileBuffer = fs.readFileSync(templateDbPath);
-              db = new sqlJs.Database(fileBuffer);
-
-              if (templateRootUriStr && templateRootUriStr !== currentRootUriStr) {
-                db.run("UPDATE symbols SET uri = replace(uri, ?, ?)", [
-                  templateRootUriStr,
-                  currentRootUriStr,
-                ]);
-                try {
-                  db.run("UPDATE file_state SET uri = replace(uri, ?, ?)", [
-                    templateRootUriStr,
-                    currentRootUriStr,
-                  ]);
-                } catch {
-                  // Templates written before schema 5 have no file_state table.
-                }
-              }
-
-              const data = db.export();
-              fs.writeFileSync(dbPath, Buffer.from(data));
-
-              seededFromTemplate = true;
-              seeded = true;
-              logger.log(
-                `Seeded database from shared repository template (fingerprint: ${fingerprint})`
-              );
+          if (templateRootUriStr && templateRootUriStr !== currentRootUriStr) {
+            db.run("UPDATE symbols SET uri = replace(uri, ?, ?)", [
+              templateRootUriStr,
+              currentRootUriStr,
+            ]);
+            try {
+              db.run("UPDATE file_state SET uri = replace(uri, ?, ?)", [
+                templateRootUriStr,
+                currentRootUriStr,
+              ]);
+            } catch {
+              // Templates written before schema 5 have no file_state table.
             }
           }
-        } catch (error) {
-          logger.log(`Failed to seed database from template: ${error}`);
+
+          markDirty();
+          writeIndexFileSync(false);
+          // The template already holds these rows; only later changes make it stale.
+          templateStale = false;
+
+          seededFromTemplate = true;
+          seeded = true;
+          logger.log(
+            `Seeded database from shared repository template (fingerprint: ${template.fingerprint})`
+          );
         }
+      } catch (error) {
+        logger.log(`Failed to seed database from template: ${error}`);
       }
     }
 
@@ -144,7 +179,12 @@ export async function initDatabase(
     }
   }
 
-  // Performance PRAGMAs for SQLite WASM
+  applyConnectionPragmas();
+
+  createTables();
+}
+
+function applyConnectionPragmas(): void {
   try {
     db.run("PRAGMA synchronous = OFF;");
     db.run("PRAGMA journal_mode = MEMORY;");
@@ -153,8 +193,15 @@ export async function initDatabase(
   } catch {
     // Ignore PRAGMA errors on in-memory databases
   }
+}
 
-  createTables();
+// sql.js closes and reopens the connection to export it, which puts every PRAGMA back to its
+// default (sql-wasm-debug.js, Database.export); without re-applying them search reads through
+// a 2 MB page cache for the rest of the session.
+function exportDatabase(): Uint8Array {
+  const data = db.export();
+  applyConnectionPragmas();
+  return data;
 }
 
 export function extractName(label: string): string {
@@ -498,6 +545,7 @@ function createTables(): void {
         }
         stmt.free();
         db.run("COMMIT");
+        markDirty();
       }
     }
   } catch {}
@@ -560,6 +608,7 @@ function migrateSchema(): void {
   if (version >= SCHEMA_VERSION) {
     return;
   }
+  markDirty();
   if (version < 1) {
     try {
       db.run("ALTER TABLE symbols ADD COLUMN clean_container TEXT DEFAULT ''");
@@ -595,6 +644,7 @@ export function insertSymbol(item: QuickPickItem): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   const name = extractName(item.label);
   const cleanName = extractCleanName(name);
   const cleanStem = extractCleanStem(name, item.symbolKind);
@@ -631,6 +681,7 @@ export function insertSymbolsBatch(items: QuickPickItem[]): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare(`
     INSERT INTO symbols
@@ -685,8 +736,17 @@ export function deleteByUri(uriPath: string): void {
     return;
   }
   clearSearchCache();
-  db.run("DELETE FROM symbols WHERE uri = ?", [uriPath]);
-  db.run("DELETE FROM file_state WHERE uri = ?", [uriPath]);
+  const removed =
+    runAndCountChanges("DELETE FROM symbols WHERE uri = ?", [uriPath]) +
+    runAndCountChanges("DELETE FROM file_state WHERE uri = ?", [uriPath]);
+  removed && markDirty();
+}
+
+// File events for paths that were never indexed (such as .git/index.lock, which every git
+// command creates) must not trigger a save; each save reads git state and would create another.
+function runAndCountChanges(sql: string, params: any[]): number {
+  db.run(sql, params);
+  return db.getRowsModified();
 }
 
 export function deleteByUriPrefix(uriPath: string): void {
@@ -695,8 +755,10 @@ export function deleteByUriPrefix(uriPath: string): void {
   }
   clearSearchCache();
   const prefix = [escapeLike(uriPath) + "%"];
-  db.run(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
-  db.run(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+  const removed =
+    runAndCountChanges(`DELETE FROM symbols WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix) +
+    runAndCountChanges(`DELETE FROM file_state WHERE uri LIKE ? ${LIKE_ESCAPE}`, prefix);
+  removed && markDirty();
 }
 
 export interface FileState {
@@ -708,6 +770,7 @@ export function upsertFileStates(entries: Array<[uri: string, state: FileState]>
   if (!db || !entries.length) {
     return;
   }
+  markDirty();
   db.run("BEGIN TRANSACTION");
   const stmt = db.prepare("INSERT OR REPLACE INTO file_state (uri, mtime, size) VALUES (?, ?, ?)");
   try {
@@ -758,7 +821,11 @@ export function getIndexedUris(): string[] {
 }
 
 export function clearFileStates(): void {
-  db && db.run("DELETE FROM file_state");
+  if (!db) {
+    return;
+  }
+  markDirty();
+  db.run("DELETE FROM file_state");
 }
 
 export function hasFileStateBaseline(): boolean {
@@ -829,6 +896,7 @@ export function recomputeSecondary(globs: string[]): void {
     return;
   }
   clearSearchCache();
+  markDirty();
   updateSecondaryColumn(globs);
   schedulePersist();
 }
@@ -1574,6 +1642,7 @@ function rowToQuickPickItem(row: any[]): QuickPickItem {
 export function clearAll(): void {
   if (db) {
     clearSearchCache();
+    markDirty();
     db.run("DELETE FROM symbols");
     db.run("DELETE FROM file_state");
   }
@@ -1594,56 +1663,364 @@ export function isEmpty(): boolean {
   return getCount() === 0;
 }
 
-export function persistToFile(): void {
-  if (db && dbPath) {
-    try {
-      const data = db.export();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(dbPath, buffer);
+function markDirty(): void {
+  dirty = true;
+  templateStale = true;
+  changeEpoch++;
+}
 
-      if (
-        fetchShareCacheAcrossWorktrees() &&
-        extensionContext &&
-        extensionContext.globalStorageUri
-      ) {
-        const workspaceFolder =
-          vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-        if (workspaceFolder) {
-          gitService
-            .getRepoFingerprint(workspaceFolder.uri.fsPath)
-            .then(async (fingerprint) => {
-              if (fingerprint && extensionContext) {
-                const rootPath = workspaceFolder.uri.fsPath;
-                const commit = await gitService.getHeadCommit(rootPath);
-                const dirtyPaths = await gitService.getWorkingTreePaths(rootPath);
-                const globalDir = extensionContext.globalStorageUri.fsPath;
-                if (!fs.existsSync(globalDir)) {
-                  fs.mkdirSync(globalDir, { recursive: true });
-                }
-                const templateDbPath = path.join(globalDir, `repo-${fingerprint}.db`);
-                const templateMetaPath = path.join(globalDir, `repo-${fingerprint}.json`);
-                fs.writeFileSync(templateDbPath, buffer);
-                fs.writeFileSync(
-                  templateMetaPath,
-                  JSON.stringify({
-                    fingerprint,
-                    templateRootUri: workspaceFolder.uri.toString(),
-                    symbolCount: getCount(),
-                    lastUpdated: Date.now(),
-                    commit,
-                    dirtyPaths,
-                  })
-                );
-              }
-            })
-            .catch(() => {
-              // Non-critical background task
-            });
-        }
-      }
+function removeLeftoverTempFiles(): void {
+  for (const suffix of [TEMP_SUFFIX, EXIT_TEMP_SUFFIX]) {
+    try {
+      fs.unlinkSync(dbPath + suffix);
     } catch {
-      // silently fail — non-critical
+      // Usually absent; nothing else to do when it cannot be removed.
     }
+  }
+}
+
+function moveCorruptFileAside(): void {
+  try {
+    fs.renameSync(dbPath, dbPath + CORRUPT_SUFFIX);
+  } catch (error) {
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {}
+    logger.log(`Failed to move the unreadable index file aside: ${error}`);
+  }
+  logger.log("Index file could not be read; it was moved aside and the workspace will be reindexed.");
+}
+
+// Wraps the exported bytes without the second full copy Buffer.from(data) would make.
+function exportBuffer(): Buffer {
+  const data = exportDatabase();
+  return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+}
+
+function logSaved(buffer: Buffer, startedAt: number): void {
+  const megabytes = (buffer.byteLength / 1024 / 1024).toFixed(1);
+  logger.log(`Saved index (${megabytes} MB) in ${Date.now() - startedAt} ms`);
+}
+
+// Clears dirty before exporting, so writes made while the file is being written mark the next
+// save; a failed write sets it again so the next save retries.
+async function writeIndexFile(includeTemplate: boolean): Promise<void> {
+  if (!db || !dbPath) {
+    return;
+  }
+  if (includeTemplate && templateStale && fetchShareCacheAcrossWorktrees()) {
+    await resolveRepoFingerprint();
+  }
+  const staleTemplate = getStaleTemplateTarget();
+  const template = includeTemplate ? staleTemplate : undefined;
+  const writeIndex = dirty;
+  if (!writeIndex && !template) {
+    return;
+  }
+  const startedAt = Date.now();
+  const generation = dbGeneration;
+  const exportedEpoch = changeEpoch;
+  const targetPath = dbPath;
+  dirty = false;
+  if (template) {
+    templateStale = false;
+  }
+  let buffer: Buffer;
+  let symbolCount = 0;
+  try {
+    buffer = exportBuffer();
+    if (template) {
+      symbolCount = getCount();
+    }
+  } catch (error) {
+    dirty = dirty || writeIndex;
+    templateStale = templateStale || !!template;
+    logger.log(`Failed to save index: ${error}`);
+    return;
+  }
+  if (writeIndex) {
+    try {
+      if (!(await replaceFile(targetPath, buffer, TEMP_SUFFIX, generation))) {
+        return;
+      }
+    } catch (error) {
+      dirty = true;
+      templateStale = templateStale || !!template;
+      logger.log(`Failed to save index: ${error}`);
+      return;
+    }
+    logSaved(buffer, startedAt);
+  }
+  if (!staleTemplate) {
+    return;
+  }
+  // Read after the export, so a file changed in between is at worst listed as dirty too.
+  const gitState = await captureTemplateGitState();
+  if (generation === dbGeneration && exportedEpoch === changeEpoch) {
+    templateGitState = gitState;
+    templateGitStateEpoch = exportedEpoch;
+  }
+  if (template) {
+    await writeSharedTemplate(buffer, false, template, symbolCount, gitState, generation);
+  }
+}
+
+// The shutdown save cannot wait for git. It reuses the state read by the last background save,
+// and leaves the older, self-consistent template in place when the index changed after it.
+function getCurrentTemplateGitState(): TemplateGitState | undefined {
+  return templateGitStateEpoch === changeEpoch ? templateGitState : undefined;
+}
+
+async function captureTemplateGitState(): Promise<TemplateGitState> {
+  const workspaceFolder = getWorkspaceFolder();
+  if (!workspaceFolder) {
+    return { dirtyPaths: [] };
+  }
+  const rootPath = workspaceFolder.uri.fsPath;
+  const [commit, dirtyPaths] = await Promise.all([
+    gitService.getHeadCommit(rootPath),
+    gitService.getWorkingTreePaths(rootPath),
+  ]);
+  return { commit, dirtyPaths };
+}
+
+function writeIndexFileSync(includeTemplate: boolean): void {
+  if (!db || !dbPath) {
+    return;
+  }
+  const staleTemplate = includeTemplate ? getStaleTemplateTarget() : undefined;
+  const gitState = staleTemplate && getCurrentTemplateGitState();
+  if (staleTemplate && !gitState) {
+    logger.log("Shared index template not refreshed on exit: the index changed after the last background save.");
+  }
+  const template = gitState ? staleTemplate : undefined;
+  const writeIndex = dirty;
+  if (!writeIndex && !template) {
+    return;
+  }
+  const startedAt = Date.now();
+  dirty = false;
+  if (template) {
+    templateStale = false;
+  }
+  let buffer: Buffer;
+  let symbolCount = 0;
+  try {
+    buffer = exportBuffer();
+    if (template) {
+      symbolCount = getCount();
+    }
+    if (writeIndex) {
+      replaceFileSync(dbPath, buffer, EXIT_TEMP_SUFFIX);
+    }
+  } catch (error) {
+    dirty = dirty || writeIndex;
+    templateStale = templateStale || !!template;
+    logger.log(`Failed to save index: ${error}`);
+    return;
+  }
+  if (writeIndex) {
+    logSaved(buffer, startedAt);
+  }
+  if (template) {
+    writeSharedTemplate(buffer, true, template, symbolCount, gitState!, dbGeneration);
+  }
+}
+
+/**
+ * Writes the database, then its meta, each through a temp file, so a worktree seeding from the
+ * template never pairs new meta with an old database.
+ */
+function writeSharedTemplate(
+  buffer: Buffer,
+  sync: true,
+  target: TemplateTarget,
+  symbolCount: number,
+  gitState: TemplateGitState,
+  generation: number
+): void;
+function writeSharedTemplate(
+  buffer: Buffer,
+  sync: false,
+  target: TemplateTarget,
+  symbolCount: number,
+  gitState: TemplateGitState,
+  generation: number
+): Promise<void>;
+function writeSharedTemplate(
+  buffer: Buffer,
+  sync: boolean,
+  target: TemplateTarget,
+  symbolCount: number,
+  gitState: TemplateGitState,
+  generation: number
+): Promise<void> | void {
+  const meta = JSON.stringify({
+    fingerprint: target.fingerprint,
+    templateRootUri: target.rootUri,
+    symbolCount,
+    lastUpdated: Date.now(),
+    commit: gitState.commit,
+    dirtyPaths: gitState.dirtyPaths,
+  });
+  const onError = (error: unknown) => {
+    if (generation === dbGeneration) {
+      templateStale = true;
+    }
+    logger.log(`Failed to save shared index template: ${error}`);
+  };
+  if (sync) {
+    try {
+      fs.mkdirSync(target.dir, { recursive: true });
+      replaceFileSync(target.dbPath, buffer, TEMPLATE_EXIT_TEMP_SUFFIX);
+      replaceFileSync(target.metaPath, meta, TEMPLATE_EXIT_TEMP_SUFFIX);
+    } catch (error) {
+      onError(error);
+    }
+    return;
+  }
+  return (async () => {
+    try {
+      await fs.promises.mkdir(target.dir, { recursive: true });
+      if (await replaceFile(target.dbPath, buffer, TEMPLATE_TEMP_SUFFIX, generation)) {
+        await replaceFile(target.metaPath, meta, TEMPLATE_TEMP_SUFFIX, generation);
+      }
+    } catch (error) {
+      onError(error);
+    }
+  })();
+}
+
+// Returns false, leaving the target untouched, when the database was closed during the write:
+// the shutdown save has already written newer bytes there.
+async function replaceFile(
+  targetPath: string,
+  data: Buffer | string,
+  tempSuffix: string,
+  generation: number
+): Promise<boolean> {
+  const tempPath = targetPath + tempSuffix;
+  await fs.promises.writeFile(tempPath, data);
+  if (generation !== dbGeneration) {
+    await fs.promises.unlink(tempPath).catch(() => undefined);
+    return false;
+  }
+  await fs.promises.rename(tempPath, targetPath);
+  return true;
+}
+
+function replaceFileSync(targetPath: string, data: Buffer | string, tempSuffix: string): void {
+  const tempPath = targetPath + tempSuffix;
+  fs.writeFileSync(tempPath, data);
+  fs.renameSync(tempPath, targetPath);
+}
+
+interface TemplateTarget {
+  fingerprint: string;
+  rootUri: string;
+  dir: string;
+  dbPath: string;
+  metaPath: string;
+}
+
+function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
+  return vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+}
+
+function getTemplateTarget(): TemplateTarget | undefined {
+  const workspaceFolder = getWorkspaceFolder();
+  if (
+    !repoFingerprint ||
+    !workspaceFolder ||
+    !extensionContext ||
+    !extensionContext.globalStorageUri
+  ) {
+    return undefined;
+  }
+  const dir = extensionContext.globalStorageUri.fsPath;
+  return {
+    fingerprint: repoFingerprint,
+    rootUri: workspaceFolder.uri.toString(),
+    dir,
+    dbPath: path.join(dir, `repo-${repoFingerprint}.db`),
+    metaPath: path.join(dir, `repo-${repoFingerprint}.json`),
+  };
+}
+
+function getStaleTemplateTarget(): TemplateTarget | undefined {
+  if (!templateStale || !fetchShareCacheAcrossWorktrees()) {
+    return undefined;
+  }
+  return getTemplateTarget();
+}
+
+// Runs git, so at most once per initDatabase; the result cannot change while the window is open.
+async function resolveRepoFingerprint(): Promise<void> {
+  if (repoFingerprintResolved) {
+    return;
+  }
+  repoFingerprintResolved = true;
+  const workspaceFolder = getWorkspaceFolder();
+  if (!workspaceFolder || !extensionContext || !extensionContext.globalStorageUri) {
+    return;
+  }
+  try {
+    repoFingerprint = await gitService.getRepoFingerprint(workspaceFolder.uri.fsPath);
+  } catch {
+    repoFingerprint = undefined;
+  }
+}
+
+/**
+ * Saves the index in the background when it changed since the last save, and with
+ * `includeTemplate` also the shared worktree template when it changed since it was last written.
+ * Single-flight: a call made while a save is writing returns that save's promise, which then
+ * runs one more save with the options of every call that waited. Never rejects; a failed save
+ * is logged and retried by the next call.
+ */
+export function persistToFile(
+  options: { includeTemplate: boolean } = { includeTemplate: false }
+): Promise<void> {
+  if (persistInFlight) {
+    persistPending = true;
+    persistPendingTemplate = persistPendingTemplate || options.includeTemplate;
+    return persistInFlight;
+  }
+  const run = async () => {
+    let includeTemplate = options.includeTemplate;
+    try {
+      do {
+        persistPending = false;
+        await writeIndexFile(includeTemplate);
+        includeTemplate = persistPendingTemplate;
+        persistPendingTemplate = false;
+      } while (persistPending);
+    } finally {
+      persistInFlight = undefined;
+    }
+  };
+  persistInFlight = run();
+  return persistInFlight;
+}
+
+/**
+ * Saves the index and the shared template synchronously when they changed; only for shutdown,
+ * where VS Code does not wait for promises.
+ */
+export function persistToFileSync(): void {
+  writeIndexFileSync(true);
+}
+
+/** Cancels a scheduled save and saves now, shared template included; used after a full index. */
+export function flushPersist(): Promise<void> {
+  cancelScheduledPersist();
+  return persistToFile({ includeTemplate: true });
+}
+
+function cancelScheduledPersist(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = undefined;
   }
 }
 
@@ -1667,7 +2044,7 @@ export function clearSharedCache(): void {
       for (const file of files) {
         if (
           file.startsWith("repo-") &&
-          (file.endsWith(".db") || file.endsWith(".json"))
+          (file.endsWith(".db") || file.endsWith(".json") || file.endsWith(TEMP_SUFFIX))
         ) {
           try {
             fs.unlinkSync(path.join(globalDir, file));
@@ -1682,12 +2059,11 @@ export function clearSharedCache(): void {
 }
 
 export function schedulePersist(): void {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  cancelScheduledPersist();
   persistTimer = setTimeout(() => {
+    persistTimer = undefined;
     persistToFile();
-  }, 2000);
+  }, PERSIST_DEBOUNCE_MS);
 }
 
 export function deleteDatabaseFile(): void {
@@ -1697,14 +2073,15 @@ export function deleteDatabaseFile(): void {
 }
 
 export function closeDatabase(): void {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-  }
+  cancelScheduledPersist();
   if (db) {
-    persistToFile();
+    persistToFileSync();
     db.close();
     db = undefined;
   }
+  dbGeneration++;
+  persistPending = false;
+  persistPendingTemplate = false;
 }
 
 export function isReady(): boolean {
@@ -1730,6 +2107,8 @@ export const database = {
   getCount,
   isEmpty,
   persistToFile,
+  persistToFileSync,
+  flushPersist,
   schedulePersist,
   deleteDatabaseFile,
   closeDatabase,

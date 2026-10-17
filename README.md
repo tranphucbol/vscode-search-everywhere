@@ -186,6 +186,11 @@ the same repository share one cache.
   startup comparison.
 - A worktree seeded from the shared cache reindexes the files that differ from the worktree the
   cache was written in: `git diff` between the two commits plus both worktrees' uncommitted files.
+- The index is saved in the background about 10 s after the last change and again when VS Code
+  closes, through a temporary file so a crash never leaves a half-written index. An unchanged
+  index is not written. The shared worktree cache is refreshed after a full index, and on exit
+  when the index has not changed since the last background save. An index file that cannot be
+  read is moved aside and the workspace is reindexed.
 - Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
   file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
 - Before indexing, the extension opens one file per language and waits until its language server

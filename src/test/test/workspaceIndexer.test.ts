@@ -150,6 +150,18 @@ describe("WorkspaceIndexer", () => {
       assert.deepEqual(callOrder, ["stop", "start"]);
     });
 
+    it("should flush the index to disk when a full index finishes", async () => {
+      const { flushPersistStub, schedulePersistStub } =
+        setups.indexWithProgressTask.setupForFlushPersist();
+      const token = {
+        onCancellationRequested: () => ({ dispose: () => {} }),
+      };
+      await workspaceIndexer.indexWithProgressTask(getProgress(), token as any);
+
+      assert.equal(flushPersistStub.calledOnce, true);
+      assert.equal(schedulePersistStub.called, false);
+    });
+
     it("should invoke onDidItemIndexed method", async () => {
       const [onDidItemIndexedStub] =
         setups.indexWithProgressTask.setupForItemIndexedEvent();

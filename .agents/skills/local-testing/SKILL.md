@@ -142,8 +142,10 @@ the repository.
   run `command "Search everywhere: Reload"`, which waits for the scan.
 - **Caching needs a graceful quit.** `restart` and `stop` press `Meta+Q` so the database is
   written. If VS Code doesn't quit (unsaved file, open dialog) the driver kills it and says so;
-  the cache from that run is then lost. The shared worktree template is written about 2 s after
-  indexing; wait before quitting when testing it.
+  the cache from that run is then lost. The index and the shared worktree template are written as
+  soon as a full index finishes; edits are saved about 10 s after the last change (`Saved index`
+  in `log`). On quit the template is refreshed only if nothing changed after that save, so wait
+  ~10 s after an edit before quitting when testing it.
 - **Toasts.** Notifications stay visible; `state` prints them. `command "Search everywhere:
   Reload"` samples them while indexing because the progress toast disappears when it ends.
 - **TypeScript reports `const` as a variable** (kind 12), not a constant, so `MAX_VALUE` shows as

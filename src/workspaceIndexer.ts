@@ -176,7 +176,7 @@ async function indexWorkspace(
   }
 
   progress?.report({ message: "Saving index database..." });
-  database.schedulePersist();
+  database.flushPersist();
   retryQueue.start(data.urisToRetry || []);
 
   return data;

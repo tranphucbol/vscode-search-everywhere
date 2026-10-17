@@ -24,6 +24,9 @@ const vscodeMock = {
     workspaceFolders: undefined,
     getConfiguration: () => ({ get: (_key, defaultValue) => defaultValue }),
   },
+  window: {
+    createOutputChannel: () => ({ appendLine: (line) => console.log(`  [log] ${line}`) }),
+  },
 };
 
 // Hook module loader for 'vscode'
@@ -48,6 +51,7 @@ Module.prototype.require = function (id) {
 
 const { database, extractName } = require("../dist/database");
 const { initCache } = require("../dist/cache");
+require("../dist/logger").logger.init();
 
 const workspaceStateStore = new Map();
 initCache({
@@ -208,14 +212,19 @@ async function runBenchmark(itemCount = 50000) {
   const newAvgQueryMs = ((t1SqlSearch - t0SqlSearch) / (10 * queries.length)).toFixed(2);
   console.log(`  -> Średni czas zapytania SQLite (${10 * queries.length} zapytań): ${newAvgQueryMs} ms / zapytanie`);
 
-  for (const q of queries) {
+  const timeUncached = (q) => {
     let count = 0;
     const t0 = process.hrtime.bigint();
     for (let iter = 0; iter < 10; iter++) {
       database.clearSearchCache();
       count = database.search(q, 500).length;
     }
-    const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 10;
+    return { ms: Number(process.hrtime.bigint() - t0) / 1e6 / 10, count };
+  };
+  const beforeSaveMs = new Map();
+  for (const q of queries) {
+    const { ms, count } = timeUncached(q);
+    beforeSaveMs.set(q, ms);
     console.log(`     ${q.padEnd(26)} ${ms.toFixed(2).padStart(8)} ms  (${count} wyników, bez cache)`);
   }
 
@@ -261,10 +270,23 @@ async function runBenchmark(itemCount = 50000) {
   }
 
   // Wielkość pliku bazy na dysku
-  database.persistToFile();
+  const t0Persist = process.hrtime.bigint();
+  await database.persistToFile();
+  const persistMs = Number(process.hrtime.bigint() - t0Persist) / 1e6;
   const dbFile = path.join(testStorageDir, "search-everywhere-index.db");
   const dbFileSize = fs.existsSync(dbFile) ? fs.statSync(dbFile).size : 0;
-  console.log(`  -> Rozmiar bazy SQLite na dysku: ${formatBytes(dbFileSize)}`);
+  console.log(`  -> Rozmiar bazy SQLite na dysku: ${formatBytes(dbFileSize)} (zapis: ${persistMs.toFixed(0)} ms)`);
+
+  // sql.js reopens the connection on export, which resets the PRAGMAs; a slower second pass
+  // means they were not re-applied.
+  console.log(`\n  -> Uncached search before and after the first save`);
+  console.log(`     ${"query".padEnd(26)} ${"before".padStart(11)} ${"after".padStart(11)}`);
+  for (const q of queries) {
+    const { ms } = timeUncached(q);
+    console.log(
+      `     ${q.padEnd(26)} ${beforeSaveMs.get(q).toFixed(2).padStart(8)} ms ${ms.toFixed(2).padStart(8)} ms`
+    );
+  }
 
   database.closeDatabase();
   // Sprzątanie katalogu testowego

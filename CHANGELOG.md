@@ -12,6 +12,11 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - The index schema moves to version 5 and gains a `file_state` table; the existing index is kept. The first startup records each file's state without reindexing, so a change made before this version is picked up the next time that file changes.
 - A worktree seeded from a shared cache written by an older version is indexed in full once, because that cache does not record its commit.
 
+### 🐛 Fixes
+- **No more pauses while editing on large indexes**: the index is saved in the background about 10 s after the last change (it was 2 s, with a synchronous write of the whole file), and only when something changed. The shared worktree cache is written after a full index and on exit, no longer on every save, and still records the commit and uncommitted files it was written at.
+- **Search stays fast after the first save**: saving the index reset the SQLite page cache and temp store settings, which made later searches slower; they are now restored after every save.
+- **Safer index file**: the index is written to a temporary file and renamed into place, so a crash or a full disk never leaves a half-written index. An index file that cannot be read is moved aside (`.corrupt`) and the workspace is reindexed.
+
 ## [0.2.1] - 2026-10-17
 ### 📖 Documentation
 - Re-recorded every README GIF on the current UI (result rows, the `Search Everywhere` title and the category buttons) and added one for categories.

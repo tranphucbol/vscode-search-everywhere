@@ -7,6 +7,7 @@ import * as cache from "../../cache";
 import * as config from "../../config";
 import { dataConverter } from "../../dataConverter";
 import { dataService } from "../../dataService";
+import { database } from "../../database";
 import * as dataServiceEventsEmitter from "../../dataServiceEventsEmitter";
 import { logger } from "../../logger";
 import { utils } from "../../utils";
@@ -322,6 +323,36 @@ export const getTestSetups = () => {
           assert.deepEqual(uris, urisToRetry);
         });
         return callOrder;
+      },
+
+      setupForFlushPersist: () => {
+        const [, flushPersistStub, schedulePersistStub] = stubMultiple(
+          [
+            {
+              object: dataServiceEventsEmitter,
+              method: "onDidItemIndexed",
+              returns: { dispose: sinon.stub() },
+            },
+            {
+              object: database,
+              method: "flushPersist",
+              returns: Promise.resolve(),
+            },
+            { object: database, method: "schedulePersist" },
+            {
+              object: dataService,
+              method: "fetchData",
+              returns: Promise.resolve(getWorkspaceData()),
+            },
+            { object: utils, method: "sleep" },
+            { object: utils, method: "printStatsMessage" },
+            { object: logger, method: "logScanTime" },
+            { object: logger, method: "logStructure" },
+            { object: logger, method: "log" },
+          ],
+          sandbox
+        );
+        return { flushPersistStub, schedulePersistStub };
       },
 
       setupForItemIndexedEvent: () => {
