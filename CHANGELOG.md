@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+
+## [0.2.1] - 2026-10-17
 ### 📖 Documentation
 - Re-recorded every README GIF on the current UI (result rows, the `Search Everywhere` title and the category buttons) and added one for categories.
 
