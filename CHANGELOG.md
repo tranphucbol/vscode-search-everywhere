@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-10-17
 ### 🐹☕ Comfortable on Go and Java Workspaces
 - **Categories with `tab`**: `@@` Types (classes, enums, interfaces, structs), `!!` Members (methods, fields, properties, constructors, functions, variables, constants, enum members, events, operators) and `$$` Files. `tab` / `shift + tab` cycle All → Types → Members → Files, keeping the query text; the title shows `[All] · Types · Members · Files   (Tab)`. Configurable with `searchEverywhere.categories`.
 - **Changed `!!`**: it used to mean functions only; it now means Members. `searchEverywhere.itemsFilterPhrases` defaults to `{}`, so `##` (strings) and `%%` (arrays) are gone unless you set them; a category wins when both use the same phrase. Filter-phrase tags such as `[@@ class]` are no longer added to descriptions.
