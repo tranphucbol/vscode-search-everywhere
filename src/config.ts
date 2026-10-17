@@ -126,7 +126,7 @@ const keys = {
   indexNamesOnly: {
     name: "indexNamesOnly",
     value:
-      "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum}",
+      "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}",
   },
   secondaryCode: {
     name: "secondaryCode",

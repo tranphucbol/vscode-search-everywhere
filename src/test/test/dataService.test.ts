@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { dataService } from "../../dataService";
 import { getTestSetups } from "../testSetup/dataService.testSetup";
@@ -141,6 +142,91 @@ describe("DataService", () => {
       await dataService.fetchData();
 
       assert.equal(getSymbolsForUriStub.callCount, 2);
+    });
+  });
+
+  describe("warmupLanguageServers", () => {
+    const uri = (path: string) => vscode.Uri.file(`/./fake/${path}`);
+    const callsFor = (stub: sinon.SinonStub, target: vscode.Uri) =>
+      stub.getCalls().filter((call) => call.args[1] === target).length;
+
+    it("should warm up one sample per language", async () => {
+      const uris = [
+        uri("a.go"),
+        uri("b.go"),
+        uri("c.go"),
+        uri("User.java"),
+        uri("app.ts"),
+        uri("view.tsx"),
+        uri("config.json"),
+      ];
+      const { openTextDocumentStub } = setups.warmup.setupForWarmup(uris, [
+        "go",
+        "java",
+        "ts",
+        "tsx",
+      ]);
+      await dataService.fetchData();
+
+      const opened = openTextDocumentStub
+        .getCalls()
+        .map((call) => call.args[0].path);
+      assert.sameMembers(opened, [
+        uris[1].path,
+        uris[3].path,
+        uris[5].path,
+      ]);
+    });
+
+    it("should wait longer for Java than for other languages", async () => {
+      const goSample = uri("b.go");
+      const javaSample = uri("B.java");
+      const uris = [uri("a.go"), goSample, uri("A.java"), javaSample];
+      const { executeCommandStub } = setups.warmup.setupForWarmup(uris, []);
+      await dataService.fetchData();
+
+      // one call per poll during warm-up plus one while indexing
+      assert.equal(callsFor(executeCommandStub, goSample), 30 + 1);
+      assert.equal(callsFor(executeCommandStub, javaSample), 240 + 1);
+    });
+
+    it("should report languages whose warm-up timed out", async () => {
+      const goUris = [uri("a.go"), uri("b.go")];
+      const uris = [...goUris, uri("app.ts"), uri("util.ts")];
+      setups.warmup.setupForWarmup(uris, ["ts"]);
+      const workspaceData = await dataService.fetchData();
+
+      assert.deepEqual(workspaceData.urisToRetry, goUris);
+    });
+
+    it("should not sample names-only files", async () => {
+      const uris = [
+        uri("config.json"),
+        uri("other.json"),
+        uri("app.ts"),
+        uri("util.ts"),
+      ];
+      const { openTextDocumentStub } = setups.warmup.setupForWarmup(uris, [
+        "ts",
+      ]);
+      const workspaceData = await dataService.fetchData();
+
+      const opened = openTextDocumentStub
+        .getCalls()
+        .map((call) => call.args[0].path);
+      assert.deepEqual(opened, [uris[3].path]);
+      assert.isUndefined(workspaceData.urisToRetry);
+    });
+
+    it("should not warm up a language again once it is ready", async () => {
+      const uris = [uri("app.ts"), uri("util.ts")];
+      const { openTextDocumentStub } = setups.warmup.setupForWarmup(uris, [
+        "ts",
+      ]);
+      await dataService.fetchData();
+      await dataService.fetchData();
+
+      assert.equal(openTextDocumentStub.callCount, 1);
     });
   });
 

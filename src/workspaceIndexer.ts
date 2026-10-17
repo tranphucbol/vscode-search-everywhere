@@ -17,6 +17,7 @@ import { logger } from "./logger";
 import { getActivePresets } from "./presets";
 import { Action, ActionType, QuickPickItem, WorkspaceData } from "./types";
 import { utils } from "./utils";
+import { retryQueue } from "./workspaceUpdater";
 
 function getData(query?: string, limit?: number): QuickPickItem[] {
   if (!database.isReady()) {
@@ -132,6 +133,7 @@ async function indexWorkspace(
     increment?: number | undefined;
   }>
 ): Promise<WorkspaceData> {
+  retryQueue.stop();
   database.clearAll();
   logEffectiveConfig();
   cache.updateIndexedConfig(fetchIndexedConfigSnapshot());
@@ -156,6 +158,7 @@ async function indexWorkspace(
 
   progress?.report({ message: "Saving index database..." });
   database.schedulePersist();
+  retryQueue.start(data.urisToRetry || []);
 
   return data;
 }

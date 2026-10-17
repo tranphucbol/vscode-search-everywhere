@@ -425,6 +425,55 @@ export const getTestSetups = () => {
       },
     },
 
+    warmup: {
+      setupForWarmup: (
+        uris: vscode.Uri[],
+        readyExtensions: string[],
+        namesOnlyGlob = "**/*.json"
+      ) => {
+        stubConfig(sandbox);
+        dataService.resetLanguageWarmup();
+        const isReady = (uri: vscode.Uri) =>
+          readyExtensions.includes(uri.path.split(".").pop()!);
+        const [openTextDocumentStub, executeCommandStub, sleepStub] =
+          stubMultiple(
+            [
+              {
+                object: vscode.workspace,
+                method: "openTextDocument",
+              },
+              {
+                object: vscode.commands,
+                method: "executeCommand",
+                callsFake: async (_command: string, uri: vscode.Uri) =>
+                  isReady(uri) ? getDocumentSymbolItemSingleLineArray(1) : [],
+              },
+              {
+                object: utils,
+                method: "sleep",
+              },
+              {
+                object: config,
+                method: "fetchIndexNamesOnly",
+                returns: namesOnlyGlob,
+              },
+              {
+                object: utils,
+                method: "normalizeUriPath",
+                callsFake: (path: string) => path.replace("/./fake", ""),
+              },
+              {
+                object: vscode.workspace,
+                method: "findFiles",
+                returns: Promise.resolve(uris),
+              },
+            ],
+            sandbox
+          );
+        return { openTextDocumentStub, executeCommandStub, sleepStub };
+      },
+    },
+
     isUriExistingInWorkspace: {
       setupForReturningTrueWhenUriExists: () => {
         stubMultiple(

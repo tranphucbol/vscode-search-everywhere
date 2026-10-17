@@ -11,6 +11,7 @@ export enum ActionTrigger {
   DidCreateFiles = "DidCreateFiles",
   DidDeleteFiles = "DidDeleteFiles",
   ReloadUnsavedUri = "ReloadUnsavedUri",
+  RetryWithoutSymbols = "RetryWithoutSymbols",
 }
 
 export enum ActionType {
@@ -102,4 +103,5 @@ export interface Range {
 export interface WorkspaceData {
   items: Map<string, Item>;
   count: number;
+  urisToRetry?: vscode.Uri[];
 }

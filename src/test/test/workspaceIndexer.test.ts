@@ -138,6 +138,18 @@ describe("WorkspaceIndexer", () => {
       assert.equal(token.onCancellationRequested.calledOnce, true);
     });
 
+    it("should hand files indexed without symbols to the retry queue", async () => {
+      const urisToRetry = [vscode.Uri.file("/fake/server.go")];
+      const callOrder =
+        setups.indexWithProgressTask.setupForRetryQueue(urisToRetry);
+      const token = {
+        onCancellationRequested: () => ({ dispose: () => {} }),
+      };
+      await workspaceIndexer.indexWithProgressTask(getProgress(), token as any);
+
+      assert.deepEqual(callOrder, ["stop", "start"]);
+    });
+
     it("should invoke onDidItemIndexed method", async () => {
       const [onDidItemIndexedStub] =
         setups.indexWithProgressTask.setupForItemIndexedEvent();
