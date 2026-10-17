@@ -758,4 +758,20 @@ describe("Controller", () => {
       assert.equal(reloadStub.calledOnce, true);
     });
   });
+
+  describe("copy", () => {
+    it("should copy the reference through the command", async () => {
+      const [copyReferenceStub] = setups.copy.setupForCopyingReference();
+      await controller.copyReference();
+
+      assert.equal(copyReferenceStub.calledOnce, true);
+    });
+
+    it("should copy the location through the command", async () => {
+      const [copyLocationStub] = setups.copy.setupForCopyingLocation();
+      await controller.copyLocation();
+
+      assert.equal(copyLocationStub.calledOnce, true);
+    });
+  });
 });

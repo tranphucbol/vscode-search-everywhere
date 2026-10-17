@@ -1756,5 +1756,12 @@ export const getTestSetups = () => {
         );
       },
     },
+
+    copy: {
+      setupForCopyingReference: () =>
+        stubMultiple([{ object: quickPick, method: "copyReference" }], sandbox),
+      setupForCopyingLocation: () =>
+        stubMultiple([{ object: quickPick, method: "copyLocation" }], sandbox),
+    },
   };
 };
