@@ -11,6 +11,8 @@ import { stubMultiple } from "../util/stubHelpers";
 
 export const INDEX_FILE_NAME = "search-everywhere-index.db";
 export const FINGERPRINT = "fingerprint-1";
+export const HEAD_COMMIT = "commit-1";
+export const DIRTY_PATHS = ["src/dirty.ts"];
 
 export const getPersistenceTestSetups = (extensionPath: string) => {
   const sandbox = sinon.createSandbox();
@@ -34,6 +36,16 @@ export const getPersistenceTestSetups = (extensionPath: string) => {
           object: gitService,
           method: "getRepoFingerprint",
           returns: Promise.resolve(FINGERPRINT),
+        },
+        {
+          object: gitService,
+          method: "getHeadCommit",
+          returns: Promise.resolve(HEAD_COMMIT),
+        },
+        {
+          object: gitService,
+          method: "getWorkingTreePaths",
+          returns: Promise.resolve(DIRTY_PATHS),
         },
         {
           object: vscode.workspace,

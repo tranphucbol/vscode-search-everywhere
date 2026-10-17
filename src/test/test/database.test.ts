@@ -8,7 +8,12 @@ import * as config from "../../config";
 import { database, RecentKey } from "../../database";
 import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
-import { FINGERPRINT, getPersistenceTestSetups } from "../testSetup/database.testSetup";
+import {
+  DIRTY_PATHS,
+  FINGERPRINT,
+  getPersistenceTestSetups,
+  HEAD_COMMIT,
+} from "../testSetup/database.testSetup";
 import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
 describe("Database", () => {
@@ -1653,6 +1658,8 @@ describe("Database", () => {
       const meta = JSON.parse(fs.readFileSync(setups.templateMetaPath(), "utf8"));
       assert.equal(meta.fingerprint, FINGERPRINT);
       assert.equal(meta.symbolCount, 2);
+      assert.equal(meta.commit, HEAD_COMMIT);
+      assert.deepEqual(meta.dirtyPaths, DIRTY_PATHS);
       assert.equal(
         meta.templateRootUri,
         vscode.workspace.workspaceFolders![0].uri.toString()
@@ -1670,10 +1677,23 @@ describe("Database", () => {
       database.insertSymbol(item2);
       await database.flushPersist();
       database.insertSymbol(item3);
+      await database.persistToFile();
       database.closeDatabase();
 
       assert.equal(fingerprintStub.callCount, 1);
       assert.equal(await countSavedRows(setups.templateDbPath()), 3);
+    });
+
+    it("should not refresh the shared template on exit when the index changed after the last save", async () => {
+      await setups.initWithSharing();
+      database.insertSymbol(item1);
+      await database.flushPersist();
+      database.insertSymbol(item2);
+
+      database.closeDatabase();
+
+      assert.equal(await countSavedRows(setups.indexPath()), 2);
+      assert.equal(await countSavedRows(setups.templateDbPath()), 1);
     });
   });
 
