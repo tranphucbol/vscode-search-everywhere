@@ -75,6 +75,7 @@ export const getConfiguration = (): { [key: string]: any } => {
       shouldWorkspaceDataBeCached: true,
       useFileIconTheme: true,
       rankRecentItemsHigher: false,
+      handOffPrefixes: false,
     },
     customSection: {
       exclude: ["**/customFolder/**"],

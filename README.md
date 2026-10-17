@@ -65,7 +65,9 @@ the same repository share one cache.
 | `!!save` | members only: methods, fields, constructors, functions… (category) |
 | `$$order` | files only (category) |
 | `tab` / `shift + tab`, or a category button | switches between All and each category |
-| `?` | the list of categories and filter phrases |
+| `>sort` | VS Code commands: opens the command palette with `sort` |
+| `%TODO` | text in files: opens VS Code's text search with `TODO` |
+| `?` | the list of categories, filter phrases and `>` / `%` |
 
 ![Query syntax](img/query-syntax.gif)
 
@@ -86,7 +88,7 @@ the same repository share one cache.
   and in-order matches rank first.
 - **Wildcards**: `*` matches any run of characters within a word, in order (`user*impl` finds
   `UserServiceImpl`, `impl*user` does not). `?` is not a wildcard, and `%` and `_` match
-  literally. Queries containing `/` use the directory search instead of multi-word and `*`
+  literally, except that a query typed with a leading `%` opens text search (see below). Queries containing `/` use the directory search instead of multi-word and `*`
   matching.
 - **Jump to line**: append `:line` or `:line:column` to the query to open the selected item at
   that position.
@@ -112,6 +114,13 @@ the same repository share one cache.
   and phrases.
 
   ![Filter phrases](img/filter-phrases.gif)
+
+- **Commands and text**: type `>` as the first character to open VS Code's command palette with
+  the rest of the query (`>sort` lists the sort commands), or `%` to open VS Code's text search
+  with it (`%TODO`). On VS Code versions without the quick text search, `%` opens the Search view
+  with the query. Reopening Search Everywhere shows the query without the prefix. A category or
+  filter phrase that starts with the same character wins, and a selection or restored query that
+  starts with one is still searched here. Turn it off with `searchEverywhere.handOffPrefixes`.
 
 ### Ranking
 
@@ -429,6 +438,12 @@ against them. Measured on an Apple M4:
 
   Put the last workspace query back, selected, when Search Everywhere opens. A non-empty editor
   selection still wins when `searchEverywhere.shouldSearchSelection` is on.
+
+- `searchEverywhere.handOffPrefixes`, default `true`
+
+  A query typed with `>` as its first character opens the VS Code command palette, and one with
+  `%` opens VS Code's text search, with the rest of the query. When `false`, both are searched in
+  the index like any other query. Changing it does not reindex.
 
 - `searchEverywhere.secondaryCode`
 

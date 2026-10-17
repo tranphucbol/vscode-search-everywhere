@@ -272,6 +272,15 @@ describe("Config", () => {
     });
   });
 
+  describe("fetchHandOffPrefixes", () => {
+    it("should fetch handOffPrefixes", () => {
+      const section = "searchEverywhere";
+      const key = "handOffPrefixes";
+
+      assert.equal(config.fetchHandOffPrefixes(), configuration[section][key]);
+    });
+  });
+
   describe("fetchRankRecentItemsHigher", () => {
     it("should return rankRecentItemsHigher setting", () => {
       const section = "searchEverywhere";

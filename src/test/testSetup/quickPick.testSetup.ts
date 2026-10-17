@@ -801,6 +801,77 @@ export const getTestSetups = () => {
       },
     },
 
+    handOff: {
+      setupForHandOff: ({
+        handOffPrefixes = true,
+        quickTextSearch = true,
+      }: { handOffPrefixes?: boolean; quickTextSearch?: boolean } = {}) => {
+        const control = vscode.window.createQuickPick<vscode.QuickPickItem>();
+        // VS Code fires onDidHide when the quick pick is hidden.
+        sandbox.stub(control, "hide").callsFake(() => quickPick.handleDidHide());
+        const [executeCommandStub, getCommandsStub, loadItemsStub] =
+          stubMultiple(
+            [
+              {
+                object: vscode.commands,
+                method: "executeCommand",
+                returns: Promise.resolve(),
+              },
+              {
+                object: vscode.commands,
+                method: "getCommands",
+                returns: Promise.resolve(
+                  quickTextSearch ? ["workbench.action.quickTextSearch"] : []
+                ),
+              },
+              { object: quickPick, method: "loadItems" },
+              { object: quickPick, method: "loadHelpItems" },
+              { object: quickPick, method: "getControl", returns: control },
+              {
+                object: quickPick,
+                method: "getHandOffPrefixes",
+                returns: handOffPrefixes,
+              },
+              {
+                object: quickPick,
+                method: "supportsQuickTextSearch",
+                returns: Promise.resolve(quickTextSearch),
+              },
+              {
+                object: quickPick,
+                method: "getShouldUseItemsFilterPhrases",
+                returns: true,
+              },
+              { object: quickPick, method: "getHelpPhrase", returns: "?" },
+              {
+                object: quickPick,
+                method: "getCategories",
+                returns: [{ name: "Types", phrase: ">>", kinds: [4] }],
+              },
+              {
+                object: quickPick,
+                method: "getItemsFilterPhrases",
+                returns: { 11: "ff" },
+              },
+            ],
+            sandbox
+          );
+        const handOffCalls = () =>
+          executeCommandStub
+            .getCalls()
+            .map((call) => call.args)
+            .filter(([command]) => command !== "setContext");
+
+        return {
+          control,
+          executeCommandStub,
+          getCommandsStub,
+          loadItemsStub,
+          handOffCalls,
+        };
+      },
+    },
+
     handleDidTriggerItemButton: {
       setupForInvokingOpenItem: () => {
         stubControl(sandbox);
