@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-18
 ### ✨ Features
 - **Index follows changes made outside VS Code**: files created, changed or deleted by `git checkout`, `git pull`, a code generator or a terminal command are reindexed about half a second after the last change, and a deleted directory takes everything under it out of the index. Files open in an editor still follow the editor. Turn it off with `searchEverywhere.watchFileSystem` (default `true`).
 - **Changes made while VS Code was closed are picked up**: on startup a cached index is compared with the disk in the background, by each file's modification time and size, and only files added, changed or deleted since are reindexed. More than a quarter of the files changed (at least 2000) indexes the workspace again. This also runs when `searchEverywhere.shouldInitOnStartup` is off.
