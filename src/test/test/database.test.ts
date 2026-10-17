@@ -3,9 +3,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
+import { dataConverter } from "../../dataConverter";
 import { database, RecentKey } from "../../database";
 import { logger } from "../../logger";
 import { QuickPickItem } from "../../types";
+import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
 describe("Database", () => {
   const fakeContext: any = {
@@ -1206,6 +1208,37 @@ describe("Database", () => {
     });
   });
 
+  describe("Go symbols", () => {
+    const serverGo = vscode.Uri.file("/workspace/server.go");
+    const nameOf = (item: QuickPickItem) => database.extractName(item.label);
+
+    beforeEach(() => {
+      database.insertSymbolsBatch(
+        dataConverter.convertUriAndSymbolsToQpItems(
+          serverGo,
+          flattenSymbols(loadSymbolFixture("gopls-server.json"))
+        )
+      );
+    });
+
+    it("should find a Go method by Type.method", () => {
+      const [first] = database.search("Server.Start");
+      assert.equal(nameOf(first), "Start");
+      assert.equal(first.description, "(*Server) · method");
+    });
+
+    it("should list Go methods with Type.", () => {
+      const members = database
+        .search("Config.")
+        .map((item) => `${nameOf(item)} ${item.symbolKind}`);
+      assert.includeMembers(members, [
+        `Validate ${vscode.SymbolKind.Method}`,
+        `Admin ${vscode.SymbolKind.Field}`,
+        `Port ${vscode.SymbolKind.Field}`,
+      ]);
+    });
+  });
+
   describe("schema migration", () => {
     const dbFile = path.join(fakeContext.storageUri.fsPath, "search-everywhere-index.db");
 
@@ -1248,7 +1281,7 @@ describe("Database", () => {
       }
     });
 
-    const writeVersion1Database = async () => {
+    const writeVersion2Database = async () => {
       const initSqlJs = require("sql.js");
       const SQL = await initSqlJs({
         locateFile: () =>
@@ -1258,28 +1291,29 @@ describe("Database", () => {
       legacy.run(`CREATE TABLE symbols (
         id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
         clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', clean_container TEXT DEFAULT '',
+        clean_words TEXT DEFAULT '', clean_initials TEXT DEFAULT '',
         symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
         range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
         range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0)`);
       const rows = [
-        ["file:///workspace/src/UserServiceImpl.ts", "UserServiceImpl", 4],
-        ["file:///workspace/src/map-service.ts", "map-service.ts", 0],
+        ["file:///workspace/server.go", "(*Server).Start", 5],
+        ["file:///workspace/server.go", "server.go", 0],
       ];
       for (const [uri, name, kind] of rows) {
         legacy.run(
-          "INSERT INTO symbols (uri, name, clean_name, clean_stem, clean_container, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label) VALUES (?, ?, ?, ?, ?, ?)",
           [uri, name, database.extractCleanName(name as string),
-            database.extractCleanStem(name as string), "", kind, `$(symbol-class) ${name}`]
+            database.extractCleanStem(name as string), kind, name]
         );
       }
-      legacy.run("PRAGMA user_version = 1");
+      legacy.run("PRAGMA user_version = 2");
       fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
       legacy.close();
     };
 
-    const reopenVersion1Database = async () => {
+    const reopenVersion2Database = async () => {
       database.closeDatabase();
-      await writeVersion1Database();
+      await writeVersion2Database();
       await database.initDatabase(fakeContext);
     };
 
@@ -1297,47 +1331,29 @@ describe("Database", () => {
       return version;
     };
 
-    it("should backfill words and initials when migrating from schema version 1", async () => {
-      const logStub = sinon.stub(logger, "log");
-      try {
-        await reopenVersion1Database();
-
-        assert.deepEqual(
-          database.search("usi").map((r) => r.label),
-          ["$(symbol-class) UserServiceImpl"]
-        );
-        assert.deepEqual(
-          database.search("ms").map((r) => r.label),
-          ["$(symbol-class) map-service.ts"]
-        );
-        assert.isTrue(
-          logStub.calledWith("Index schema upgraded; word columns backfilled for 2 rows.")
-        );
-      } finally {
-        logStub.restore();
-      }
-    });
-
-    it("should not empty a version 1 index when migrating to version 2", async () => {
+    it("should clear a version 2 index on open", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
         database.setSeededFromTemplate(true);
-        await reopenVersion1Database();
+        await reopenVersion2Database();
 
-        assert.equal(database.getCount(), 2);
-        assert.isTrue(database.wasSeededFromTemplate());
+        assert.isTrue(database.isEmpty());
+        assert.isFalse(database.wasSeededFromTemplate());
+        assert.isTrue(
+          logStub.calledWith("Index schema upgraded; the workspace will be reindexed.")
+        );
       } finally {
         logStub.restore();
         database.setSeededFromTemplate(false);
       }
     });
 
-    it("should set the schema version to 2 after migrating", async () => {
+    it("should set the schema version to 3 after migrating", async () => {
       const logStub = sinon.stub(logger, "log");
       try {
-        await reopenVersion1Database();
+        await reopenVersion2Database();
 
-        assert.equal(await readSchemaVersion(), 2);
+        assert.equal(await readSchemaVersion(), 3);
       } finally {
         logStub.restore();
       }

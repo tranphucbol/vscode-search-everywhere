@@ -1,6 +1,10 @@
 import { assert } from "chai";
-import { dataConverter } from "../../dataConverter";
+import * as vscode from "vscode";
+import { dataConverter, normalizeSymbolName } from "../../dataConverter";
+import { QuickPickItem } from "../../types";
+import { utils } from "../../utils";
 import { getTestSetups } from "../testSetup/dataConverter.testSetup";
+import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 
@@ -67,7 +71,7 @@ describe("DataConverter", () => {
 
       assert.equal(item.label, "run");
       assert.equal(item.containerName, "Outer.Inner");
-      assert.equal(item.description, "Method at line: 4 in Outer.Inner");
+      assert.equal(item.description, "Outer.Inner · method");
     });
 
     it("should fall back to SymbolInformation containerName", () => {
@@ -79,7 +83,7 @@ describe("DataConverter", () => {
 
       assert.equal(item.label, "save");
       assert.equal(item.containerName, "UserService");
-      assert.equal(item.description, "Method at line: 4 in UserService");
+      assert.equal(item.description, "UserService · method");
     });
 
     it("should leave containerName unset for files", () => {
@@ -89,6 +93,123 @@ describe("DataConverter", () => {
 
       assert.equal(fileItem.symbolKind, 0);
       assert.isFalse("containerName" in fileItem);
+    });
+  });
+
+  describe("Go and Java symbol names", () => {
+    const goUri = vscode.Uri.file("/./fake/server.go");
+    const javaUri = vscode.Uri.file("/./fake/UserService.java");
+    const goItems = () =>
+      dataConverter.convertUriAndSymbolsToQpItems(
+        goUri,
+        flattenSymbols(loadSymbolFixture("gopls-server.json"))
+      );
+    const javaItems = () =>
+      dataConverter.convertUriAndSymbolsToQpItems(
+        javaUri,
+        flattenSymbols(loadSymbolFixture("jdtls-user-service.json"))
+      );
+    const nameOf = (item: QuickPickItem) =>
+      item.label.replace(/^\$\([^)]+\)\s+/, "");
+    const find = (items: QuickPickItem[], name: string, kind: number) => {
+      const item = items.find(
+        (it) => nameOf(it) === name && it.symbolKind === kind
+      );
+      assert.isDefined(item, `${name} (kind ${kind}) not found`);
+      return item!;
+    };
+    const assertRow = (
+      item: QuickPickItem,
+      container: string | undefined,
+      description: string
+    ) => {
+      assert.equal(item.containerName, container);
+      assert.equal(item.description, description);
+    };
+
+    it("should split a Go pointer receiver into container and name", () => {
+      const item = find(goItems(), "Start", vscode.SymbolKind.Method);
+      assertRow(item, "Server", "(*Server) · method");
+    });
+
+    it("should split a Go value receiver into container and name", () => {
+      const item = find(goItems(), "Validate", vscode.SymbolKind.Method);
+      assertRow(item, "Config", "(Config) · method");
+    });
+
+    it("should split a Go generic receiver into container and name", () => {
+      const item = find(goItems(), "Push", vscode.SymbolKind.Method);
+      assertRow(item, "List", "(*List[T]) · method");
+    });
+
+    it("should drop a parameter list from a method name", () => {
+      const items = javaItems();
+      assertRow(
+        find(items, "save", vscode.SymbolKind.Method),
+        "UserService",
+        "UserService · method (User)"
+      );
+      assertRow(
+        find(items, "findAll", vscode.SymbolKind.Method),
+        "UserService",
+        "UserService · method ()"
+      );
+      assertRow(
+        find(items, "convert", vscode.SymbolKind.Method),
+        "UserService",
+        "UserService · method (User, Class<T>) <T>"
+      );
+    });
+
+    it("should drop a parameter list from a constructor name", () => {
+      const item = find(javaItems(), "UserService", vscode.SymbolKind.Constructor);
+      assertRow(item, "UserService", "UserService · constructor (Repo)");
+    });
+
+    it("should keep a container from the parent over one from the name", () => {
+      const symbol = new vscode.DocumentSymbol(
+        `Outer${utils.getSplitter()}(*Server).Start`,
+        "",
+        vscode.SymbolKind.Method,
+        new vscode.Range(0, 0, 1, 0),
+        new vscode.Range(0, 0, 0, 5)
+      );
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(goUri, [
+        symbol,
+      ]);
+      assert.equal(nameOf(item), "Start");
+      assert.equal(item.containerName, "Outer");
+    });
+
+    it("should leave other names unchanged", () => {
+      const goRows = goItems();
+      assertRow(find(goRows, "NewServer", vscode.SymbolKind.Function), undefined, "function");
+      assertRow(find(goRows, "Admin", vscode.SymbolKind.Field), "Config", "Config · field");
+      assertRow(find(goRows, "MaxConns", vscode.SymbolKind.Constant), undefined, "constant");
+      assertRow(find(javaItems(), "ACTIVE", vscode.SymbolKind.EnumMember), "UserService.Status", "UserService.Status · enum member");
+    });
+
+    it("should put the path and 1-based line in the detail", () => {
+      const item = find(goItems(), "Start", vscode.SymbolKind.Method);
+      assert.match(item.detail!, /fake\/server\.go:20$/);
+    });
+
+    it("should describe a file row as file", () => {
+      const [fileItem] = goItems();
+      assert.equal(nameOf(fileItem), "server.go");
+      assert.equal(fileItem.description, "file");
+      assert.match(fileItem.detail!, /fake\/server\.go$/);
+    });
+
+    it("should leave a parenthesised name of another kind unchanged", () => {
+      assert.deepEqual(
+        normalizeSymbolName("(*Server).Start", vscode.SymbolKind.Field),
+        { name: "(*Server).Start" }
+      );
+      assert.deepEqual(
+        normalizeSymbolName("save(User)", vscode.SymbolKind.Variable),
+        { name: "save(User)" }
+      );
     });
   });
 

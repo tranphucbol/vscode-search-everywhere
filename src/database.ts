@@ -14,7 +14,7 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let seededFromTemplate: boolean = false;
 
 const SEARCH_LIMIT = 500;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export async function initDatabase(
   context: vscode.ExtensionContext
@@ -522,6 +522,9 @@ function getSchemaVersion(): number {
 // clean_container cannot be backfilled: the container chain is not stored
 // anywhere in the table, so a version 0 index is emptied and rebuilt instead.
 // The word columns derive from name and symbol_kind, so version 1 is backfilled in place.
+// Version 3 changed how names, containers and descriptions are built from the language
+// server's output (Go receivers, Java parameter lists), which needs the raw symbol names, so
+// anything older is emptied and rebuilt.
 function migrateSchema(): void {
   const version = getSchemaVersion();
   if (version >= SCHEMA_VERSION) {
@@ -531,11 +534,6 @@ function migrateSchema(): void {
     try {
       db.run("ALTER TABLE symbols ADD COLUMN clean_container TEXT DEFAULT ''");
     } catch {}
-    if (!isEmpty()) {
-      db.run("DELETE FROM symbols");
-      seededFromTemplate = false;
-      logger.log("Index schema upgraded; the workspace will be reindexed.");
-    }
   }
   if (version < 2) {
     try {
@@ -544,32 +542,13 @@ function migrateSchema(): void {
     try {
       db.run("ALTER TABLE symbols ADD COLUMN clean_initials TEXT DEFAULT ''");
     } catch {}
-    backfillWordColumns();
+  }
+  if (version < 3 && !isEmpty()) {
+    db.run("DELETE FROM symbols");
+    seededFromTemplate = false;
+    logger.log("Index schema upgraded; the workspace will be reindexed.");
   }
   db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-}
-
-function backfillWordColumns(): void {
-  const rows = db.exec("SELECT id, name, symbol_kind FROM symbols");
-  if (!rows || !rows.length) {
-    return;
-  }
-  db.run("BEGIN TRANSACTION");
-  const stmt = db.prepare("UPDATE symbols SET clean_words = ?, clean_initials = ? WHERE id = ?");
-  try {
-    for (const row of rows[0].values) {
-      const name = row[1] as string;
-      const kind = row[2] as number;
-      stmt.run([...extractWordColumns(name, kind), row[0]]);
-    }
-    stmt.free();
-    db.run("COMMIT");
-  } catch (e) {
-    stmt.free();
-    db.run("ROLLBACK");
-    throw e;
-  }
-  logger.log(`Index schema upgraded; word columns backfilled for ${rows[0].values.length} rows.`);
 }
 
 export function insertSymbol(item: QuickPickItem): void {

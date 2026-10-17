@@ -13,8 +13,42 @@ import {
 } from "./types";
 import { utils } from "./utils";
 
-function getItemFilterPhraseForKind(symbolKind: number): string {
-  return dataConverter.getItemsFilterPhrases()[symbolKind] as string;
+const GO_RECEIVER_METHOD = /^\((\*?)([A-Za-z_]\w*)(\[[^\]]*\])?\)\.(\w+)$/;
+// jdtls appends type parameters after the list: "convert(User, Class<T>) <T>".
+const TRAILING_PARAMETER_LIST = /^([^(\s][^(]*?)\s*(\(.*\)(?:\s*<.*>)?)$/;
+const KINDS_WITH_PARAMETER_LIST = new Set<number>([
+  vscode.SymbolKind.Method,
+  vscode.SymbolKind.Constructor,
+  vscode.SymbolKind.Function,
+]);
+
+export function normalizeSymbolName(
+  name: string,
+  kind: vscode.SymbolKind
+): { name: string; container?: string; qualifier?: string } {
+  if (kind === vscode.SymbolKind.Method) {
+    const receiver = name.match(GO_RECEIVER_METHOD);
+    if (receiver) {
+      const [, pointer, type, typeParams = "", method] = receiver;
+      return {
+        name: method,
+        container: type,
+        qualifier: `(${pointer}${type}${typeParams})`,
+      };
+    }
+  }
+  if (KINDS_WITH_PARAMETER_LIST.has(kind)) {
+    const withParams = name.match(TRAILING_PARAMETER_LIST);
+    if (withParams) {
+      return { name: withParams[1], qualifier: withParams[2] };
+    }
+  }
+  return { name };
+}
+
+function getKindName(symbolKind: number): string {
+  const kindName = vscode.SymbolKind[symbolKind] || "";
+  return kindName.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
 function mapDataToQpData(data: Map<string, Item>): QuickPickItem[] {
@@ -48,20 +82,24 @@ function mapDocumentSymbolToQpItem(
 ): QuickPickItem {
   const splitter = utils.getSplitter();
   const symbolName = symbol.name.split(splitter);
-  const parent =
+  const splitParent =
     symbolName.length === 2
       ? symbolName[0]
       : (symbol as unknown as vscode.SymbolInformation).containerName || "";
-  const name = symbolName.length === 2 ? symbolName[1] : symbol.name;
+  const normalized = normalizeSymbolName(
+    symbolName.length === 2 ? symbolName[1] : symbol.name,
+    symbol.kind
+  );
+  const name = normalized.name;
+  const parent = splitParent || normalized.container || "";
   const icons = dataConverter.getIcons();
   const icon = icons[symbol.kind] ? `$(${icons[symbol.kind]})` : "";
   const label = icon ? `${icon}  ${name}` : name;
-  const itemFilterPhrase = getItemFilterPhraseForKind(symbol.kind);
   const description = getDocumentSymbolToQpItemDescription(
-    itemFilterPhrase,
-    name,
-    symbol,
-    parent
+    symbol.kind,
+    parent,
+    normalized.qualifier,
+    normalized.container !== undefined
   );
 
   const range =
@@ -81,21 +119,17 @@ function mapDocumentSymbolToQpItem(
 }
 
 function getDocumentSymbolToQpItemDescription(
-  itemFilterPhrase: string,
-  name: string,
-  symbol: vscode.DocumentSymbol,
-  parent: string
-) {
-  const range = symbol.range || (symbol as any).location?.range;
-  const lineDesc = range
-    ? range.isSingleLine
-      ? `line: ${range.start.line + 1}`
-      : `lines: ${range.start.line + 1} - ${range.end.line + 1}`
-    : "";
-
-  return `${vscode.SymbolKind[symbol.kind]}${lineDesc ? ` at ${lineDesc}` : ""}${
-    parent ? ` in ${parent}` : ""
-  }`;
+  symbolKind: number,
+  parent: string,
+  qualifier: string | undefined,
+  isReceiver: boolean
+): string {
+  const kindName = getKindName(symbolKind);
+  if (qualifier && isReceiver) {
+    return `${qualifier} · ${kindName}`;
+  }
+  const description = parent ? `${parent} · ${kindName}` : kindName;
+  return qualifier ? `${description} ${qualifier}` : description;
 }
 
 function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
@@ -106,14 +140,17 @@ function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
   const label = icon ? `${icon}  ${name}` : name;
   const start = new vscode.Position(0, 0);
   const end = new vscode.Position(0, 0);
-  const itemFilterPhrase = getItemFilterPhraseForKind(symbolKind);
-  const description = getUriToQpItemDescription(itemFilterPhrase, name);
 
-  return createQuickPickItem(uri, symbolKind, start, end, label, description);
+  return createQuickPickItem(uri, symbolKind, start, end, label, "file");
 }
 
-function getUriToQpItemDescription(itemFilterPhrase: string, name: string) {
-  return "File";
+function getDetail(
+  uri: vscode.Uri,
+  symbolKind: number,
+  start: vscode.Position
+): string {
+  const path = utils.normalizeUriPath(uri.path);
+  return symbolKind === 0 ? path : `${path}:${start.line + 1}`;
 }
 
 function createQuickPickItem(
@@ -133,7 +170,7 @@ function createQuickPickItem(
       end,
     },
     label,
-    detail: utils.normalizeUriPath(uri.path),
+    detail: getDetail(uri, symbolKind, start),
     description,
     // buttons: [
     //   {
