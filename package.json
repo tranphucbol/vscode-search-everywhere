@@ -130,19 +130,37 @@
             {
               "name": "Types",
               "phrase": "@@",
-              "kinds": [4, 9, 10, 22],
+              "kinds": [
+                4,
+                9,
+                10,
+                22
+              ],
               "icon": "symbol-class"
             },
             {
               "name": "Members",
               "phrase": "!!",
-              "kinds": [5, 6, 7, 8, 11, 12, 13, 21, 23, 24],
+              "kinds": [
+                5,
+                6,
+                7,
+                8,
+                11,
+                12,
+                13,
+                21,
+                23,
+                24
+              ],
               "icon": "symbol-method"
             },
             {
               "name": "Files",
               "phrase": "$$",
-              "kinds": [0],
+              "kinds": [
+                0
+              ],
               "icon": "files"
             }
           ],
@@ -167,7 +185,11 @@
                 "description": "Codicon id shown on the category's button, for example symbol-class. Defaults to filter."
               }
             },
-            "required": ["name", "phrase", "kinds"]
+            "required": [
+              "name",
+              "phrase",
+              "kinds"
+            ]
           },
           "description": "Named groups of symbol kinds. Type a category's phrase at the start of the query, press Tab / Shift+Tab, or click a category button to search only those kinds."
         },
@@ -467,6 +489,7 @@
     "@types/node": "^16.18.126",
     "@types/sinon": "^9.0.11",
     "@types/vscode": "1.64.0",
+    "@vscode/test-electron": "^2.5.2",
     "chai": "^4.5.0",
     "decache": "^4.6.2",
     "glob": "^7.2.3",
@@ -478,9 +501,7 @@
     "remap-istanbul": "^0.13.0",
     "rimraf": "^3.0.2",
     "sinon": "^9.2.4",
-    "tslint": "^6.1.3",
-    "typescript": "^4.9.5",
-    "vscode-test": "^1.6.1"
+    "typescript": "^4.9.5"
   },
   "dependencies": {
     "sql.js": "^1.11.0"

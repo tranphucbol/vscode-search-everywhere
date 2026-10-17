@@ -27,7 +27,7 @@ Run these from the repository root.
 - `npm install`
 - `npm run compile` - clean `dist/` and run `tsc`; this is also the type check
 - `npm test` - compiles, then runs the mocha suite inside a downloaded VS Code through
-  `vscode-test` (`src/test/runTest.ts`); the first run needs network access
+  `@vscode/test-electron` (`src/test/runTest.ts`); the first run needs network access
 - `npm run watch` - `tsc --watch`
 - `npm run package` - build the `.vsix` with `vsce`
 - `npm run publish:extension` - publish to the VS Code Marketplace and Open VSX
