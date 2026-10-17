@@ -1501,6 +1501,89 @@ describe("Database", () => {
       database.upsertFileStates([["file:///workspace/server.go", { mtime: 1, size: 2 }]]);
       assert.isTrue(database.hasFileStateBaseline());
     });
+
+    const writeVersion4Database = async () => {
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const legacy = new SQL.Database();
+      legacy.run(`CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uri TEXT NOT NULL, name TEXT NOT NULL,
+        clean_name TEXT DEFAULT '', clean_stem TEXT DEFAULT '', clean_container TEXT DEFAULT '',
+        clean_words TEXT DEFAULT '', clean_initials TEXT DEFAULT '',
+        symbol_kind INTEGER NOT NULL, label TEXT NOT NULL, description TEXT, detail TEXT,
+        range_start_line INTEGER DEFAULT 0, range_start_char INTEGER DEFAULT 0,
+        range_end_line INTEGER DEFAULT 0, range_end_char INTEGER DEFAULT 0,
+        is_secondary INTEGER DEFAULT 0)`);
+      legacy.run(
+        `INSERT INTO symbols (uri, name, clean_name, clean_stem, symbol_kind, label, description,
+          range_start_line, range_start_char, range_end_line, range_end_char)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ["file:///workspace/src/User.ts", "save", "save", "save", 5, "save", "method", 10, 2, 16, 3]
+      );
+      legacy.run("PRAGMA user_version = 4");
+      fs.writeFileSync(dbFile, Buffer.from(legacy.export()));
+      legacy.close();
+    };
+
+    const readColumnNames = async () => {
+      database.closeDatabase();
+      const initSqlJs = require("sql.js");
+      const SQL = await initSqlJs({
+        locateFile: () =>
+          path.join(fakeContext.extensionPath, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      });
+      const saved = new SQL.Database(fs.readFileSync(dbFile));
+      const columns = saved
+        .exec("PRAGMA table_info(symbols)")[0]
+        .values.map((row: any[]) => row[1]);
+      saved.close();
+      await database.initDatabase(fakeContext);
+      return columns;
+    };
+
+    it("should add the name position columns when migrating to schema 6 without deleting symbols", async () => {
+      database.closeDatabase();
+      await writeVersion4Database();
+      await database.initDatabase(fakeContext);
+
+      assert.equal(database.getCount(), 1);
+      const columns = await readColumnNames();
+      assert.include(columns, "name_start_line");
+      assert.include(columns, "name_start_char");
+      assert.equal(database.getCount(), 1);
+      assert.equal(await readSchemaVersion(), 6);
+    });
+
+    it("should return no namePosition for rows written before schema 6", async () => {
+      database.closeDatabase();
+      await writeVersion4Database();
+      await database.initDatabase(fakeContext);
+
+      const [result] = database.search("save");
+      assert.equal(result.label, "save");
+      assert.isFalse("namePosition" in result);
+      assert.equal(result.range!.start.line, 10);
+    });
+  });
+
+  describe("namePosition", () => {
+    it("should round-trip namePosition through insert and search", () => {
+      database.insertSymbolsBatch([
+        { ...item1, namePosition: new vscode.Position(12, 4) },
+        item2,
+      ]);
+      database.insertSymbol({ ...item3, namePosition: new vscode.Position(3, 7) });
+
+      const [controller] = database.search("UserController");
+      assert.deepEqual(controller.namePosition, new vscode.Position(12, 4));
+      const [service] = database.search("UserService");
+      assert.isFalse("namePosition" in service);
+      const user = database.search("User").find((item) => item.symbolKind === vscode.SymbolKind.Interface)!;
+      assert.deepEqual(user.namePosition, new vscode.Position(3, 7));
+    });
   });
 
   describe("persistence", () => {

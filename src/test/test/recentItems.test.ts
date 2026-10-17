@@ -53,6 +53,28 @@ describe("RecentItems", () => {
     assert.equal(retrieved[0].symbolKind, 5);
   });
 
+  it("should keep namePosition on a stored recent item", () => {
+    const item: QuickPickItem = {
+      label: "save",
+      uri: vscode.Uri.file("/test/src/userService.ts"),
+      symbolKind: vscode.SymbolKind.Method,
+      range: {
+        start: new vscode.Position(10, 2),
+        end: new vscode.Position(16, 3),
+      },
+      namePosition: new vscode.Position(12, 4),
+    };
+
+    recentItems.addRecentItem(item);
+    for (const [key, value] of fakeState) {
+      fakeState.set(key, JSON.parse(JSON.stringify(value)));
+    }
+    const [retrieved] = recentItems.getRecentItems(10);
+
+    assert.instanceOf(retrieved.namePosition, vscode.Position);
+    assert.isTrue(retrieved.namePosition!.isEqual(new vscode.Position(12, 4)));
+  });
+
   it("should move existing item to the top of MRU on re-addition", () => {
     const item1: QuickPickItem = {
       label: "Item1",

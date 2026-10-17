@@ -108,3 +108,38 @@ export const getDocumentSymbolItemMultiLine = (
     children: [],
   };
 };
+
+export const getDocumentSymbolItemWithDocComment = (): vscode.DocumentSymbol => {
+  return {
+    name: "test name",
+    detail: "test details",
+    kind: vscode.SymbolKind.Method,
+    range: new vscode.Range(
+      new vscode.Position(10, 2),
+      new vscode.Position(16, 3)
+    ),
+    selectionRange: new vscode.Range(
+      new vscode.Position(12, 4),
+      new vscode.Position(12, 13)
+    ),
+    children: [],
+  };
+};
+
+export const getDocumentSymbolItemWithSelectionOutsideRange =
+  (): vscode.DocumentSymbol => {
+    return {
+      name: "test name",
+      detail: "test details",
+      kind: vscode.SymbolKind.Method,
+      range: new vscode.Range(
+        new vscode.Position(10, 2),
+        new vscode.Position(16, 3)
+      ),
+      selectionRange: new vscode.Range(
+        new vscode.Position(20, 4),
+        new vscode.Position(20, 13)
+      ),
+      children: [],
+    };
+  };
