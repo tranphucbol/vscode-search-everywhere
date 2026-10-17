@@ -50,6 +50,10 @@ Run these before considering a change done:
 
 - `npm run compile`
 - `npm test`
+- for a change to `src/` that a user can see (the quick pick, keys, indexing, settings), the
+  `local-testing` skill in `.agents/skills/local-testing/`: it runs the extension in a real VS
+  Code on a sample project and prints what the quick pick shows. Run its smoke set at least.
+  macOS only
 
 ## Layout
 
@@ -76,6 +80,7 @@ src/test/test/              one `<module>.test.ts` per module
 src/test/testSetup/         the stubs and fixtures each suite wires up
 src/test/util/              mock and stub factories shared by the suites
 scripts/                    publish.js, benchmark.js
+.agents/skills/             project skills; local-testing drives a real VS Code
 docs/decisions/             one numbered file per durable architecture decision
 docs/plans/                 working implementation plans; only the template is tracked
 ```
