@@ -10,6 +10,7 @@ import {
 } from "./types";
 
 const defaultSection = "searchEverywhere";
+const CODICON_ID_REGEX = /^[a-z0-9-]+$/;
 const keys = {
   shouldDisplayNotificationInStatusBar: {
     name: "shouldDisplayNotificationInStatusBar",
@@ -58,13 +59,19 @@ const keys = {
   categories: {
     name: "categories",
     value: [
-      { name: "Types", phrase: "@@", kinds: [4, 9, 10, 22] },
+      {
+        name: "Types",
+        phrase: "@@",
+        kinds: [4, 9, 10, 22],
+        icon: "symbol-class",
+      },
       {
         name: "Members",
         phrase: "!!",
         kinds: [5, 6, 7, 8, 11, 12, 13, 21, 23, 24],
+        icon: "symbol-method",
       },
-      { name: "Files", phrase: "$$", kinds: [0] },
+      { name: "Files", phrase: "$$", kinds: [0], icon: "files" },
     ] as Category[],
   },
   helpPhrase: {
@@ -282,14 +289,26 @@ export function fetchCategories(): Category[] {
   if (!Array.isArray(categories)) {
     return [];
   }
-  return categories.filter(
-    (category) =>
-      !!category &&
-      typeof category.phrase === "string" &&
-      category.phrase.length > 0 &&
-      Array.isArray(category.kinds) &&
-      category.kinds.length > 0
-  );
+  return categories
+    .filter(
+      (category) =>
+        !!category &&
+        typeof category.phrase === "string" &&
+        category.phrase.length > 0 &&
+        Array.isArray(category.kinds) &&
+        category.kinds.length > 0
+    )
+    .map((category) => {
+      if (category.icon === undefined || isCodiconId(category.icon)) {
+        return category;
+      }
+      const { icon, ...rest } = category;
+      return rest;
+    });
+}
+
+function isCodiconId(icon: unknown): boolean {
+  return typeof icon === "string" && CODICON_ID_REGEX.test(icon);
 }
 
 export function fetchHelpPhrase(): string {

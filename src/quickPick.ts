@@ -19,12 +19,23 @@ import { dataConverter } from "./dataConverter";
 import { dataService } from "./dataService";
 import { database } from "./database";
 import { recentItems } from "./recentItems";
-import { Category, ItemsFilterPhrases, QuickPickItem } from "./types";
+import {
+  Category,
+  CategoryButton,
+  ItemsFilterPhrases,
+  QuickPickItem,
+} from "./types";
 import { utils } from "./utils";
 const debounce = utils.debounce;
 
 const VIRTUAL_PAGE_SIZE = 500;
 const ICON_PREFIX_REGEX = /^\$\([^)]+\)\s+/;
+const ALL_ICON = "list-flat";
+const FALLBACK_CATEGORY_ICON = "filter";
+const ACTIVE_ICON = "check";
+// vscode.QuickInputButtonLocation.Inline, added after the pinned @types/vscode.
+const INLINE_BUTTON_LOCATION = 2;
+const FOCUS_QUICK_INPUT_COMMAND = "workbench.action.focusQuickOpen";
 
 function disposeOnDidChangeValueEventListeners(): void {
   quickPick
@@ -127,34 +138,77 @@ function cycleCategory(direction: 1 | -1): void {
     return;
   }
 
-  const { category, kinds, rest } = resolveFilterPhrase(control.value || "");
-  const query = kinds ? rest : (control.value || "").trim();
+  const { category } = resolveFilterPhrase(control.value || "");
   const positions = categories.length + 1;
   const current = category ? categories.indexOf(category) + 1 : 0;
   const next = (current + direction + positions) % positions;
-  const phrase = next === 0 ? "" : categories[next - 1].phrase;
+  selectCategory(next - 1);
+}
+
+function selectCategory(index: number): void {
+  const control = quickPick.getControl();
+  const categories = quickPick.getCategories() || [];
+  if (!control || fileScopeUri || !categories.length) {
+    return;
+  }
+
+  const { kinds, rest } = resolveFilterPhrase(control.value || "");
+  const query = kinds ? rest : (control.value || "").trim();
+  const phrase = categories[index] ? categories[index].phrase : "";
 
   control.value = `${phrase}${query}`;
   quickPick.loadItems();
 }
 
-function updateTitle(category?: Category): void {
+function buildCategoryButtons(active?: Category): CategoryButton[] {
+  const categories = quickPick.getCategories() || [];
+  const toggles = utils.supportsQuickInputButtonToggle();
+  const entries = [
+    { categoryIndex: -1, icon: ALL_ICON, tooltip: "All · Tab" },
+    ...categories.map((category, categoryIndex) => ({
+      categoryIndex,
+      icon: category.icon || FALLBACK_CATEGORY_ICON,
+      tooltip: `${category.name} (${category.phrase}) · Tab`,
+    })),
+  ];
+  const activeIndex = active ? categories.indexOf(active) : -1;
+
+  return entries.map(({ categoryIndex, icon, tooltip }) => {
+    const checked = categoryIndex === activeIndex;
+    return toggles
+      ? {
+          categoryIndex,
+          iconPath: new vscode.ThemeIcon(icon),
+          tooltip,
+          location: INLINE_BUTTON_LOCATION,
+          toggle: { checked },
+        }
+      : {
+          categoryIndex,
+          iconPath: new vscode.ThemeIcon(checked ? ACTIVE_ICON : icon),
+          tooltip,
+        };
+  });
+}
+
+function updateTitle(category?: Category, forceButtons = false): void {
   const control = quickPick.getControl();
   if (!control || fileScopeUri) {
     return;
   }
   const categories = quickPick.getCategories() || [];
-  if (!quickPick.getShouldUseItemsFilterPhrases() || !categories.length) {
-    control.title = undefined;
+  const title =
+    quickPick.getShouldUseItemsFilterPhrases() && categories.length
+      ? category
+        ? `Search Everywhere · ${category.name}`
+        : "Search Everywhere"
+      : undefined;
+  // loadItems runs on every keystroke; redrawing unchanged buttons there is wasted work.
+  if (control.title === title && !forceButtons) {
     return;
   }
-  const names = [
-    category ? "All" : "[All]",
-    ...categories.map((item) =>
-      item === category ? `[${item.name}]` : item.name
-    ),
-  ];
-  control.title = `${names.join(" · ")}   (Tab)`;
+  control.title = title;
+  control.buttons = title ? buildCategoryButtons(category) : [];
 }
 
 export function ensureUri(uri: any): vscode.Uri {
@@ -539,6 +593,26 @@ async function handleDidTriggerItemButton({
 async function handleDidTriggerButton(button: vscode.QuickInputButton) {
   if (button === vscode.QuickInputButtons.Back) {
     await navigateBack();
+    return;
+  }
+  const categoryIndex = (button as CategoryButton).categoryIndex;
+  if (typeof categoryIndex !== "number") {
+    return;
+  }
+  const control = quickPick.getControl();
+  const categories = quickPick.getCategories() || [];
+  const { category } = resolveFilterPhrase(control?.value || "");
+  const activeIndex = category ? categories.indexOf(category) : -1;
+  if (categoryIndex === activeIndex) {
+    // VS Code has already unchecked the toggle that was clicked.
+    updateTitle(category, true);
+  } else {
+    selectCategory(categoryIndex);
+  }
+  if (utils.supportsQuickInputButtonToggle()) {
+    // A clicked inline toggle keeps keyboard focus, and the extension API cannot focus the
+    // input; the list is the closest place where arrows, Enter and Alt+Arrow keys still work.
+    void vscode.commands.executeCommand(FOCUS_QUICK_INPUT_COMMAND);
   }
 }
 
@@ -1131,6 +1205,8 @@ export const quickPick = {
   getFileScopeUri,
   resolveFilterPhrase,
   cycleCategory,
+  selectCategory,
+  buildCategoryButtons,
   updateTitle,
   disposeOnDidChangeValueEventListeners,
   invalidateSymbolCache,

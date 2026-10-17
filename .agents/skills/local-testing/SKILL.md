@@ -148,10 +148,12 @@ the repository.
 - **TypeScript reports `const` as a variable** (kind 12), not a constant, so `MAX_VALUE` shows as
   `Variable` and `excludeVariables` removes it.
 - **Keys are macOS keys.** `Meta` is Cmd. The driver is macOS only.
-- **Clicking a toggle button moves focus to it.** After `SE click` on an inline or in-input
-  toggle, `SE type` and `SE text` go to the button and the query does not change; run
-  `SE search` again to put focus back in the input. Tab and Shift+Tab still work from the
-  button. A title-bar button leaves focus in the input. This is what a user gets too.
+- **Clicking a toggle button moves focus out of the input.** VS Code focuses an inline or
+  in-input toggle when it is clicked; the extension then moves focus to the result list after
+  a category button click. Either way `SE type` and `SE text` do not change the query; run
+  `SE search` again to put focus back in the input. From the list, arrows, Enter and
+  Alt+Arrow keys work, but Tab moves into the row's buttons instead of switching category.
+  A title-bar button leaves focus in the input. This is what a user gets too.
 - **Screenshots get a new path each time** because image viewers cache by path.
 
 ## When something fails

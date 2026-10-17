@@ -703,7 +703,7 @@ describe("QuickPick", () => {
       });
 
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
-      assert.include(title!, "[Members]");
+      assert.equal(title, "Search Everywhere · Members");
     });
 
     it("should match the longest phrase first", () => {
@@ -714,7 +714,7 @@ describe("QuickPick", () => {
 
       assert.equal(searchStub.firstCall.args[0], "srv");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
-      assert.include(title!, "[All]");
+      assert.equal(title, "Search Everywhere");
     });
 
     it("should use a one-kind phrase without selecting a category", () => {
@@ -725,19 +725,19 @@ describe("QuickPick", () => {
 
       assert.equal(searchStub.firstCall.args[0], "srv");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
-      assert.equal(title, "[All] · Types · Members · Files   (Tab)");
+      assert.equal(title, "Search Everywhere");
     });
 
-    it("should show the active category in the title", () => {
+    it("should name the active category in the title", () => {
       assert.equal(
         loadWithQuery("server", { phrases: {}, categories: defaultCategories })
           .title,
-        "[All] · Types · Members · Files   (Tab)"
+        "Search Everywhere"
       );
       assert.equal(
         loadWithQuery("@@server", { phrases: {}, categories: defaultCategories })
           .title,
-        "All · [Types] · Members · Files   (Tab)"
+        "Search Everywhere · Types"
       );
     });
 
@@ -797,7 +797,7 @@ describe("QuickPick", () => {
       assert.equal(value, "!!Server.Start");
       assert.equal(searchStub.firstCall.args[0], "Server.Start");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
-      assert.equal(title, "All · Types · [Members] · Files   (Tab)");
+      assert.equal(title, "Search Everywhere · Members");
     });
   });
 
