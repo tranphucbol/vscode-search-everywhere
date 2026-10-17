@@ -7,8 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      show-marketplace-identity:
-        description: Print the Azure identity's Marketplace ID, to add it as a publisher member
+      check-publishing:
+        description: Check publish rights on both registries; creates the Open VSX namespace if missing
         type: boolean
         default: false
 
@@ -123,14 +123,26 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "$VSIX" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
           fi
 
-  marketplace-identity:
-    name: Show Marketplace identity
-    if: github.event_name == 'workflow_dispatch' && inputs.show-marketplace-identity
+  check-publishing:
+    name: Check publishing access
+    if: github.event_name == 'workflow_dispatch' && inputs.check-publishing
     runs-on: ubuntu-latest
     environment: marketplace
     permissions:
+      contents: read
       id-token: write
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Read publisher
+        run: echo "PUBLISHER=$(node -p "require('./package.json').publisher")" >> "$GITHUB_ENV"
+
       - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -145,4 +157,17 @@ jobs:
           id=$(az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
             --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id -o tsv)
           echo "Marketplace ID: $id"
-          echo "Add \`$id\` as a Contributor member of the tranphucbol publisher." >> "$GITHUB_STEP_SUMMARY"
+          echo "Azure identity Marketplace ID: \`$id\` (a Contributor member of \`$PUBLISHER\`)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Marketplace publish rights
+        run: npx --yes @vscode/vsce@${{ env.VSCE_VERSION }} verify-pat --azure-credential "$PUBLISHER"
+
+      # A first publish to Open VSX fails unless the namespace already exists.
+      - name: Ensure Open VSX namespace
+        if: env.OVSX_PAT != ''
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" "https://open-vsx.org/api/$PUBLISHER")
+          if [ "$status" = "404" ]; then
+            npx --yes ovsx@${{ env.OVSX_VERSION }} create-namespace "$PUBLISHER"
+          fi
+          npx --yes ovsx@${{ env.OVSX_VERSION }} verify-pat "$PUBLISHER"
