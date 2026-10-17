@@ -218,6 +218,22 @@ describe("DataService", () => {
       assert.isUndefined(workspaceData.urisToRetry);
     });
 
+    it("should not wait for a language no extension provides", async () => {
+      const protoSample = uri("b.proto");
+      const uris = [uri("a.proto"), protoSample, uri("app.ts"), uri("util.ts")];
+      const { executeCommandStub } = setups.warmup.setupForWarmup(
+        uris,
+        ["ts"],
+        "**/*.json",
+        ["proto"]
+      );
+      const workspaceData = await dataService.fetchData();
+
+      // only the call while indexing
+      assert.equal(callsFor(executeCommandStub, protoSample), 1);
+      assert.isUndefined(workspaceData.urisToRetry);
+    });
+
     it("should not warm up a language again once it is ready", async () => {
       const uris = [uri("app.ts"), uri("util.ts")];
       const { openTextDocumentStub } = setups.warmup.setupForWarmup(uris, [

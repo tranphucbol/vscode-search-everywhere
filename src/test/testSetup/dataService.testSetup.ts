@@ -429,18 +429,25 @@ export const getTestSetups = () => {
       setupForWarmup: (
         uris: vscode.Uri[],
         readyExtensions: string[],
-        namesOnlyGlob = "**/*.json"
+        namesOnlyGlob = "**/*.json",
+        plaintextExtensions: string[] = []
       ) => {
         stubConfig(sandbox);
         dataService.resetLanguageWarmup();
+        const extensionOf = (uri: vscode.Uri) => uri.path.split(".").pop()!;
         const isReady = (uri: vscode.Uri) =>
-          readyExtensions.includes(uri.path.split(".").pop()!);
+          readyExtensions.includes(extensionOf(uri));
         const [openTextDocumentStub, executeCommandStub, sleepStub] =
           stubMultiple(
             [
               {
                 object: vscode.workspace,
                 method: "openTextDocument",
+                callsFake: async (uri: vscode.Uri) => ({
+                  languageId: plaintextExtensions.includes(extensionOf(uri))
+                    ? "plaintext"
+                    : extensionOf(uri),
+                }),
               },
               {
                 object: vscode.commands,

@@ -103,8 +103,9 @@ async function warmupLanguageServers(
   const samples = pickWarmupSamples(uris);
   await Promise.all(
     Array.from(samples.entries()).map(async ([language, sampleUri]) => {
-      const isReady = await warmupLanguageServer(language, sampleUri, progress);
-      isReady ? readyLanguages.add(language) : timedOut.add(language);
+      const result = await warmupLanguageServer(language, sampleUri, progress);
+      result === "ready" && readyLanguages.add(language);
+      result === "timedOut" && timedOut.add(language);
     })
   );
 
@@ -124,7 +125,7 @@ async function warmupLanguageServer(
     message?: string | undefined;
     increment?: number | undefined;
   }>
-): Promise<boolean> {
+): Promise<"ready" | "timedOut" | "unsupported"> {
   const languageName = getLanguageName(language);
   const timeoutMs = SLOW_LANGUAGES.has(language)
     ? SLOW_WARMUP_TIMEOUT_MS
@@ -134,7 +135,15 @@ async function warmupLanguageServer(
 
   logger.log(`Waiting for the ${languageName} language server: ${sampleUri.path}`);
   try {
-    await vscode.workspace.openTextDocument(sampleUri);
+    const document = await vscode.workspace.openTextDocument(sampleUri);
+    // No installed extension claims the file (e.g. .proto without a protobuf extension), so no
+    // symbol provider will ever answer; waiting would only delay every index by the timeout.
+    if (document?.languageId === "plaintext") {
+      logger.log(
+        `No extension provides the ${languageName} language; its files are indexed without symbols.`
+      );
+      return "unsupported";
+    }
   } catch (e) {
     logger.log(`Failed to open sample document ${sampleUri.path}: ${e}`);
   }
@@ -156,7 +165,7 @@ async function warmupLanguageServer(
       logger.log(
         `The ${languageName} language server is ready after ${elapsedMs} ms.`
       );
-      return true;
+      return "ready";
     }
 
     await utils.sleep(WARMUP_POLL_MS);
@@ -167,7 +176,7 @@ async function warmupLanguageServer(
       timeoutMs / 1000
     } s.`
   );
-  return false;
+  return "timedOut";
 }
 
 async function includeSymbols(

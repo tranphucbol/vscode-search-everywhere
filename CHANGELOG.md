@@ -3,6 +3,19 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### 🐹☕ Comfortable on Go and Java Workspaces
+- **Categories with `tab`**: `@@` Types (classes, enums, interfaces, structs), `!!` Members (methods, fields, properties, constructors, functions, variables, constants, enum members, events, operators) and `$$` Files. `tab` / `shift + tab` cycle All → Types → Members → Files, keeping the query text; the title shows `[All] · Types · Members · Files   (Tab)`. Configurable with `searchEverywhere.categories`.
+- **Changed `!!`**: it used to mean functions only; it now means Members. `searchEverywhere.itemsFilterPhrases` defaults to `{}`, so `##` (strings) and `%%` (arrays) are gone unless you set them; a category wins when both use the same phrase. Filter-phrase tags such as `[@@ class]` are no longer added to descriptions.
+- **Preview while browsing**: the highlighted result opens in a preview editor without taking focus; `escape` restores the editor and cursor you started from (`searchEverywhere.previewOnSelect`, default `true`).
+- **Last query restored**: reopening puts the last workspace query back, selected (`searchEverywhere.restoreLastQuery`, default `true`). A non-empty editor selection still wins.
+- **Go and Java names**: Go methods such as `(*Server).Start` are stored as `Start` with container `Server`, so `Server.Start` finds them; Java methods and constructors such as `save(User)` are stored as `save`, with the parameter list in the description.
+- **Cleaner rows**: label is the name, description is `Container · kind` (plus the receiver or parameter list), and the second line is `path:line`.
+- **Config and data files by name only**: `json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, `.gradle`, `.sql` and similar files are indexed as files and never sent to a language server (`searchEverywhere.indexNamesOnly`).
+- **Tests, mocks and generated code last**: files matching `searchEverywhere.secondaryCode` (`*_test.go`, `mock_*.go`, `*.pb.go`, `src/test/**`, `*.spec.ts`, …) rank after source code of the same match quality and are tagged `· test` or `· generated`. They are never hidden, and changing the setting does not reindex.
+- **Language presets**: a `go.mod`/`go.work` or `pom.xml`/`build.gradle*`/`settings.gradle*` at a workspace folder root fills `include`, `exclude` and `itemsFilter.ignoredKinds` where you have not set them (`searchEverywhere.languagePresets`, default `auto`). The output channel logs the presets and effective patterns at index start, and adding or removing a marker file reindexes.
+- **Waiting for each language server**: indexing opens one file per language and waits for its symbols (15 s, 120 s for Java and Kotlin). Files indexed without symbols while their server was still starting are retried every 30 s for 10 minutes. A language no installed extension provides (`.proto` without a protobuf extension) is not waited for. The fixed TypeScript/JSON/Markdown warm-up is gone.
+- **One-time reindex**: the index schema moved to version 4. The first start after upgrading empties the cached index (including the shared worktree cache) and reindexes the workspace once. Recent items saved with the old labels no longer get the recency boost until opened again.
+
 ### 🐛 Fixes
 - Fixed `searchEverywhere.shouldInitOnStartup` doing nothing: the extension only activated on its first command, so the workspace was never indexed at startup. It now activates once VS Code has finished starting (`onStartupFinished`) and indexes then when the setting is on. With the setting off it still waits for the first search, but it now tracks file changes from startup, so a cached index no longer misses edits made before that search.
 - The README described `searchEverywhere.excludeVariables` as keeping constants; the TypeScript and JavaScript language server reports `const` as a variable, so those are excluded too.
