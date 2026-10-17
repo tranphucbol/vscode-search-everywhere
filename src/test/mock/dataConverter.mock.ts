@@ -98,6 +98,7 @@ export const mocks = {
           start: new vscode.Position(0, 0),
           end: new vscode.Position(3, 0),
         },
+        namePosition: new vscode.Position(0, 0),
         // buttons: [
         //   {
         //     iconPath: new vscode.ThemeIcon("open-preview"),
@@ -116,6 +117,7 @@ export const mocks = {
           start: new vscode.Position(4, 0),
           end: new vscode.Position(5, 0),
         },
+        namePosition: new vscode.Position(4, 0),
         // buttons: [
         //   {
         //     iconPath: new vscode.ThemeIcon("open-preview"),
@@ -133,6 +135,7 @@ export const mocks = {
           start: new vscode.Position(9, 0),
           end: new vscode.Position(9, 0),
         },
+        namePosition: new vscode.Position(9, 0),
         // buttons: [
         //   {
         //     iconPath: new vscode.ThemeIcon("open-preview"),
@@ -217,6 +220,7 @@ export const mocks = {
           start: new vscode.Position(0, 0),
           end: new vscode.Position(3, 0),
         },
+        namePosition: new vscode.Position(0, 0),
         // buttons: [
         //   {
         //     iconPath: new vscode.ThemeIcon("open-preview"),
@@ -234,6 +238,7 @@ export const mocks = {
           start: new vscode.Position(4, 0),
           end: new vscode.Position(5, 0),
         },
+        namePosition: new vscode.Position(4, 0),
         // buttons: [
         //   {
         //     iconPath: new vscode.ThemeIcon("open-preview"),

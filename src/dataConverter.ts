@@ -114,8 +114,25 @@ function mapDocumentSymbolToQpItem(
     range.end,
     label,
     description,
-    parent || undefined
+    parent || undefined,
+    getNamePosition(symbol, range)
   );
+}
+
+// Some providers return a selectionRange outside the symbol's range; that one is not trusted.
+function getNamePosition(
+  symbol: vscode.DocumentSymbol,
+  range: vscode.Range
+): vscode.Position | undefined {
+  const name = symbol.selectionRange?.start;
+  if (!name || isBefore(name, range.start) || isBefore(range.end, name)) {
+    return undefined;
+  }
+  return name;
+}
+
+function isBefore(a: vscode.Position, b: vscode.Position): boolean {
+  return a.line < b.line || (a.line === b.line && a.character < b.character);
 }
 
 function getDocumentSymbolToQpItemDescription(
@@ -147,10 +164,10 @@ function mapUriToQpItem(uri: vscode.Uri): QuickPickItem {
 function getDetail(
   uri: vscode.Uri,
   symbolKind: number,
-  start: vscode.Position
+  position: vscode.Position
 ): string {
   const path = utils.normalizeUriPath(uri.path);
-  return symbolKind === 0 ? path : `${path}:${start.line + 1}`;
+  return symbolKind === 0 ? path : `${path}:${position.line + 1}`;
 }
 
 function createQuickPickItem(
@@ -160,7 +177,8 @@ function createQuickPickItem(
   end: vscode.Position,
   label: string,
   description: string,
-  containerName?: string
+  containerName?: string,
+  namePosition?: vscode.Position
 ): QuickPickItem {
   const item = {
     uri,
@@ -170,7 +188,7 @@ function createQuickPickItem(
       end,
     },
     label,
-    detail: getDetail(uri, symbolKind, start),
+    detail: getDetail(uri, symbolKind, namePosition ?? start),
     description,
     // buttons: [
     //   {
@@ -181,6 +199,9 @@ function createQuickPickItem(
   } as QuickPickItem;
   if (containerName) {
     item.containerName = containerName;
+  }
+  if (namePosition) {
+    item.namePosition = namePosition;
   }
   return item;
 }

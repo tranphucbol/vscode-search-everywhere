@@ -4,6 +4,10 @@ import { dataConverter, normalizeSymbolName } from "../../dataConverter";
 import { QuickPickItem } from "../../types";
 import { utils } from "../../utils";
 import { getTestSetups } from "../testSetup/dataConverter.testSetup";
+import {
+  getDocumentSymbolItemWithDocComment,
+  getDocumentSymbolItemWithSelectionOutsideRange,
+} from "../util/itemMockFactory";
 import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
@@ -93,6 +97,51 @@ describe("DataConverter", () => {
 
       assert.equal(fileItem.symbolKind, 0);
       assert.isFalse("containerName" in fileItem);
+    });
+
+    it("should set namePosition from the symbol's selectionRange", () => {
+      const { uri } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        getDocumentSymbolItemWithDocComment(),
+      ]);
+
+      assert.deepEqual(item.namePosition, new vscode.Position(12, 4));
+      assert.deepEqual(item.range, {
+        start: new vscode.Position(10, 2),
+        end: new vscode.Position(16, 3),
+      });
+    });
+
+    it("should print the name's line in the detail", () => {
+      const { uri } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        getDocumentSymbolItemWithDocComment(),
+      ]);
+
+      assert.match(item.detail!, /:13$/);
+    });
+
+    it("should leave namePosition unset when selectionRange lies outside range", () => {
+      const { uri } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        getDocumentSymbolItemWithSelectionOutsideRange(),
+      ]);
+
+      assert.isFalse("namePosition" in item);
+      assert.match(item.detail!, /:11$/);
+    });
+
+    it("should leave namePosition unset for SymbolInformation", () => {
+      const { uri, symbolInformation } =
+        setups.convertUriAndSymbolsToQpItems.setupForConvertingSymbols();
+      const [, item] = dataConverter.convertUriAndSymbolsToQpItems(uri, [
+        symbolInformation,
+      ]);
+
+      assert.isFalse("namePosition" in item);
     });
   });
 

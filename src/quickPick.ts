@@ -278,9 +278,36 @@ function selectQpItem(editor: vscode.TextEditor, qpItem: QuickPickItem): void {
   );
 
   editor.revealRange(
-    qpItem.range as vscode.Range,
-    vscode.TextEditorRevealType.Default
+    getRevealRange(qpItem),
+    qpItem.namePosition
+      ? vscode.TextEditorRevealType.InCenterIfOutsideViewport
+      : vscode.TextEditorRevealType.Default
   );
+}
+
+// Beyond this many lines between the declaration start and the name, revealing both would
+// keep the start in view and could push the name below the viewport.
+const MAX_LEADING_LINES = 20;
+
+function toPosition(position: { line: number; character: number }): vscode.Position {
+  return new vscode.Position(position.line, position.character);
+}
+
+function getNavigationPosition(qpItem: QuickPickItem): vscode.Position {
+  const position = qpItem.namePosition ?? qpItem.range?.start;
+  return position ? toPosition(position) : new vscode.Position(0, 0);
+}
+
+function getRevealRange(qpItem: QuickPickItem): vscode.Range {
+  const { range, namePosition } = qpItem;
+  if (!namePosition) {
+    return range as vscode.Range;
+  }
+  const name = toPosition(namePosition);
+  if (!range || name.line - range.start.line > MAX_LEADING_LINES) {
+    return new vscode.Range(name, name);
+  }
+  return new vscode.Range(toPosition(range.start), name);
 }
 
 const LINE_SUFFIX_REGEX = /^(.*?\S)\s*:(\d+)(?::(\d+))?$/;
@@ -323,9 +350,11 @@ function getSelectionForQpItem(
   const start = new vscode.Position(range!.start.line, range!.start.character);
   const end = new vscode.Position(range!.end.line, range!.end.character);
 
-  return shouldHighlightSymbol
-    ? new vscode.Selection(start, end)
-    : new vscode.Selection(start, start);
+  if (shouldHighlightSymbol) {
+    return new vscode.Selection(start, end);
+  }
+  const caret = getNavigationPosition(qpItem);
+  return new vscode.Selection(caret, caret);
 }
 
 function collectHelpItems(): QuickPickItem[] {
@@ -486,10 +515,7 @@ function getPreviewPosition(qpItem: QuickPickItem): vscode.Position {
   if (qpItem.targetPosition) {
     return qpItem.targetPosition;
   }
-  const start = qpItem.range?.start;
-  return start
-    ? new vscode.Position(start.line, start.character)
-    : new vscode.Position(0, 0);
+  return getNavigationPosition(qpItem);
 }
 
 async function previewItem(qpItem: QuickPickItem): Promise<void> {

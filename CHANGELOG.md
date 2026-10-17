@@ -9,10 +9,11 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 - **Seeded worktrees index the whole git delta**: a worktree seeded from the shared cache reindexes `git diff` between the commit the cache was written at and its own `HEAD`, plus both worktrees' uncommitted files, instead of only its own modified files.
 
 ### 🔧 Upgrading
-- The index schema moves to version 5 and gains a `file_state` table; the existing index is kept. The first startup records each file's state without reindexing, so a change made before this version is picked up the next time that file changes.
+- The index schema moves to version 6 and gains a `file_state` table and a name position for each symbol; the existing index is kept. The first startup records each file's state without reindexing, so a change made before this version is picked up the next time that file changes.
 - A worktree seeded from a shared cache written by an older version is indexed in full once, because that cache does not record its commit.
 
 ### 🐛 Fixes
+- **Symbols open on their name**: opening or previewing a method, class or field puts the cursor on its name instead of on the first line of its doc comment, decorator or annotation, and the line number in the result follows. With `searchEverywhere.shouldHighlightSymbol` the whole declaration is still selected. Results indexed before this update keep opening at the start of the declaration until their file changes or you run Reload; the index is not rebuilt.
 - **No more pauses while editing on large indexes**: the index is saved in the background about 10 s after the last change (it was 2 s, with a synchronous write of the whole file), and only when something changed. The shared worktree cache is written after a full index and on exit, no longer on every save, and still records the commit and uncommitted files it was written at.
 - **Search stays fast after the first save**: saving the index reset the SQLite page cache and temp store settings, which made later searches slower; they are now restored after every save.
 - **Safer index file**: the index is written to a temporary file and renamed into place, so a crash or a full disk never leaves a half-written index. An index file that cannot be read is moved aside (`.corrupt`) and the workspace is reindexed.

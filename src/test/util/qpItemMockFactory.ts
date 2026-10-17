@@ -48,6 +48,24 @@ export const getQpItem = (
   return qpItem;
 };
 
+export const getQpItemWithNamePosition = (
+  nameLine: number = 12,
+  rangeStartLine: number = 10
+): QuickPickItem => {
+  return {
+    label: "$(symbol-method)  save",
+    description: "UserService · method",
+    detail: `/./fake/fake-1.ts:${nameLine + 1}`,
+    uri: vscode.Uri.file("/./fake/fake-1.ts"),
+    symbolKind: vscode.SymbolKind.Method,
+    range: {
+      start: new vscode.Position(rangeStartLine, 2),
+      end: new vscode.Position(nameLine + 4, 3),
+    },
+    namePosition: new vscode.Position(nameLine, 4),
+  };
+};
+
 export const getUntitledQpItem = (): QuickPickItem => {
   return {
     label: "fake-1.ts",
