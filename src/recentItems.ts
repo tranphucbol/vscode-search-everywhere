@@ -15,6 +15,7 @@ export interface StoredRecentItem {
     start: { line: number; character: number };
     end: { line: number; character: number };
   };
+  namePosition?: { line: number; character: number };
 }
 
 const MAX_STORED_ITEMS = 50;
@@ -83,6 +84,12 @@ export function addRecentItem(item: QuickPickItem): void {
         }
       : undefined,
   };
+  if (item.namePosition) {
+    newItem.namePosition = {
+      line: item.namePosition.line,
+      character: item.namePosition.character,
+    };
+  }
 
   filtered.unshift(newItem);
   if (filtered.length > MAX_STORED_ITEMS) {
@@ -114,7 +121,7 @@ export function getRecentItems(limit: number = 10): QuickPickItem[] {
       );
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
-        result.push({
+        const item: QuickPickItem = {
           label: it.label,
           description: it.description,
           detail: it.detail,
@@ -132,7 +139,14 @@ export function getRecentItems(limit: number = 10): QuickPickItem[] {
                 ),
               }
             : undefined,
-        });
+        };
+        if (it.namePosition) {
+          item.namePosition = new vscode.Position(
+            it.namePosition.line,
+            it.namePosition.character
+          );
+        }
+        result.push(item);
       }
     } catch {}
   }
