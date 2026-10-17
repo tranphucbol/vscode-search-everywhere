@@ -6,6 +6,11 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 ### 🐛 Fixes
 - Fixed filter phrases (`$$`, `@@`, `!!`, `##`, `%%`) showing an empty list: VS Code hid every result because its label does not contain the phrase.
 
+### 📖 Documentation
+- Rewrote the README for this fork: install links, a quick start, a query syntax cheat sheet, current benchmark numbers and new GIFs for every feature.
+- Corrected the documented settings: `searchEverywhere.showRecentItemsOnEmptyQuery` (was listed as `showRecentItemsOnEmpty`), the `searchEverywhere.shouldItemsBeSorted` default (`false`), and `searchEverywhere.excludeVariables`, which drops variables (kind 12) but not constants (kind 13).
+- The `.vsix` no longer ships the README GIFs; the Marketplace page loads them from GitHub.
+
 ## [0.0.2] - 2026-10-17
 ### 🎨 New Logo
 - A new icon: a search bar picking the fuzzy-matched letters out of noise. The Marketplace page header now uses the icon's dark colour.
