@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { ExcludeMode, QuickPickItem } from "../../types";
+import { ExcludeMode, QuickPickItem } from "../../shared/types";
 import { getQpItem } from "./qpItemMockFactory";
 import { getTextDocumentStub } from "./stubFactory";
 

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { dataConverter } from "../../dataConverter";
+import { dataConverter } from "../../symbols/dataConverter";
 
 interface RawSymbol {
   name: string;
@@ -19,7 +19,7 @@ interface RawRange {
 
 const FIXTURES_DIR = path.resolve(
   __dirname,
-  "../../../src/test/testSetup/fixtures"
+  "../../../src/test/fixtures"
 );
 
 function toRange(range: RawRange): vscode.Range {

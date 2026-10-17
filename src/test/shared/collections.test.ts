@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import { collections } from "../../shared/collections";
-import { Action, ActionType } from "../../types";
+import { Action, ActionType } from "../../shared/types";
 import { getAction } from "../util/mockFactory";
 
 describe("Collections", () => {

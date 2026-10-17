@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { IndexStats } from "../types";
+import { IndexStats } from "./types";
 
 function printNoFolderOpenedMessage(): void {
   vscode.window.showInformationMessage(

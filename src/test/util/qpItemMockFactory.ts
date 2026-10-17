@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ItemsFilterPhrases, QuickPickItem } from "../../types";
+import { ItemsFilterPhrases, QuickPickItem } from "../../shared/types";
 import { getUntitledItem } from "./itemMockFactory";
 import { getConfiguration } from "./mockFactory";
 
