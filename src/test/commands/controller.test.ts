@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import * as vscode from "vscode";
 import { controller } from "../../commands/controller";
-import { ActionTrigger, ActionType } from "../../shared/types";
+import { quickPick } from "../../quickPick/quickPick";
+import { ActionType } from "../../shared/types";
 import { getTestSetups } from "./controller.testSetup";
 import { getAction, getExtensionContext } from "../util/mockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
@@ -31,11 +31,11 @@ describe("Controller", () => {
       assert.equal(initCacheStub.calledOnce, true);
     });
 
-    it("should init workspace", async () => {
-      const [initWorkspaceStub] = setups.init.setupForWorkspaceInitialization();
+    it("should init lifecycle", async () => {
+      const [initLifecycleStub] = setups.init.setupForLifecycleInitialization();
       await controller.init(getExtensionContext());
 
-      assert.equal(initWorkspaceStub.calledOnce, true);
+      assert.equal(initLifecycleStub.calledOnce, true);
     });
 
     it("should register event listeners", async () => {
@@ -67,62 +67,13 @@ describe("Controller", () => {
   });
 
   describe("search", () => {
-    it("should clear data and config from cache if shouldIndexOnQuickPickOpen method returns true", async () => {
-      const [, clearStub] =
-        setups.search.setupForClearingCacheWhenIndexingOnOpen();
+    it("should let lifecycle prepare the index before showing the quick pick", async () => {
+      const [prepareStub, , showStub] =
+        setups.search.setupForPreparingIndexBeforeShowing();
       await controller.search();
 
-      assert.equal(clearStub.calledOnce, true);
-    });
-
-    it("should changes.reindex method be invoked if shouldIndexOnQuickPickOpen method returns true", async () => {
-      const [indexStub] =
-        setups.search.setupForWorkspaceIndexingWhenIndexingOnOpen();
-      await controller.search();
-
-      assert.equal(indexStub.calledOnce, true);
-    });
-
-    it("should show the quick pick before the first index finishes", async () => {
-      const [indexStub, showStub] =
-        setups.search.setupForShowingQuickPickBeforeTheFirstIndexFinishes();
-      await controller.search();
-
-      assert.equal(indexStub.calledOnce, true);
-      assert.equal(showStub.calledOnce, true);
-    });
-
-    it("should clear config from cache if shouldLoadDataFromCacheOnQuickPickOpen method returns true", async () => {
-      const [, , clearConfigStub] =
-        setups.search.setupForClearingConfigWhenLoadingFromCache();
-      await controller.search();
-
-      assert.equal(clearConfigStub.calledOnce, false);
-    });
-
-    it("should init quickPick if shouldLoadDataFromCacheOnQuickPickOpen method returns true and quickPick is not already initialized", async () => {
-      const [, , , initStub] =
-        setups.search.setupForInitializingQuickPickWhenLoadingFromCache();
-      await controller.search();
-
-      assert.equal(initStub.calledOnce, false);
-    });
-
-    it("should remove data for unsaved uris if shouldLoadDataFromCacheOnQuickPickOpen method returns true and quickPick is not already initialized", async () => {
-      const [, , , removeDataForUnsavedUrisStub] =
-        setups.search.setupForRemovingUnsavedUrisWhenLoadingFromCache();
-      await controller.search();
-
-      assert.equal(removeDataForUnsavedUrisStub.calledOnce, false);
-    });
-
-    it("get data and set it for quickPick if shouldLoadDataFromCacheOnQuickPickOpen method returns true and quickPick is not already initialized", async () => {
-      const [, , , , getDataStub, setItemsStub] =
-        setups.search.setupForGettingAndSettingDataWhenLoadingFromCache();
-      await controller.search();
-
-      assert.equal(getDataStub.calledOnce, false);
-      assert.equal(setItemsStub.calledOnce, false);
+      assert.isTrue(prepareStub.calledOnceWith(quickPick));
+      assert.isTrue(prepareStub.calledBefore(showStub));
     });
 
     it("should quickPick.show and quickPick.loadUnsortedItems methods be invoked if quickPick is initialized", async () => {
@@ -141,27 +92,6 @@ describe("Controller", () => {
 
       assert.equal(loadItemsStub.calledOnce, false);
       assert.equal(showStub.calledOnce, false);
-    });
-
-    it("should do nothing if shouldIndexOnQuickPickOpen and shouldLoadDataFromCacheOnQuickPickOpen methods return false", async () => {
-      const [
-        indexStub,
-        clearStub,
-        clearConfigStub,
-        initStub,
-        removeDataForUnsavedUrisStub,
-        getDataStub,
-        setItemsStub,
-      ] = setups.search.setupForDoingNothingWhenConditionsFalse();
-      await controller.search();
-
-      assert.equal(indexStub.calledOnce, false);
-      assert.equal(clearStub.calledOnce, false);
-      assert.equal(clearConfigStub.calledOnce, false);
-      assert.equal(initStub.calledOnce, false);
-      assert.equal(removeDataForUnsavedUrisStub.calledOnce, false);
-      assert.equal(getDataStub.calledOnce, false);
-      assert.equal(setItemsStub.calledOnce, false);
     });
 
     it("should set selected text as quickPick text if shouldSearchSelection returns true", async () => {
@@ -214,359 +144,28 @@ describe("Controller", () => {
 
   describe("reload", () => {
     it("should display notification if workspace contains does not contain any folder opened", async () => {
-      const [printNoFolderOpenedMessageStub] =
+      const [printNoFolderOpenedMessageStub, reloadStub] =
         setups.reload.setupForNoFolderOpenedNotification();
       await controller.reload();
 
       assert.equal(printNoFolderOpenedMessageStub.calledOnce, true);
+      assert.equal(reloadStub.called, false);
     });
 
-    it("should changes.reindex method be invoked", async () => {
-      const [indexStub] = setups.reload.setupForWorkspaceIndexing();
+    it("should lifecycle.reload method be invoked", async () => {
+      const [reloadStub] = setups.reload.setupForReloading();
       await controller.reload();
 
-      assert.equal(indexStub.calledOnce, true);
-    });
-
-    it("should clear everything from cache", async () => {
-      const [clearStub, clearNotSavedUriPathsStub] =
-        setups.reload.setupForCacheClearing();
-      await controller.reload();
-
-      assert.equal(clearStub.calledOnce, true);
-      assert.equal(clearNotSavedUriPathsStub.calledOnce, true);
+      assert.equal(reloadStub.calledOnce, true);
     });
   });
 
   describe("startup", () => {
-    it("should changes.reindex method be invoked if shouldInitOnStartup method returns true", async () => {
-      const [, , , , , indexStub] =
-        setups.startup.setupForIndexingWhenEnabledOnStartup();
+    it("should start lifecycle with the quick pick", async () => {
+      const [startupStub] = setups.startup.setupForStartingLifecycle();
       await controller.startup();
 
-      assert.equal(indexStub.calledOnce, true);
-    });
-
-    it("should do nothing if shouldInitOnStartup and shouldLoadDataFromCacheOnStartup methods return false", async () => {
-      const [
-        removeDataForUnsavedUrisStub,
-        initStub,
-        clearConfigStub,
-        getDataStub,
-        setItemsStub,
-        indexStub,
-      ] = setups.startup.setupForDoingNothingWhenConditionsFalse();
-      await controller.startup();
-
-      assert.equal(indexStub.calledOnce, false);
-      assert.equal(clearConfigStub.calledOnce, false);
-      assert.equal(initStub.calledOnce, false);
-      assert.equal(removeDataForUnsavedUrisStub.calledOnce, false);
-      assert.equal(getDataStub.calledOnce, false);
-      assert.equal(setItemsStub.calledOnce, false);
-    });
-
-    it("should clear config in cache if shouldLoadDataFromCacheOnStartup method returns true", async () => {
-      const [, , clearConfigStub] =
-        setups.startup.setupForClearingConfigWhenLoadingFromCacheOnStartup();
-      await controller.startup();
-
-      assert.equal(clearConfigStub.calledOnce, true);
-    });
-
-    it("should init quickPick if shouldLoadDataFromCacheOnStartup method returns true and quickPick is not already initialized", async () => {
-      const [, initStub] =
-        setups.startup.setupForInitializingQuickPickWhenLoadingFromCacheOnStartup();
-      await controller.startup();
-
-      assert.equal(initStub.calledOnce, true);
-    });
-
-    it("should remove data for unsaved uris if shouldLoadDataFromCacheOnStartup method returns true", async () => {
-      const [removeDataForUnsavedUrisStub] =
-        setups.startup.setupForRemovingUnsavedUrisWhenLoadingFromCacheOnStartup();
-      await controller.startup();
-
-      assert.equal(removeDataForUnsavedUrisStub.calledOnce, true);
-    });
-
-    it("should get data and set it for quickPick if shouldLoadDataFromCacheOnStartup method returns true", async () => {
-      const [, , , getDataStub, setItemsStub] =
-        setups.startup.setupForGettingAndSettingDataWhenLoadingFromCacheOnStartup();
-      await controller.startup();
-
-      assert.equal(getDataStub.calledOnce, false);
-      assert.equal(setItemsStub.calledOnce, false);
-    });
-
-    it("should reconcile a cached index on startup when shouldInitOnStartup is off", async () => {
-      const [reconcileStub, indexStub] =
-        setups.startup.setupForReconcilingCachedIndexWhenInitOnStartupDisabled();
-      await controller.startup();
-
-      assert.isTrue(reconcileStub.calledOnceWith(ActionTrigger.Reconcile));
-      assert.equal(indexStub.called, false);
-    });
-
-    it("should index the git diff between the template commit and HEAD when seeded", async () => {
-      const { queuedStub, indexStub, restatAllStub } =
-        setups.startup.setupForSeededWorktreeWithTemplateCommit();
-      await controller.startup();
-
-      const updated = queuedStub.args
-        .filter((args) => args[0] === ActionType.Update)
-        .map((args) => (args[1] as vscode.Uri).fsPath)
-        .sort();
-      assert.deepEqual(updated, ["/workspace/src/changed.ts", "/workspace/src/edited.ts"]);
-      assert.equal(indexStub.called, false);
-      assert.equal(restatAllStub.calledOnce, true);
-      assert.isTrue(restatAllStub.calledAfter(queuedStub));
-    });
-
-    it("should remove files deleted since the template commit when seeded", async () => {
-      const { queuedStub } = setups.startup.setupForSeededWorktreeWithDeletedFile();
-      await controller.startup();
-
-      const removed = queuedStub.args
-        .filter((args) => args[0] === ActionType.Remove)
-        .map((args) => (args[1] as vscode.Uri).fsPath);
-      const updated = queuedStub.args
-        .filter((args) => args[0] === ActionType.Update)
-        .map((args) => (args[1] as vscode.Uri).fsPath);
-      assert.deepEqual(removed, ["/workspace/src/deleted.ts"]);
-      assert.deepEqual(updated, ["/workspace/src/kept.ts"]);
-    });
-
-    it("should fully index a seeded worktree whose template has no commit", async () => {
-      const { queuedStub, indexStub, clearAllStub } =
-        setups.startup.setupForSeededWorktreeWithoutTemplateCommit();
-      await controller.startup();
-
-      assert.equal(clearAllStub.calledOnce, true);
-      assert.isTrue(indexStub.calledOnceWith(ActionTrigger.Startup));
-      assert.equal(queuedStub.called, false);
-    });
-  });
-
-  describe("shouldIndexOnQuickPickOpen", () => {
-    it("should return true if isInitOnStartupDisabledAndWorkspaceCachingDisabled method returns false and isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty method returns true", () => {
-      setups.shouldIndexOnQuickPickOpen.setupForTrueWhenDisabledCachingDisabledAndDataEmpty();
-
-      assert.equal(controller.shouldIndexOnQuickPickOpen(), true);
-    });
-
-    it("should return true if isInitOnStartupDisabledAndWorkspaceCachingDisabled method returns true and isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty method returns false", () => {
-      setups.shouldIndexOnQuickPickOpen.setupForTrueWhenDisabledCachingDisabledAndDataNotEmpty();
-
-      assert.equal(controller.shouldIndexOnQuickPickOpen(), true);
-    });
-
-    it("should return true if isInitOnStartupDisabledAndWorkspaceCachingDisabled and isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty methods return true", () => {
-      setups.shouldIndexOnQuickPickOpen.setupForTrueWhenBothConditionsTrue();
-
-      assert.equal(controller.shouldIndexOnQuickPickOpen(), true);
-    });
-
-    it("should return false if isInitOnStartupDisabledAndWorkspaceCachingDisabled and isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty methods return false", () => {
-      setups.shouldIndexOnQuickPickOpen.setupForFalseWhenBothConditionsFalse();
-
-      assert.equal(controller.shouldIndexOnQuickPickOpen(), false);
-    });
-  });
-
-  describe("shouldIndexOnStartup", () => {
-    it("should return true if isInitOnStartupEnabledAndWorkspaceCachingDisabled method returns false and isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty method returns true", () => {
-      setups.shouldIndexOnStartup.setupForTrueWhenEnabledCachingDisabledAndDataEmpty();
-
-      assert.equal(controller.shouldIndexOnStartup(), true);
-    });
-
-    it("should return true if isInitOnStartupEnabledAndWorkspaceCachingDisabled method returns true and isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty method returns false", () => {
-      setups.shouldIndexOnStartup.setupForTrueWhenEnabledCachingDisabledAndDataNotEmpty();
-
-      assert.equal(controller.shouldIndexOnStartup(), true);
-    });
-
-    it("should return true if isInitOnStartupEnabledAndWorkspaceCachingDisabled and isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty methods return true", () => {
-      setups.shouldIndexOnStartup.setupForTrueWhenBothConditionsTrue();
-
-      assert.equal(controller.shouldIndexOnStartup(), true);
-    });
-
-    it("should return false if isInitOnStartupEnabledAndWorkspaceCachingDisabled and isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty methods return false", () => {
-      setups.shouldIndexOnStartup.setupForFalseWhenBothConditionsFalse();
-
-      assert.equal(controller.shouldIndexOnStartup(), false);
-    });
-  });
-
-  describe("isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns true", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenInitOnStartupTrue();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenWorkspaceCachingFalse();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if data is not empty", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenDataNotEmpty();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup method returns false and fetchShouldWorkspaceDataBeCached method returns true and data is empty", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        true
-      );
-    });
-  });
-
-  describe("isInitOnStartupDisabledAndWorkspaceCachingDisabled", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingDisabled.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns true", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingDisabled.setupForFalseWhenInitOnStartupTrue();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns true", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingDisabled.setupForFalseWhenWorkspaceCachingTrue();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup method returns false and fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.isInitOnStartupDisabledAndWorkspaceCachingDisabled.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(
-        controller.isInitOnStartupDisabledAndWorkspaceCachingDisabled(),
-        true
-      );
-    });
-  });
-
-  describe("isInitOnStartupEnabledAndWorkspaceCachingDisabled", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingDisabled.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns false", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingDisabled.setupForFalseWhenInitOnStartupFalse();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns true", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingDisabled.setupForFalseWhenWorkspaceCachingTrue();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingDisabled(),
-        false
-      );
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup method returns true and fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingDisabled.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingDisabled(),
-        true
-      );
-    });
-  });
-
-  describe("isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns false", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenInitOnStartupFalse();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenWorkspaceCachingFalse();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return false if data is not empty", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForFalseWhenDataNotEmpty();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        false
-      );
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup method returns true and fetchShouldWorkspaceDataBeCached method returns true and data is empty", () => {
-      setups.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(
-        controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty(),
-        true
-      );
+      assert.isTrue(startupStub.calledOnceWith(quickPick));
     });
   });
 
@@ -620,58 +219,6 @@ describe("Controller", () => {
     });
   });
 
-  describe("shouldLoadDataFromCacheOnQuickPickOpen", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.shouldLoadDataFromCacheOnQuickPickOpen.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnQuickPickOpen(), false);
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns true", () => {
-      setups.shouldLoadDataFromCacheOnQuickPickOpen.setupForFalseWhenInitOnStartupTrue();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnQuickPickOpen(), false);
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.shouldLoadDataFromCacheOnQuickPickOpen.setupForFalseWhenWorkspaceCachingFalse();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnQuickPickOpen(), false);
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup method returns false and fetchShouldWorkspaceDataBeCached method returns true", () => {
-      setups.shouldLoadDataFromCacheOnQuickPickOpen.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnQuickPickOpen(), true);
-    });
-  });
-
-  describe("shouldLoadDataFromCacheOnStartup", () => {
-    it("should return false if quickPick is already initialized", () => {
-      setups.shouldLoadDataFromCacheOnStartup.setupForFalseWhenQuickPickInitialized();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnStartup(), false);
-    });
-
-    it("should return false if fetchShouldInitOnStartup method returns false", () => {
-      setups.shouldLoadDataFromCacheOnStartup.setupForFalseWhenInitOnStartupFalse();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnStartup(), false);
-    });
-
-    it("should return false if fetchShouldWorkspaceDataBeCached method returns false", () => {
-      setups.shouldLoadDataFromCacheOnStartup.setupForFalseWhenWorkspaceCachingFalse();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnStartup(), false);
-    });
-
-    it("should return true if quickPick is not initialized, fetchShouldInitOnStartup and fetchShouldWorkspaceDataBeCached methods return true", () => {
-      setups.shouldLoadDataFromCacheOnStartup.setupForTrueWhenAllConditionsMet();
-
-      assert.equal(controller.shouldLoadDataFromCacheOnStartup(), true);
-    });
-  });
-
   describe("handleWillProcessing", () => {
     it("should quickPick.showLoading and quickPick.setQuickPickPlaceholder methods be invoked with true as parameter", () => {
       const [showLoadingStub, setPlaceholderStub] =
@@ -713,7 +260,7 @@ describe("Controller", () => {
       assert.equal(setBusyStub.calledWith(false), true);
     });
 
-    it("should quickPick.setItems method be invoked with data from workspaceIndexer.getData method as a parameter", () => {
+    it("should quickPick.setItems method be invoked with data from database.search method as a parameter", () => {
       const [setItemsStub] =
         setups.handleDidProcessing.setupForSettingItemsFromWorkspaceData();
       controller.handleDidProcessing();

@@ -25,38 +25,6 @@ export const getTestSetups = () => {
       sandbox.restore();
     },
 
-    getData: {
-      setupForReturningData: () => {
-        stubMultiple(
-          [
-            { object: database, method: "isReady", returns: false },
-            {
-              object: cache,
-              method: "getData",
-              returns: getQpItems(),
-            },
-          ],
-          sandbox
-        );
-        return getQpItems();
-      },
-
-      setupForEmptyCache: () => {
-        stubMultiple(
-          [
-            { object: database, method: "isReady", returns: false },
-            {
-              object: cache,
-              method: "getData",
-              returns: undefined,
-            },
-          ],
-          sandbox
-        );
-        return [];
-      },
-    },
-
     indexWithProgress: {
       setupForWorkspaceFolderCheck: () => {
         return stubMultiple(

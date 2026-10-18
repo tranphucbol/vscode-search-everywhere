@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import { workspaceIndexer } from "../../indexing/workspaceIndexer";
 import { getTestSetups } from "./workspaceIndexer.testSetup";
 import { getProgress } from "../util/mockFactory";
-import { getQpItems } from "../util/qpItemMockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 
@@ -18,18 +17,6 @@ describe("WorkspaceIndexer", () => {
   describe("convertMsToSec", () => {
     it("should get value in ms and convert it to seconds", () => {
       assert.equal(workspaceIndexer.convertMsToSec(2000), 2);
-    });
-  });
-
-  describe("getData", () => {
-    it("should return array of indexed symbols and files from cache", () => {
-      const qpItems = setups.getData.setupForReturningData();
-      assert.deepEqual(workspaceIndexer.getData(), getQpItems());
-    });
-
-    it("should return empty array if cache is undefined", () => {
-      const qpItems = setups.getData.setupForEmptyCache();
-      assert.deepEqual(workspaceIndexer.getData(), []);
     });
   });
 

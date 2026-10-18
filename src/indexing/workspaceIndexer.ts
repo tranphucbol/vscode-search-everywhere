@@ -23,14 +23,6 @@ import {
   onWillIndexWorkspaceEventEmitter,
 } from "../shared/events";
 
-function getData(query?: string, limit?: number): QuickPickItem[] {
-  if (!database.isReady()) {
-    const cached = cache.getData();
-    return cached || [];
-  }
-  return database.search(query || "", limit);
-}
-
 async function indexWithProgress(): Promise<void> {
   workspaceFolders.hasWorkspaceAnyFolder()
     ? await vscode.window.withProgress(
@@ -163,7 +155,6 @@ function convertMsToSec(timeInMs: number) {
 
 export const workspaceIndexer = {
   convertMsToSec,
-  getData,
   indexWithProgress,
   indexWithProgressTask,
   cancelIndexing,
