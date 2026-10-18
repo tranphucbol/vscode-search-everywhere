@@ -1,8 +1,0 @@
-export const appConfig = {
-  dataCacheKey: "data",
-  configCacheKey: "config",
-  notSaveUriPathsKey: "notSavedUris",
-  recentItemsKey: "recentItems",
-  indexedConfigKey: "indexedConfig",
-  globPattern: "**/*",
-};

@@ -15,8 +15,6 @@ coverage-report-config.json
 .gitignore
 vsc-extension-quickstart.md
 **/tsconfig.json
-**/tslint.json
 **/*.map
 **/*.ts
 local.properties*
-publish.sh

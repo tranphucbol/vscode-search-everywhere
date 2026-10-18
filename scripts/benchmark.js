@@ -50,8 +50,8 @@ Module.prototype.require = function (id) {
 };
 
 const { database, extractName } = require("../dist/database");
-const { initCache } = require("../dist/cache");
-require("../dist/logger").logger.init();
+const { initCache } = require("../dist/platform/cache");
+require("../dist/platform/logger").logger.init();
 
 const workspaceStateStore = new Map();
 initCache({
