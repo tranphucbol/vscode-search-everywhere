@@ -4,8 +4,12 @@ import { ensureUri } from "../shared/paths";
 import { QuickPickItem } from "../shared/types";
 import { vscodeVersion } from "../shared/vscodeVersion";
 import { dataConverter } from "../symbols/items/dataConverter";
-import { COPY_ICON, COPY_REFERENCE_TOOLTIP } from "./copy";
 import { session } from "./state";
+
+export const COPY_ICON = "copy";
+export const COPY_REFERENCE_TOOLTIP = `Copy reference · ${
+  process.platform === "darwin" ? "⌥⇧⌘C" : "Ctrl+Alt+Shift+C"
+}`;
 
 const ICON_PREFIX_REGEX = /^\$\([^)]+\)\s+/;
 

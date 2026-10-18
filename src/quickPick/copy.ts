@@ -3,10 +3,6 @@ import { QuickPickItem } from "../shared/types";
 import { getLocation, getReference } from "../symbols/reference";
 import { quickPickState } from "./state";
 
-export const COPY_ICON = "copy";
-export const COPY_REFERENCE_TOOLTIP = `Copy reference · ${
-  process.platform === "darwin" ? "⌥⇧⌘C" : "Ctrl+Alt+Shift+C"
-}`;
 const COPIED_MESSAGE_TIMEOUT_MS = 3000;
 
 async function copyReference(item?: QuickPickItem): Promise<void> {
