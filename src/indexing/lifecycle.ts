@@ -193,6 +193,10 @@ async function reload(): Promise<void> {
   await changes.reindex(ActionTrigger.Reload);
 }
 
+function isRebuilding() {
+  return changes.isRebuilding();
+}
+
 function shouldReconcileOnStartup() {
   return fetchShouldWorkspaceDataBeCached() && !isDataEmpty();
 }
@@ -219,4 +223,5 @@ export const lifecycle = {
   prepareQuickPickOpen,
   startup,
   reload,
+  isRebuilding,
 };

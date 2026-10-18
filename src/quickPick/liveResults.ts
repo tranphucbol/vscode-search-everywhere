@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { database } from "../database";
-import { changes } from "../indexing/queue/changes";
+import { lifecycle } from "../indexing/lifecycle";
 import { fetchSearchLanguageServersWhileIndexing } from "../platform/config";
 import { QuickPickItem } from "../shared/types";
 import { liveSymbols } from "../symbols/liveSymbols";
@@ -21,7 +21,7 @@ let indexBusy = false;
 function isIndexIncomplete(hasIndexResults: boolean): boolean {
   return (
     !database.isReady() ||
-    changes.isRebuilding() ||
+    lifecycle.isRebuilding() ||
     (!hasIndexResults && database.isEmpty())
   );
 }

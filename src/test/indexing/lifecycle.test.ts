@@ -176,6 +176,14 @@ describe("Lifecycle", () => {
     });
   });
 
+  describe("isRebuilding", () => {
+    it("should report whether a full index is running or queued", () => {
+      setups.isRebuilding.setupForRebuilding();
+
+      assert.isTrue(lifecycle.isRebuilding());
+    });
+  });
+
   describe("startup", () => {
     it("should changes.reindex method be invoked if shouldIndexOnStartup method returns true", async () => {
       const { quickPick, reindexStub } =

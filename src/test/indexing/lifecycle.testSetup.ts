@@ -408,6 +408,11 @@ export const getTestSetups = () => {
         ),
     },
 
+    isRebuilding: {
+      setupForRebuilding: () =>
+        stubMultiple([{ object: changes, method: "isRebuilding", returns: true }], sandbox),
+    },
+
     startup: {
       setupForIndexingWhenEnabledOnStartup: () =>
         stubComponentsForStartup(sandbox, { shouldIndexOnStartup: true }),
