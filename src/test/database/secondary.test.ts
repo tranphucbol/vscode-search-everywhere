@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import * as path from "path";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
+import * as config from "../../platform/settings/config";
 import { database, RecentKey } from "../../database";
 import { QuickPickItem } from "../../shared/types";
 import { useTestDatabase } from "../util/databaseFixtures";

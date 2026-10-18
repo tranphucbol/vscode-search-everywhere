@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../../platform/cache";
-import { dataService } from "../../../symbols/dataService";
+import { files } from "../../../symbols/scan/files";
 import { pathUtils } from "../../../shared/paths";
 import { stubChanges } from "../../util/changesStub";
 import { insertAt, stubMultiple } from "../../util/stubHelpers";
@@ -20,7 +20,7 @@ export const getTestSetups = () => {
           return [stubChanges(sandbox), ...stubMultiple(
             [
               {
-                object: dataService,
+                object: files,
                 method: "isUriExistingInWorkspace",
                 returns: Promise.resolve(true),
               },
@@ -33,7 +33,7 @@ export const getTestSetups = () => {
         return [stubChanges(sandbox), ...stubMultiple(
           [
             {
-              object: dataService,
+              object: files,
               method: "isUriExistingInWorkspace",
               returns: Promise.resolve(false),
             },
@@ -46,7 +46,7 @@ export const getTestSetups = () => {
         return [stubChanges(sandbox), ...stubMultiple(
           [
             {
-              object: dataService,
+              object: files,
               method: "isUriExistingInWorkspace",
               returns: Promise.resolve(true),
             },
@@ -72,7 +72,7 @@ export const getTestSetups = () => {
                 callsFake: (paths: string[]) => (notSavedUris = paths),
               },
               {
-                object: dataService,
+                object: files,
                 method: "isUriExistingInWorkspace",
                 returns: Promise.resolve(true),
               },

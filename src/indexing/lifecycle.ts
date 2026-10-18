@@ -4,12 +4,12 @@ import {
   fetchIndexedConfigSnapshot,
   fetchShouldInitOnStartup,
   fetchShouldWorkspaceDataBeCached,
-} from "../platform/config";
-import { dataConverter } from "../symbols/dataConverter";
-import { dataService } from "../symbols/dataService";
+} from "../platform/settings/config";
+import { dataConverter } from "../symbols/items/dataConverter";
+import { scan } from "../symbols/scan/scan";
 import { database } from "../database";
 import { logger } from "../platform/logger";
-import { refreshPresets } from "../platform/presets";
+import { refreshPresets } from "../platform/settings/presets";
 import { ActionTrigger } from "../shared/types";
 import { workspaceFolders } from "../shared/workspaceFolders";
 import { onDidIndexWorkspace, onWillIndexWorkspace } from "../shared/events";
@@ -42,7 +42,7 @@ async function init() {
   clearConfig();
   await refreshPresets();
   clearIndexBuiltWithOtherConfig();
-  await dataService.fetchConfig();
+  await scan.fetchConfig();
   dataConverter.fetchConfig();
   lifecycle.registerEventListeners();
 }

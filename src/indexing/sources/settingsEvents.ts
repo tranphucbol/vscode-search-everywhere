@@ -5,12 +5,12 @@ import {
   fetchSecondaryCode,
   isDebounceConfigurationToggled,
   isSortingConfigurationToggled,
-} from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+} from "../../platform/settings/config";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { database } from "../../database";
 import { fileWatcher } from "./fileWatcher";
-import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/presets";
+import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/settings/presets";
 import { ActionTrigger, ExcludeMode } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { workspaceFolders } from "../../shared/workspaceFolders";
@@ -25,7 +25,7 @@ const defaultSection = "searchEverywhere";
 
 function reloadComponents() {
   dataConverter.reload();
-  dataService.reload();
+  scan.reload();
 }
 
 async function handleDidChangeConfiguration(
@@ -78,7 +78,7 @@ async function handleDidChangeMarkerFile(uri: vscode.Uri) {
 
 async function reloadConfig() {
   clearConfig();
-  await dataService.fetchConfig();
+  await scan.fetchConfig();
   dataConverter.fetchConfig();
 }
 

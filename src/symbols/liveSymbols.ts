@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "../platform/config";
-import { dataConverter } from "./dataConverter";
+import { fetchItemsFilter } from "../platform/settings/config";
+import { dataConverter } from "./items/dataConverter";
 import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
-import { ItemsFilter, QuickPickItem } from "../shared/types";
+import { patternProvider } from "../platform/settings/patternProvider";
+import { itemsFilter } from "./items/itemsFilter";
+import { QuickPickItem } from "../shared/types";
 
 export interface LiveSymbolsQuery {
   query: string;
@@ -36,13 +37,13 @@ async function fetchLiveSymbols(
     return [];
   }
 
-  const itemsFilter = fetchItemsFilter();
+  const filter = fetchItemsFilter();
   const items: QuickPickItem[] = [];
   for (const symbol of symbols) {
     if (!symbol || !symbol.location || !symbol.location.uri) {
       continue;
     }
-    if (!isKindAllowed(symbol.kind, request.symbolKinds, itemsFilter)) {
+    if (!itemsFilter.isKindAllowed(symbol.kind, filter, request.symbolKinds)) {
       continue;
     }
     const source = liveSymbols.classify(symbol.location.uri);
@@ -50,7 +51,7 @@ async function fetchLiveSymbols(
       continue;
     }
     const item = dataConverter.mapSymbolInformationToQpItem(symbol);
-    if (isNameIgnored(getName(item), itemsFilter)) {
+    if (itemsFilter.isNameIgnored(getName(item), filter)) {
       continue;
     }
     item.source = source;
@@ -92,33 +93,6 @@ async function executeWithTimeout(
     );
   }
   return symbols;
-}
-
-// Mirrors database.search: a filter phrase's kinds replace allowedKinds.
-function isKindAllowed(
-  kind: number,
-  symbolKinds: number[] | undefined,
-  itemsFilter: ItemsFilter
-): boolean {
-  if (symbolKinds && symbolKinds.length) {
-    if (!symbolKinds.includes(kind)) {
-      return false;
-    }
-  } else if (
-    itemsFilter.allowedKinds &&
-    itemsFilter.allowedKinds.length &&
-    !itemsFilter.allowedKinds.includes(kind)
-  ) {
-    return false;
-  }
-  return !(itemsFilter.ignoredKinds || []).includes(kind);
-}
-
-function isNameIgnored(name: string, itemsFilter: ItemsFilter): boolean {
-  const lowerName = name.toLowerCase();
-  return (itemsFilter.ignoredNames || []).some(
-    (ignored) => !!ignored && lowerName.includes(ignored.toLowerCase())
-  );
 }
 
 function getName(item: QuickPickItem): string {

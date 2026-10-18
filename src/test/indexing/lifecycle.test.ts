@@ -53,9 +53,9 @@ describe("Lifecycle", () => {
       assert.equal(setWorkspaceFoldersCommonPathStub.calledOnce, true);
     });
 
-    it("should dataService.fetchConfig method be invoked", async () => {
+    it("should scan.fetchConfig method be invoked", async () => {
       const [fetchConfigStub] =
-        setups.init.setupForInvokingDataServiceFetchConfig();
+        setups.init.setupForInvokingScanFetchConfig();
       await lifecycle.init();
 
       assert.equal(fetchConfigStub.calledOnce, true);

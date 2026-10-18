@@ -6,14 +6,14 @@ import {
   fetchInclude,
   fetchIndexedConfigSnapshot,
   fetchLanguagePresets,
-} from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+} from "../../platform/settings/config";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { indexingProgress } from "./progress";
 import { database, FileState } from "../../database";
 import { onDidItemIndexed } from "../../shared/events";
 import { logger } from "../../platform/logger";
-import { getActivePresets } from "../../platform/presets";
+import { getActivePresets } from "../../platform/settings/presets";
 import { QuickPickItem, WorkspaceData } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";
@@ -37,7 +37,7 @@ async function indexWithProgress(): Promise<void> {
 }
 
 function cancelIndexing(): void {
-  dataService.cancel();
+  scan.cancel();
   dataConverter.cancel();
 }
 
@@ -123,7 +123,7 @@ async function indexWorkspace(
     }
   };
 
-  const data = await dataService.fetchData(undefined, progress, onBatch);
+  const data = await scan.fetchData(undefined, progress, onBatch);
 
   if (batch.length > 0 || fileStates.length > 0) {
     flush();

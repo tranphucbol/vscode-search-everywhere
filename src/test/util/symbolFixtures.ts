@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { dataConverter } from "../../symbols/dataConverter";
+import { dataConverter } from "../../symbols/items/dataConverter";
 
 interface RawSymbol {
   name: string;
@@ -50,7 +50,7 @@ export function loadSymbolFixture(fileName: string): vscode.DocumentSymbol[] {
   return raw.map(toDocumentSymbol);
 }
 
-// Mirrors dataService: children are flattened and named "<parent><splitter><name>".
+// Mirrors documentSymbols: children are flattened and named "<parent><splitter><name>".
 export function flattenSymbols(
   symbols: vscode.DocumentSymbol[],
   parentName?: string

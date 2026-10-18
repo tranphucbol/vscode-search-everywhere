@@ -53,3 +53,5 @@ cycles and the `utils.ts` hub would remain); switching to classes with construct
 - Suites now run in a different order, which exposed tests that relied on state left by an
   earlier suite; they stub what they read now. New tests should do the same.
 - No user-visible change and no schema change; existing indexes and caches are kept.
+- Inside each folder, files are grouped in role subfolders with their own one-way order:
+  [009](009-role-subfolders.md).

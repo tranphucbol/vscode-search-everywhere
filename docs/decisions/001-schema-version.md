@@ -5,7 +5,7 @@ Status: Accepted
 ## Decision
 
 The SQLite index records its schema version in `PRAGMA user_version` (`SCHEMA_VERSION` in
-`src/database/schema.ts`). When a database opens with an older version, `migrateSchema` adds any missing columns,
+`src/database/storage/schema.ts`). When a database opens with an older version, `migrateSchema` adds any missing columns,
 deletes every row, marks the database as not seeded from the template, and sets the new version. The
 workspace is then reindexed as on a first start.
 

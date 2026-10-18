@@ -1,12 +1,12 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../platform/cache";
-import * as config from "../../platform/config";
+import * as config from "../../platform/settings/config";
 import { database } from "../../database";
 import { logger } from "../../platform/logger";
-import * as presets from "../../platform/presets";
-import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+import * as presets from "../../platform/settings/presets";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import * as events from "../../shared/events";
 import { retryQueue } from "../../indexing/queue/retryQueue";
@@ -249,7 +249,7 @@ export const getTestSetups = () => {
               method: "setWorkspaceFoldersCommonPath",
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchConfig",
             },
             {
@@ -269,7 +269,7 @@ export const getTestSetups = () => {
               method: "setWorkspaceFoldersCommonPath",
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchConfig",
             },
             {
@@ -281,11 +281,11 @@ export const getTestSetups = () => {
         );
       },
 
-      setupForInvokingDataServiceFetchConfig: () => {
+      setupForInvokingScanFetchConfig: () => {
         return stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "fetchConfig",
             },
             {
@@ -309,7 +309,7 @@ export const getTestSetups = () => {
               method: "fetchConfig",
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchConfig",
             },
             {

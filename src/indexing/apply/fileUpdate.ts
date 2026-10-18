@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { database, FileState } from "../../database";
-import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { DetailedActionType, QuickPickItem } from "../../shared/types";
 
 async function downloadData(
@@ -9,7 +9,7 @@ async function downloadData(
   fileStates?: Array<[string, FileState]>
 ): Promise<QuickPickItem[]> {
   const items: QuickPickItem[] = [];
-  const workspaceData = await dataService.fetchData(uris, undefined, (batch, fileState) => {
+  const workspaceData = await scan.fetchData(uris, undefined, (batch, fileState) => {
     items.push(...batch);
     fileStates && fileState && fileStates.push(fileState);
   });

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { fetchShouldDisplayNotificationInStatusBar } from "../../platform/config";
+import { fetchShouldDisplayNotificationInStatusBar } from "../../platform/settings/config";
 
 let progressStep = 0;
 let currentProgressValue = 0;

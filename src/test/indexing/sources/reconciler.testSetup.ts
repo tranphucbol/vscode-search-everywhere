@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { dataService } from "../../../symbols/dataService";
+import { files } from "../../../symbols/scan/files";
 import { database, FileState } from "../../../database";
 import { logger } from "../../../platform/logger";
 import { changes } from "../../../indexing/queue/changes";
@@ -29,12 +29,12 @@ function stubDisk(
         method: "upsertFileStates",
       },
       {
-        object: dataService,
+        object: files,
         method: "fetchUris",
         returns: Promise.resolve([...onDisk.keys()].map((uri) => vscode.Uri.parse(uri))),
       },
       {
-        object: dataService,
+        object: files,
         method: "statUri",
         callsFake: (uri: vscode.Uri) => Promise.resolve(onDisk.get(uri.toString())),
       },

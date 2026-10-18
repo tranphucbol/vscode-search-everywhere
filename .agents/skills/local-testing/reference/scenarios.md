@@ -227,7 +227,7 @@ activation at all.
 Changing any `searchEverywhere.*` setting except the display ones (`shouldDisplayNotificationInStatusBar`,
 `shouldInitOnStartup`, `shouldHighlightSymbol`, `shouldUseDebounce`, `shouldItemsBeSorted`,
 `shouldWorkspaceDataBeCached`, `shouldSearchSelection`, `useFileIconTheme`) rebuilds the index by
-itself (`workspace.ts`). Wait about 3 s after `SE set`, then `SE state` prints the new
+itself (`indexing/sources/settingsEvents.ts`). Wait about 3 s after `SE set`, then `SE state` prints the new
 `last index:` counts; `SE command "Search everywhere: Reload"` does the same and waits for it.
 
 ```sh

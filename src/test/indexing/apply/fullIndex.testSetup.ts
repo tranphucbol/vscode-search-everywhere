@@ -3,10 +3,10 @@ import { performance } from "perf_hooks";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../../platform/cache";
-import { dataConverter } from "../../../symbols/dataConverter";
-import { dataService } from "../../../symbols/dataService";
+import { dataConverter } from "../../../symbols/items/dataConverter";
+import { scan } from "../../../symbols/scan/scan";
 import { database } from "../../../database";
-import * as dataServiceEventsEmitter from "../../../shared/events";
+import * as eventEmitters from "../../../shared/events";
 import { logger } from "../../../platform/logger";
 import { asyncUtils } from "../../../shared/async";
 import { messages } from "../../../shared/messages";
@@ -66,7 +66,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "cancel",
             },
             {
@@ -106,12 +106,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
@@ -162,12 +162,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve({ ...getWorkspaceData(), urisToRetry }),
             },
@@ -198,7 +198,7 @@ export const getTestSetups = () => {
         const [, flushPersistStub, schedulePersistStub] = stubMultiple(
           [
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
@@ -209,7 +209,7 @@ export const getTestSetups = () => {
             },
             { object: database, method: "schedulePersist" },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
@@ -228,12 +228,12 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
@@ -285,12 +285,12 @@ export const getTestSetups = () => {
               returns: 1000,
             },
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
@@ -341,12 +341,12 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },
@@ -405,12 +405,12 @@ export const getTestSetups = () => {
               method: "log",
             },
             {
-              object: dataServiceEventsEmitter,
+              object: eventEmitters,
               method: "onDidItemIndexed",
               returns: { dispose: sinon.stub() },
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },

@@ -1,13 +1,13 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
-import { dataService } from "../../../symbols/dataService";
+import * as config from "../../../platform/settings/config";
+import { scan } from "../../../symbols/scan/scan";
 import { database } from "../../../database";
 import { logger } from "../../../platform/logger";
 import { asyncUtils } from "../../../shared/async";
 import { messages } from "../../../shared/messages";
 import { fileUpdate } from "../../../indexing/apply/fileUpdate";
-import { dataConverter } from "../../../symbols/dataConverter";
+import { dataConverter } from "../../../symbols/items/dataConverter";
 import { getWorkspaceData } from "../../util/mockFactory";
 import { getDocumentSymbolItemSingleLineArray } from "../../util/itemMockFactory";
 import {
@@ -29,7 +29,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },

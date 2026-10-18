@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { fetchWatchFileSystem } from "../../platform/config";
-import { dataService } from "../../symbols/dataService";
+import { fetchWatchFileSystem } from "../../platform/settings/config";
+import { files } from "../../symbols/scan/files";
 import { database } from "../../database";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
 import { changes } from "../queue/changes";
 import { reconciler } from "./reconciler";
@@ -91,7 +91,7 @@ async function isStateUnchanged(uri: vscode.Uri): Promise<boolean> {
   if (!stored) {
     return false;
   }
-  const current = await dataService.statUri(uri);
+  const current = await files.statUri(uri);
   return !!current && current.mtime === stored.mtime && current.size === stored.size;
 }
 

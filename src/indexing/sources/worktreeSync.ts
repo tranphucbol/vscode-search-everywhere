@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import { database } from "../../database";
 import { gitService } from "../../platform/gitService";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
 import { changes } from "../queue/changes";
 import { reconciler } from "./reconciler";

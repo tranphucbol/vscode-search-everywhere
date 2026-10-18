@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { dataService } from "../../symbols/dataService";
+import { files } from "../../symbols/scan/files";
 import { database, FileState } from "../../database";
 import { logger } from "../../platform/logger";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
@@ -25,7 +25,7 @@ async function statAll(
   const worker = async () => {
     while (next < uris.length) {
       const i = next++;
-      states[i] = await dataService.statUri(uris[i]);
+      states[i] = await files.statUri(uris[i]);
     }
   };
   await Promise.all(
@@ -61,7 +61,7 @@ async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult> {
     fullIndex: false,
     baseline: false,
   };
-  const uris = await dataService.fetchUris();
+  const uris = await files.fetchUris();
 
   if (!database.hasFileStateBaseline()) {
     const recorded = await recordBaseline(uris);
@@ -120,7 +120,7 @@ async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult> {
 }
 
 async function restatAll(): Promise<number> {
-  const uris = await dataService.fetchUris();
+  const uris = await files.fetchUris();
   database.clearFileStates();
   return recordBaseline(uris);
 }
