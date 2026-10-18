@@ -89,12 +89,12 @@ describe("Workspace", () => {
   });
 
   describe("removeDataForUnsavedUris", () => {
-    it("should common.registerAction be invoked twice for each unsaved uri", async () => {
-      const [registerActionStub] =
+    it("should queue a removal and an update for each unsaved uri", async () => {
+      const [queuedStub] =
         setups.removeDataForUnsavedUris.setupForInvokingRegisterActionTwiceForEachUnsavedUri();
       await workspace.removeDataForUnsavedUris();
 
-      assert.equal(registerActionStub.callCount, 4);
+      assert.equal(queuedStub.callCount, 4);
     });
 
     it("should clear array of unsaved uris", async () => {
@@ -282,14 +282,14 @@ describe("Workspace", () => {
     });
 
     it("should do nothing if extension configuration has not changed", async () => {
-      const [registerActionStub, onDidDebounceConfigToggleEventEmitterStub] =
+      const [queuedStub, onDidDebounceConfigToggleEventEmitterStub] =
         setups.handleDidChangeConfiguration.setupForDoingNothingWhenExtensionConfigurationNotChanged();
 
       await workspace.handleDidChangeConfiguration(
         getConfigurationChangeEvent(false)
       );
 
-      assert.equal(registerActionStub.calledOnce, false);
+      assert.equal(queuedStub.calledOnce, false);
       assert.equal(onDidDebounceConfigToggleEventEmitterStub.calledOnce, false);
     });
 
@@ -318,13 +318,13 @@ describe("Workspace", () => {
     });
 
     it("should do nothing if extension configuration has not changed", async () => {
-      const [registerActionStub] =
+      const [queuedStub] =
         setups.handleDidChangeWorkspaceFolders.setupForDoingNothingWhenWorkspaceFoldersNotChanged();
       await workspace.handleDidChangeWorkspaceFolders(
         getWorkspaceFoldersChangeEvent(false)
       );
 
-      assert.equal(registerActionStub.calledOnce, false);
+      assert.equal(queuedStub.calledOnce, false);
     });
   });
 
@@ -364,33 +364,33 @@ describe("Workspace", () => {
   });
 
   describe("handleDidChangeTextDocument", () => {
-    it("should registerAction method be invoked which register update action if text document has changed and exists in workspace", async () => {
-      const [registerActionStub] =
+    it("should queue update if text document has changed and exists in workspace", async () => {
+      const [queuedStub] =
         setups.handleDidChangeTextDocument.setupForRegisteringUpdateActionWhenDocumentChangedAndExistsInWorkspace();
       const textDocumentChangeEvent = getTextDocumentChangeEvent(true);
       await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
-      assert.equal(registerActionStub.calledTwice, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Remove);
-      assert.equal(registerActionStub.args[1][0], ActionType.Update);
+      assert.equal(queuedStub.calledTwice, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Remove);
+      assert.equal(queuedStub.args[1][0], ActionType.Update);
     });
 
     it("should do nothing if text document does not exist in workspace", async () => {
-      const [registerActionStub] =
+      const [queuedStub] =
         setups.handleDidChangeTextDocument.setupForDoingNothingWhenDocumentNotExistInWorkspace();
       const textDocumentChangeEvent = getTextDocumentChangeEvent(true);
       await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
-      assert.equal(registerActionStub.calledOnce, false);
+      assert.equal(queuedStub.calledOnce, false);
     });
 
     it("should do nothing if text document has not changed", async () => {
-      const [registerActionStub] =
+      const [queuedStub] =
         setups.handleDidChangeTextDocument.setupForDoingNothingWhenDocumentNotChanged();
       const textDocumentChangeEvent = await getTextDocumentChangeEvent();
       await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
-      assert.equal(registerActionStub.calledOnce, false);
+      assert.equal(queuedStub.calledOnce, false);
     });
 
     it("should add uri to not saved array if text document has changed and exists in workspace", async () => {
@@ -403,47 +403,47 @@ describe("Workspace", () => {
   });
 
   describe("handleDidRenameFiles", () => {
-    it("should registerAction method be invoked twice to register remove and update actions for each renamed or moved file", async () => {
-      const [registerActionStub] =
+    it("should queue an update and a removal for each renamed or moved file", async () => {
+      const [queuedStub] =
         setups.handleDidRenameFiles.setupForRegisteringRemoveAndUpdateActionsForRenamedFiles();
 
       await workspace.handleDidRenameFiles(getFileRenameEvent());
 
-      assert.equal(registerActionStub.callCount, 4);
-      assert.equal(registerActionStub.args[0][0], ActionType.Update);
-      assert.equal(registerActionStub.args[1][0], ActionType.Remove);
-      assert.equal(registerActionStub.args[2][0], ActionType.Update);
-      assert.equal(registerActionStub.args[3][0], ActionType.Remove);
+      assert.equal(queuedStub.callCount, 4);
+      assert.equal(queuedStub.args[0][0], ActionType.Update);
+      assert.equal(queuedStub.args[1][0], ActionType.Remove);
+      assert.equal(queuedStub.args[2][0], ActionType.Update);
+      assert.equal(queuedStub.args[3][0], ActionType.Remove);
     });
 
-    it("should registerAction method be invoked once to register update action for renamed or moved directory", async () => {
-      const [registerActionStub] =
+    it("should queue one update for renamed or moved directory", async () => {
+      const [queuedStub] =
         setups.handleDidRenameFiles.setupForRegisteringUpdateActionForRenamedDirectory();
 
       await workspace.handleDidRenameFiles(getFileRenameEvent(true));
 
-      assert.equal(registerActionStub.calledOnce, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Update);
+      assert.equal(queuedStub.calledOnce, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Update);
     });
   });
 
   describe("handleDidCreateFiles", () => {
-    it("should registerAction method be invoked which register update action when file is created", async () => {
-      const [registerActionStub] =
+    it("should queue update when file is created", async () => {
+      const [queuedStub] =
         setups.handleDidCreateFiles.setupForRegisteringUpdateActionWhenFileCreated();
       await workspace.handleDidCreateFiles(getFileCreateEvent());
 
-      assert.equal(registerActionStub.calledOnce, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Update);
+      assert.equal(queuedStub.calledOnce, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Update);
     });
 
-    it("should registerAction method be invoked which register update action when directory is created", async () => {
-      const [registerActionStub] =
+    it("should queue update when directory is created", async () => {
+      const [queuedStub] =
         setups.handleDidCreateFiles.setupForRegisteringUpdateActionWhenDirectoryCreated();
       await workspace.handleDidCreateFiles(getFileCreateEvent());
 
-      assert.equal(registerActionStub.calledOnce, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Update);
+      assert.equal(queuedStub.calledOnce, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Update);
     });
 
     it("should add uri to not saved array", async () => {
@@ -455,22 +455,22 @@ describe("Workspace", () => {
   });
 
   describe("handleDidDeleteFiles", () => {
-    it("should registerAction method be invoked which register remove action when file is deleted", async () => {
-      const [registerActionStub] =
+    it("should queue remove when file is deleted", async () => {
+      const [queuedStub] =
         setups.handleDidDeleteFiles.setupForRegisteringRemoveActionWhenFileDeleted();
       await workspace.handleDidDeleteFiles(getFileDeleteEvent());
 
-      assert.equal(registerActionStub.calledOnce, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Remove);
+      assert.equal(queuedStub.calledOnce, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Remove);
     });
 
-    it("should registerAction method be invoked which register remove action when directory is deleted", async () => {
-      const [registerActionStub] =
+    it("should queue remove when directory is deleted", async () => {
+      const [queuedStub] =
         setups.handleDidDeleteFiles.setupForRegisteringRemoveActionWhenDirectoryDeleted();
       await workspace.handleDidDeleteFiles(getFileDeleteEvent());
 
-      assert.equal(registerActionStub.calledOnce, true);
-      assert.equal(registerActionStub.args[0][0], ActionType.Remove);
+      assert.equal(queuedStub.calledOnce, true);
+      assert.equal(queuedStub.args[0][0], ActionType.Remove);
     });
   });
 

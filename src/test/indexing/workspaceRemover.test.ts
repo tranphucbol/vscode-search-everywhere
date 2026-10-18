@@ -86,6 +86,21 @@ describe("WorkspaceRemover", () => {
       );
     });
 
+    it("should remove the path and everything under it when a file or directory is removed", () => {
+      const [deleteByUriStub, deleteByUriPrefixStub] =
+        setups.removeFromCacheByPath.setupForRemovingPathAndChildrenWhenFileOrDirectoryRemoved();
+      const uri = getItem();
+
+      workspaceRemover.removeFromCacheByPath(
+        uri,
+        DetailedActionType.RemoveFileOrDirectory
+      );
+      assert.deepEqual(deleteByUriStub.firstCall.args, [uri.toString()]);
+      assert.deepEqual(deleteByUriPrefixStub.firstCall.args, [
+        uri.with({ path: `${uri.path}/` }).toString(),
+      ]);
+    });
+
     it("should remove given uri when file is reloaded if it is unsaved", () => {
       const [deleteByUriStub] =
         setups.removeFromCacheByPath.setupForRemovingGivenUriWhenFileReloadedIfUnsaved();

@@ -21,7 +21,6 @@ import { logger } from "../platform/logger";
 import { isRootMarker, markerFileGlob, refreshPresets } from "../platform/presets";
 import {
   ActionTrigger,
-  ActionType,
   DetailedActionType,
   ExcludeMode,
   QuickPickItem,
@@ -36,9 +35,9 @@ import {
   onWillIndexWorkspace,
   onWillReindexOnConfigurationChangeEventEmitter,
 } from "../shared/events";
+import { changes } from "./changes";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
-import { removeFromCacheByPath } from "./workspaceRemover";
-import { retryQueue, updateCacheByPath } from "./workspaceUpdater";
+import { retryQueue } from "./workspaceUpdater";
 
 const debounce = asyncUtils.debounce;
 
@@ -125,19 +124,8 @@ async function handleDidChangeTextDocument(
   if (isUriExistingInWorkspace && hasContentChanged) {
     workspace.addNotSavedUri(uri);
 
-    await indexer.registerAction(
-      ActionType.Remove,
-      removeFromCacheByPath.bind(null, uri, actionType),
-      ActionTrigger.DidChangeTextDocument,
-      uri
-    );
-
-    await indexer.registerAction(
-      ActionType.Update,
-      updateCacheByPath.bind(null, uri, actionType),
-      ActionTrigger.DidChangeTextDocument,
-      uri
-    );
+    await changes.queueRemove(uri, actionType, ActionTrigger.DidChangeTextDocument);
+    await changes.queueUpdate(uri, actionType, ActionTrigger.DidChangeTextDocument);
   }
 }
 
@@ -150,19 +138,18 @@ async function handleDidRenameFiles(event: vscode.FileRenameEvent) {
   for (let i = 0; i < event.files.length; i++) {
     const file = event.files[i];
 
-    await indexer.registerAction(
-      ActionType.Update,
-      updateCacheByPath.bind(null, file.newUri, actionType, file.oldUri),
+    await changes.queueUpdate(
+      file.newUri,
+      actionType,
       ActionTrigger.DidRenameFiles,
-      file.newUri
+      file.oldUri
     );
 
     actionType === DetailedActionType.RenameOrMoveFile &&
-      (await indexer.registerAction(
-        ActionType.Remove,
-        removeFromCacheByPath.bind(null, file.oldUri, actionType),
-        ActionTrigger.DidRenameFiles,
-        file.oldUri
+      (await changes.queueRemove(
+        file.oldUri,
+        actionType,
+        ActionTrigger.DidRenameFiles
       ));
   }
 }
@@ -175,12 +162,7 @@ async function handleDidCreateFiles(event: vscode.FileCreateEvent) {
 
   workspace.addNotSavedUri(uri);
 
-  await indexer.registerAction(
-    ActionType.Update,
-    updateCacheByPath.bind(null, uri, actionType),
-    ActionTrigger.DidCreateFiles,
-    uri
-  );
+  await changes.queueUpdate(uri, actionType, ActionTrigger.DidCreateFiles);
 }
 
 async function handleDidDeleteFiles(event: vscode.FileDeleteEvent) {
@@ -189,12 +171,7 @@ async function handleDidDeleteFiles(event: vscode.FileDeleteEvent) {
     ? DetailedActionType.RemoveDirectory
     : DetailedActionType.RemoveFile;
 
-  await indexer.registerAction(
-    ActionType.Remove,
-    removeFromCacheByPath.bind(null, uri, actionType),
-    ActionTrigger.DidDeleteFiles,
-    uri
-  );
+  await changes.queueRemove(uri, actionType, ActionTrigger.DidDeleteFiles);
 }
 
 function handleDidSaveTextDocument(textDocument: vscode.TextDocument) {
@@ -253,22 +230,15 @@ async function removeDataForUnsavedUris() {
     const path = paths[i];
     const uri = vscode.Uri.file(path);
 
-    await indexer.registerAction(
-      ActionType.Remove,
-      removeFromCacheByPath.bind(
-        null,
-        uri,
-        DetailedActionType.ReloadUnsavedUri
-      ),
-      ActionTrigger.ReloadUnsavedUri,
-      uri
+    await changes.queueRemove(
+      uri,
+      DetailedActionType.ReloadUnsavedUri,
+      ActionTrigger.ReloadUnsavedUri
     );
-
-    await indexer.registerAction(
-      ActionType.Update,
-      updateCacheByPath.bind(null, uri, DetailedActionType.ReloadUnsavedUri),
-      ActionTrigger.ReloadUnsavedUri,
-      uri
+    await changes.queueUpdate(
+      uri,
+      DetailedActionType.ReloadUnsavedUri,
+      ActionTrigger.ReloadUnsavedUri
     );
   }
 

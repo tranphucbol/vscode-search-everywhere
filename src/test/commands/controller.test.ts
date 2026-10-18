@@ -309,42 +309,42 @@ describe("Controller", () => {
     });
 
     it("should index the git diff between the template commit and HEAD when seeded", async () => {
-      const { registerActionStub, indexStub, restatAllStub } =
+      const { queuedStub, indexStub, restatAllStub } =
         setups.startup.setupForSeededWorktreeWithTemplateCommit();
       await controller.startup();
 
-      const updated = registerActionStub.args
+      const updated = queuedStub.args
         .filter((args) => args[0] === ActionType.Update)
-        .map((args) => (args[3] as vscode.Uri).fsPath)
+        .map((args) => (args[1] as vscode.Uri).fsPath)
         .sort();
       assert.deepEqual(updated, ["/workspace/src/changed.ts", "/workspace/src/edited.ts"]);
       assert.equal(indexStub.called, false);
       assert.equal(restatAllStub.calledOnce, true);
-      assert.isTrue(restatAllStub.calledAfter(registerActionStub));
+      assert.isTrue(restatAllStub.calledAfter(queuedStub));
     });
 
     it("should remove files deleted since the template commit when seeded", async () => {
-      const { registerActionStub } = setups.startup.setupForSeededWorktreeWithDeletedFile();
+      const { queuedStub } = setups.startup.setupForSeededWorktreeWithDeletedFile();
       await controller.startup();
 
-      const removed = registerActionStub.args
+      const removed = queuedStub.args
         .filter((args) => args[0] === ActionType.Remove)
-        .map((args) => (args[3] as vscode.Uri).fsPath);
-      const updated = registerActionStub.args
+        .map((args) => (args[1] as vscode.Uri).fsPath);
+      const updated = queuedStub.args
         .filter((args) => args[0] === ActionType.Update)
-        .map((args) => (args[3] as vscode.Uri).fsPath);
+        .map((args) => (args[1] as vscode.Uri).fsPath);
       assert.deepEqual(removed, ["/workspace/src/deleted.ts"]);
       assert.deepEqual(updated, ["/workspace/src/kept.ts"]);
     });
 
     it("should fully index a seeded worktree whose template has no commit", async () => {
-      const { registerActionStub, indexStub, clearAllStub } =
+      const { queuedStub, indexStub, clearAllStub } =
         setups.startup.setupForSeededWorktreeWithoutTemplateCommit();
       await controller.startup();
 
       assert.equal(clearAllStub.calledOnce, true);
       assert.isTrue(indexStub.calledOnceWith(ActionTrigger.Startup));
-      assert.equal(registerActionStub.called, false);
+      assert.equal(queuedStub.called, false);
     });
   });
 

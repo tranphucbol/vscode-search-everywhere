@@ -13,11 +13,11 @@ import { messages } from "../../shared/messages";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import { workspace } from "../../indexing/workspace";
 import * as workspaceEventsEmitter from "../../shared/events";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
 import { workspaceReconciler } from "../../indexing/workspaceReconciler";
 import { getExtensionContext } from "../util/mockFactory";
 import { getQpItem, getQpItems } from "../util/qpItemMockFactory";
 import { getTextEditorStub } from "../util/stubFactory";
+import { stubChanges } from "../util/changesStub";
 import { stubMultiple } from "../util/stubHelpers";
 
 function stubComponents(sandbox: sinon.SinonSandbox) {
@@ -147,13 +147,8 @@ function stubSeededStartup(
 ) {
   const folder = { uri: seededRoot, name: "workspace", index: 0 };
   const existingPaths = options.existingPaths || [];
-  const [registerActionStub, indexStub, clearAllStub, restatAllStub] = stubMultiple(
+  const [queuedStub, indexStub, clearAllStub, restatAllStub] = [stubChanges(sandbox), ...stubMultiple(
     [
-      {
-        object: workspaceIndexer,
-        method: "registerAction",
-        returns: Promise.resolve(),
-      },
       {
         object: workspace,
         method: "index",
@@ -232,8 +227,8 @@ function stubSeededStartup(
       },
     ],
     sandbox
-  );
-  return { registerActionStub, indexStub, clearAllStub, restatAllStub };
+  )];
+  return { queuedStub, indexStub, clearAllStub, restatAllStub };
 }
 
 function stubComponentsForSearch(

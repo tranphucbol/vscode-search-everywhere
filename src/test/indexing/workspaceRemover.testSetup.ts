@@ -91,6 +91,26 @@ export const getTestSetups = () => {
         );
       },
 
+      setupForRemovingPathAndChildrenWhenFileOrDirectoryRemoved: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUri",
+            },
+            {
+              object: database,
+              method: "deleteByUriPrefix",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
       setupForRemovingGivenUriWhenFileReloadedIfUnsaved: () => {
         return stubMultiple(
           [

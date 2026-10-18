@@ -2,10 +2,9 @@ import * as vscode from "vscode";
 import { dataService } from "../symbols/dataService";
 import { database, FileState } from "../database";
 import { logger } from "../platform/logger";
-import { ActionTrigger, ActionType, DetailedActionType } from "../shared/types";
+import { ActionTrigger, DetailedActionType } from "../shared/types";
+import { changes } from "./changes";
 import { workspaceIndexer as indexer } from "./workspaceIndexer";
-import { removeFromCacheByPath } from "./workspaceRemover";
-import { updateCacheByPath } from "./workspaceUpdater";
 
 const STAT_CONCURRENCY = 32;
 const FULL_INDEX_MIN_FILES = 2000;
@@ -111,22 +110,11 @@ export async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult
 
   // Registering without awaiting each one lets the processor drain them in a
   // single run instead of one processing cycle per file.
-  const removals = toRemove.map((key) => {
-    const uri = vscode.Uri.parse(key);
-    return indexer.registerAction(
-      ActionType.Remove,
-      removeFromCacheByPath.bind(null, uri, DetailedActionType.RemoveFile),
-      trigger,
-      uri
-    );
-  });
+  const removals = toRemove.map((key) =>
+    changes.queueRemove(vscode.Uri.parse(key), DetailedActionType.RemoveFile, trigger)
+  );
   const updates = toUpdate.map((uri) =>
-    indexer.registerAction(
-      ActionType.Update,
-      updateCacheByPath.bind(null, uri, DetailedActionType.TextChange),
-      trigger,
-      uri
-    )
+    changes.queueUpdate(uri, DetailedActionType.TextChange, trigger)
   );
   await Promise.all([...removals, ...updates]);
   return result;

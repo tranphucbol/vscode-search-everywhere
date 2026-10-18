@@ -10,6 +10,12 @@ function removeFolder(uri: vscode.Uri): void {
   database.deleteByUriPrefix(uri.toString());
 }
 
+// A path deleted on disk can no longer be stat-ed to tell a file from a folder.
+function removeFileOrFolder(uri: vscode.Uri): void {
+  removeUri(uri);
+  removeFolder(uri.with({ path: `${uri.path}/` }));
+}
+
 export function removeFromCacheByPath(
   uri: vscode.Uri,
   detailedActionType: DetailedActionType
@@ -17,6 +23,7 @@ export function removeFromCacheByPath(
   const removeFnByDetailedActionType: { [key: string]: Function } = {
     [DetailedActionType.RenameOrMoveFile]: removeUri.bind(null, uri),
     [DetailedActionType.RemoveFile]: removeUri.bind(null, uri),
+    [DetailedActionType.RemoveFileOrDirectory]: removeFileOrFolder.bind(null, uri),
     [DetailedActionType.TextChange]: removeUri.bind(null, uri),
     [DetailedActionType.ReloadUnsavedUri]: removeUri.bind(null, uri),
     [DetailedActionType.RemoveDirectory]: removeFolder.bind(null, uri),

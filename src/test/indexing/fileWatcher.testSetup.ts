@@ -13,7 +13,8 @@ import {
   FakeFileSystemWatcher,
   getFileSystemWatcherStub,
 } from "../util/stubFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import { stubChanges } from "../util/changesStub";
+import { insertAt, stubMultiple } from "../util/stubHelpers";
 
 const workspaceRoot = "/workspace";
 
@@ -37,11 +38,11 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
 
   const [
     createFileSystemWatcherStub,
-    registerActionStub,
+    queuedStub,
     reconcileStub,
     deleteByUriStub,
     deleteByUriPrefixStub,
-  ] = stubMultiple(
+  ] = insertAt(stubMultiple(
     [
       {
         object: vscode.workspace,
@@ -53,11 +54,6 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
           watchers.push(watcher);
           return watcher;
         },
-      },
-      {
-        object: workspaceIndexer,
-        method: "registerAction",
-        returns: Promise.resolve(),
       },
       {
         object: workspaceReconciler,
@@ -147,7 +143,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
       },
     ],
     sandbox
-  );
+  ), 1, stubChanges(sandbox));
 
   fileWatcher.startWatching();
 
@@ -164,7 +160,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
     fire,
     watchers,
     createFileSystemWatcherStub,
-    registerActionStub,
+    queuedStub,
     reconcileStub,
     deleteByUriStub,
     deleteByUriPrefixStub,

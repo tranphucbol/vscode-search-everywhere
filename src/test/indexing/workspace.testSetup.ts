@@ -17,7 +17,8 @@ import { retryQueue } from "../../indexing/workspaceUpdater";
 import { getItems } from "../util/itemMockFactory";
 import { getEventEmitter } from "../util/mockFactory";
 import { getFileSystemWatcherStub } from "../util/stubFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import { stubChanges } from "../util/changesStub";
+import { insertAt, stubMultiple } from "../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();
@@ -157,12 +158,8 @@ export const getTestSetups = () => {
       setupForInvokingRegisterActionTwiceForEachUnsavedUri: () => {
         let notSavedUris: string[] = ["/test/path1", "/test/path2"];
 
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: cache,
               method: "getNotSavedUriPaths",
@@ -175,18 +172,14 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForClearingArrayOfUnsavedUris: () => {
         let notSavedUris: string[] = ["/test/path1", "/test/path2"];
 
-        stubMultiple(
+        [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: cache,
               method: "getNotSavedUriPaths",
@@ -204,7 +197,7 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
     },
 
@@ -495,12 +488,8 @@ export const getTestSetups = () => {
       },
 
       setupForDoingNothingWhenExtensionConfigurationNotChanged: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: events,
               method: "onDidDebounceConfigToggleEventEmitter",
@@ -526,7 +515,7 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForInvokingCacheClearConfigMethod: () => {
@@ -588,12 +577,8 @@ export const getTestSetups = () => {
       },
 
       setupForDoingNothingWhenWorkspaceFoldersNotChanged: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: workspaceFolders,
               method: "hasWorkspaceChanged",
@@ -601,7 +586,7 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
     },
 
@@ -636,12 +621,8 @@ export const getTestSetups = () => {
     handleDidChangeTextDocument: {
       setupForRegisteringUpdateActionWhenDocumentChangedAndExistsInWorkspace:
         () => {
-          return stubMultiple(
+          return [stubChanges(sandbox), ...stubMultiple(
             [
-              {
-                object: indexer,
-                method: "registerAction",
-              },
               {
                 object: dataService,
                 method: "isUriExistingInWorkspace",
@@ -649,16 +630,12 @@ export const getTestSetups = () => {
               },
             ],
             sandbox
-          );
+          )];
         },
 
       setupForDoingNothingWhenDocumentNotExistInWorkspace: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: dataService,
               method: "isUriExistingInWorkspace",
@@ -666,16 +643,12 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForDoingNothingWhenDocumentNotChanged: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: dataService,
               method: "isUriExistingInWorkspace",
@@ -683,14 +656,14 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForAddingUriToNotSavedArrayWhenDocumentChangedAndExistsInWorkspace:
         () => {
           let notSavedUris: string[] = [];
 
-          stubMultiple(
+          insertAt(stubMultiple(
             [
               {
                 object: cache,
@@ -703,28 +676,20 @@ export const getTestSetups = () => {
                 callsFake: (paths: string[]) => (notSavedUris = paths),
               },
               {
-                object: indexer,
-                method: "registerAction",
-              },
-              {
                 object: dataService,
                 method: "isUriExistingInWorkspace",
                 returns: Promise.resolve(true),
               },
             ],
             sandbox
-          );
+          ), 2, stubChanges(sandbox));
         },
     },
 
     handleDidRenameFiles: {
       setupForRegisteringRemoveAndUpdateActionsForRenamedFiles: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -732,16 +697,12 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForRegisteringUpdateActionForRenamedDirectory: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -749,18 +710,14 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
     },
 
     handleDidCreateFiles: {
       setupForRegisteringUpdateActionWhenFileCreated: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -768,16 +725,12 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForRegisteringUpdateActionWhenDirectoryCreated: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -785,13 +738,13 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForAddingUriToNotSavedArray: () => {
         let notSavedUris: string[] = [];
 
-        return stubMultiple(
+        return insertAt(stubMultiple(
           [
             {
               object: cache,
@@ -804,28 +757,20 @@ export const getTestSetups = () => {
               callsFake: (paths: string[]) => (notSavedUris = paths),
             },
             {
-              object: indexer,
-              method: "registerAction",
-            },
-            {
               object: pathUtils,
               method: "isDirectory",
               returns: true,
             },
           ],
           sandbox
-        );
+        ), 2, stubChanges(sandbox));
       },
     },
 
     handleDidDeleteFiles: {
       setupForRegisteringRemoveActionWhenFileDeleted: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -833,16 +778,12 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
 
       setupForRegisteringRemoveActionWhenDirectoryDeleted: () => {
-        return stubMultiple(
+        return [stubChanges(sandbox), ...stubMultiple(
           [
-            {
-              object: indexer,
-              method: "registerAction",
-            },
             {
               object: pathUtils,
               method: "isDirectory",
@@ -850,7 +791,7 @@ export const getTestSetups = () => {
             },
           ],
           sandbox
-        );
+        )];
       },
     },
 

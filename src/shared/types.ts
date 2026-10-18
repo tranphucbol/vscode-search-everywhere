@@ -29,6 +29,7 @@ export enum DetailedActionType {
   RenameOrMoveDirectory = "RenameOrMoveDirectory",
   RemoveFile = "RemoveFile",
   RemoveDirectory = "RemoveDirectory",
+  RemoveFileOrDirectory = "RemoveFileOrDirectory",
   TextChange = "TextChange",
   ReloadUnsavedUri = "ReloadUnsavedUri",
 }

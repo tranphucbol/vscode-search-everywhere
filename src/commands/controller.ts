@@ -17,11 +17,9 @@ import { Action, ActionTrigger, ActionType, DetailedActionType } from "../shared
 import { asyncUtils } from "../shared/async";
 import { messages } from "../shared/messages";
 import { workspaceFolders } from "../shared/workspaceFolders";
+import { changes } from "../indexing/changes";
 import { workspace } from "../indexing/workspace";
-import { workspaceIndexer } from "../indexing/workspaceIndexer";
 import { workspaceReconciler } from "../indexing/workspaceReconciler";
-import { removeFromCacheByPath } from "../indexing/workspaceRemover";
-import { updateCacheByPath } from "../indexing/workspaceUpdater";
 import {
   onDidDebounceConfigToggle,
   onDidProcessing,
@@ -328,18 +326,8 @@ async function syncSeededWorktree(rootPath: string): Promise<void> {
     .filter((uri) => vscode.workspace.getWorkspaceFolder(uri));
   const actions = uris.map((uri) => {
     return controller.isIndexableFile(uri)
-      ? workspaceIndexer.registerAction(
-          ActionType.Update,
-          updateCacheByPath.bind(null, uri, DetailedActionType.TextChange),
-          ActionTrigger.Startup,
-          uri
-        )
-      : workspaceIndexer.registerAction(
-          ActionType.Remove,
-          removeFromCacheByPath.bind(null, uri, DetailedActionType.RemoveFile),
-          ActionTrigger.Startup,
-          uri
-        );
+      ? changes.queueUpdate(uri, DetailedActionType.TextChange, ActionTrigger.Startup)
+      : changes.queueRemove(uri, DetailedActionType.RemoveFile, ActionTrigger.Startup);
   });
   await Promise.all(actions);
   // The template's mtimes come from another checkout, so they say nothing about this one.
