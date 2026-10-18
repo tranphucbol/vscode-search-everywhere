@@ -11,7 +11,9 @@ import { quickPick } from "../../quickPick/quickPick";
 import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";
 import { workspaceFolders } from "../../shared/workspaceFolders";
+import { unsavedFiles } from "../../indexing/unsavedFiles";
 import { workspace } from "../../indexing/workspace";
+import { workspaceIndexer } from "../../indexing/workspaceIndexer";
 import * as workspaceEventsEmitter from "../../shared/events";
 import { workspaceReconciler } from "../../indexing/workspaceReconciler";
 import { getExtensionContext } from "../util/mockFactory";
@@ -67,8 +69,8 @@ function stubComponentsForStartup(
   return stubMultiple(
     [
       {
-        object: workspace,
-        method: "removeDataForUnsavedUris",
+        object: unsavedFiles,
+        method: "reloadAll",
         returns: returnsValues.removeDataForUnsavedUris,
       },
       {
@@ -82,7 +84,7 @@ function stubComponentsForStartup(
         returns: returnsValues.clearConfig,
       },
       {
-        object: workspace,
+        object: workspaceIndexer,
         method: "getData",
         returns: returnsValues.getData,
       },
@@ -92,8 +94,8 @@ function stubComponentsForStartup(
         returns: returnsValues.setItems,
       },
       {
-        object: workspace,
-        method: "index",
+        object: workspaceIndexer,
+        method: "reindex",
         returns: returnsValues.index,
       },
       {
@@ -150,8 +152,8 @@ function stubSeededStartup(
   const [queuedStub, indexStub, clearAllStub, restatAllStub] = [stubChanges(sandbox), ...stubMultiple(
     [
       {
-        object: workspace,
-        method: "index",
+        object: workspaceIndexer,
+        method: "reindex",
       },
       {
         object: database,
@@ -186,8 +188,8 @@ function stubSeededStartup(
         returns: true,
       },
       {
-        object: workspace,
-        method: "removeDataForUnsavedUris",
+        object: unsavedFiles,
+        method: "reloadAll",
       },
       {
         object: vscode.workspace,
@@ -238,8 +240,8 @@ function stubComponentsForSearch(
   return stubMultiple(
     [
       {
-        object: workspace,
-        method: "index",
+        object: workspaceIndexer,
+        method: "reindex",
         returns: returnsValues.index ?? Promise.resolve(),
       },
       {
@@ -258,12 +260,12 @@ function stubComponentsForSearch(
         returns: returnsValues.init,
       },
       {
-        object: workspace,
-        method: "removeDataForUnsavedUris",
+        object: unsavedFiles,
+        method: "reloadAll",
         returns: returnsValues.removeDataForUnsavedUris,
       },
       {
-        object: workspace,
+        object: workspaceIndexer,
         method: "getData",
         returns: returnsValues.getData,
       },
@@ -319,7 +321,7 @@ function stubComponentsForIsInitOnStartupEnabledAndWorkspaceCachingEnabledButDat
         returns: returnsValues.fetchShouldWorkspaceDataBeCached,
       },
       {
-        object: workspace,
+        object: workspaceIndexer,
         method: "getData",
         returns: returnsValues.getData,
       },
@@ -851,8 +853,8 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspace,
-              method: "index",
+              object: workspaceIndexer,
+              method: "reindex",
             },
             {
               object: cache,
@@ -885,8 +887,8 @@ export const getTestSetups = () => {
               method: "clearNotSavedUriPaths",
             },
             {
-              object: workspace,
-              method: "index",
+              object: workspaceIndexer,
+              method: "reindex",
             },
             {
               object: workspaceFolders,
@@ -963,8 +965,8 @@ export const getTestSetups = () => {
               returns: Promise.resolve(emptyReconcileResult),
             },
             {
-              object: workspace,
-              method: "index",
+              object: workspaceIndexer,
+              method: "reindex",
             },
             {
               object: config,
@@ -1678,7 +1680,7 @@ export const getTestSetups = () => {
               method: "setItems",
             },
             {
-              object: workspace,
+              object: workspaceIndexer,
               method: "getData",
               returns: getQpItems(),
             },

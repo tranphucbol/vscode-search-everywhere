@@ -18,7 +18,9 @@ import { asyncUtils } from "../shared/async";
 import { messages } from "../shared/messages";
 import { workspaceFolders } from "../shared/workspaceFolders";
 import { changes } from "../indexing/changes";
+import { unsavedFiles } from "../indexing/unsavedFiles";
 import { workspace } from "../indexing/workspace";
+import { workspaceIndexer } from "../indexing/workspaceIndexer";
 import { workspaceReconciler } from "../indexing/workspaceReconciler";
 import {
   onDidDebounceConfigToggle,
@@ -150,7 +152,7 @@ function handleWillProcessing() {
 
 function setQuickPickData() {
   !quickPick.isInitialized() && quickPick.init();
-  quickPick.setItems(workspace.getData());
+  quickPick.setItems(workspaceIndexer.getData());
 }
 
 function handleDidProcessing() {
@@ -193,8 +195,8 @@ function handleWillReindexOnConfigurationChange() {
 function startIndexOnQuickPickOpen(): void {
   clear();
   database.clearAll();
-  workspace
-    .index(ActionTrigger.Search)
+  workspaceIndexer
+    .reindex(ActionTrigger.Search)
     .catch((error) => logger.log(`Error indexing the workspace: ${error}`));
   !quickPick.isInitialized() && quickPick.init();
 }
@@ -207,7 +209,7 @@ async function search(): Promise<void> {
   if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {
     clearConfig();
     !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
+    await unsavedFiles.reloadAll();
     // Data is already in SQLite — no need to setQuickPickData
   }
 
@@ -249,7 +251,7 @@ async function reload(): Promise<void> {
   clearNotSavedUriPaths();
 
   workspaceFolders.hasWorkspaceAnyFolder()
-    ? await workspace.index(ActionTrigger.Reload)
+    ? await workspaceIndexer.reindex(ActionTrigger.Reload)
     : messages.printNoFolderOpenedMessage();
 }
 
@@ -258,7 +260,7 @@ async function startup(): Promise<void> {
     database.setSeededFromTemplate(false);
     clearConfig();
     !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
+    await unsavedFiles.reloadAll();
 
     const workspaceFolder =
       vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
@@ -275,13 +277,13 @@ async function startup(): Promise<void> {
   const shouldReconcile = controller.shouldReconcileOnStartup();
 
   if (controller.shouldIndexOnStartup()) {
-    await workspace.index(ActionTrigger.Startup);
+    await workspaceIndexer.reindex(ActionTrigger.Startup);
   }
 
   if (controller.shouldLoadDataFromCacheOnStartup()) {
     clearConfig();
     !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
+    await unsavedFiles.reloadAll();
     // Data is already in SQLite — no need to setQuickPickData
   }
 
@@ -347,7 +349,7 @@ function isIndexableFile(uri: vscode.Uri): boolean {
 
 async function indexSeededWorktreeInFull(): Promise<void> {
   database.clearAll();
-  await workspace.index(ActionTrigger.Startup);
+  await workspaceIndexer.reindex(ActionTrigger.Startup);
 }
 
 function shouldReconcileOnStartup() {
@@ -398,7 +400,7 @@ async function searchCurrentFile(): Promise<void> {
   if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {
     clearConfig();
     !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
+    await unsavedFiles.reloadAll();
   }
 
   await quickPick.searchCurrentFile();

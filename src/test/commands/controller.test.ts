@@ -75,7 +75,7 @@ describe("Controller", () => {
       assert.equal(clearStub.calledOnce, true);
     });
 
-    it("should workspace.index method be invoked if shouldIndexOnQuickPickOpen method returns true", async () => {
+    it("should workspaceIndexer.reindex method be invoked if shouldIndexOnQuickPickOpen method returns true", async () => {
       const [indexStub] =
         setups.search.setupForWorkspaceIndexingWhenIndexingOnOpen();
       await controller.search();
@@ -221,7 +221,7 @@ describe("Controller", () => {
       assert.equal(printNoFolderOpenedMessageStub.calledOnce, true);
     });
 
-    it("should workspace.index method be invoked", async () => {
+    it("should workspaceIndexer.reindex method be invoked", async () => {
       const [indexStub] = setups.reload.setupForWorkspaceIndexing();
       await controller.reload();
 
@@ -239,7 +239,7 @@ describe("Controller", () => {
   });
 
   describe("startup", () => {
-    it("should workspace.index method be invoked if shouldInitOnStartup method returns true", async () => {
+    it("should workspaceIndexer.reindex method be invoked if shouldInitOnStartup method returns true", async () => {
       const [, , , , , indexStub] =
         setups.startup.setupForIndexingWhenEnabledOnStartup();
       await controller.startup();
@@ -713,7 +713,7 @@ describe("Controller", () => {
       assert.equal(setBusyStub.calledWith(false), true);
     });
 
-    it("should quickPick.setItems method be invoked with data from workspace.getData method as a parameter", () => {
+    it("should quickPick.setItems method be invoked with data from workspaceIndexer.getData method as a parameter", () => {
       const [setItemsStub] =
         setups.handleDidProcessing.setupForSettingItemsFromWorkspaceData();
       controller.handleDidProcessing();
