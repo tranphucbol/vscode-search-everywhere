@@ -18,13 +18,24 @@ async function main() {
         : undefined;
 
     const userDataDir = path.resolve(__dirname, "../../.vscode-test/user-data");
+    // Sharing ~/.vscode/extensions with a separate user data dir lets this
+    // instance delete extensions installed only in the user's other profiles:
+    // VS Code removes extensions that no profile it knows about references.
+    const extensionsDir = path.resolve(
+      __dirname,
+      "../../.vscode-test/extensions"
+    );
 
     // Download VS Code, unzip it and run the integration test
     await runTests({
       extensionDevelopmentPath,
       extensionTestsPath,
       vscodeExecutablePath,
-      launchArgs: ["--disable-extensions", `--user-data-dir=${userDataDir}`],
+      launchArgs: [
+        "--disable-extensions",
+        `--user-data-dir=${userDataDir}`,
+        `--extensions-dir=${extensionsDir}`,
+      ],
     });
   } catch (err) {
     console.error("Failed to run tests:", err);
