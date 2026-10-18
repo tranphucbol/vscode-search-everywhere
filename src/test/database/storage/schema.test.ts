@@ -2,9 +2,9 @@ import { assert } from "chai";
 import * as fs from "fs";
 import * as path from "path";
 import * as sinon from "sinon";
-import { database } from "../../database";
-import { logger } from "../../platform/logger";
-import { fakeContext, item1, useTestDatabase } from "../util/databaseFixtures";
+import { database } from "../../../database";
+import { logger } from "../../../platform/logger";
+import { fakeContext, item1, useTestDatabase } from "../../util/databaseFixtures";
 
 describe("Database schema", () => {
   useTestDatabase();

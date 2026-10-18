@@ -3,8 +3,8 @@ import * as fs from "fs";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { database } from "../../database";
-import { fakeContext, item1, item2, item3, useTestDatabase } from "../util/databaseFixtures";
+import { database } from "../../../database";
+import { fakeContext, item1, item2, item3, useTestDatabase } from "../../util/databaseFixtures";
 import {
   DIRTY_PATHS,
   FINGERPRINT,

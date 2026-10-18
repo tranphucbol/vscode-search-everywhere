@@ -1,11 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { fetchShareCacheAcrossWorktrees } from "../platform/config";
-import { gitService } from "../platform/gitService";
-import { logger } from "../platform/logger";
+import { fetchShareCacheAcrossWorktrees } from "../../platform/config";
+import { gitService } from "../../platform/gitService";
+import { logger } from "../../platform/logger";
 import { createTables } from "./schema";
-import { markDirty, state } from "./state";
+import { markDirty, state } from "../state";
 import { getCount } from "./store";
 
 let dbPath: string;

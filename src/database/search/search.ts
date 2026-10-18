@@ -1,5 +1,5 @@
-import { QuickPickItem } from "../shared/types";
-import { extractName } from "./queryText";
+import { QuickPickItem } from "../../shared/types";
+import { extractName } from "../queryText";
 import { RecentKey, recentKeyString, SearchOptions, searchItems } from "./tiers";
 
 export { RecentKey, SearchOptions } from "./tiers";

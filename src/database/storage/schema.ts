@@ -1,8 +1,8 @@
-import { fetchSecondaryCode } from "../platform/config";
-import { logger } from "../platform/logger";
-import { extractCleanName, extractCleanStem } from "./queryText";
-import { updateSecondaryColumn } from "./secondary";
-import { markDirty, state } from "./state";
+import { fetchSecondaryCode } from "../../platform/config";
+import { logger } from "../../platform/logger";
+import { extractCleanName, extractCleanStem } from "../queryText";
+import { updateSecondaryColumn } from "../secondary";
+import { markDirty, state } from "../state";
 import { isEmpty } from "./store";
 
 const SCHEMA_VERSION = 6;

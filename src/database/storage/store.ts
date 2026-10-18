@@ -1,5 +1,5 @@
-import { fetchSecondaryCode } from "../platform/config";
-import { QuickPickItem } from "../shared/types";
+import { fetchSecondaryCode } from "../../platform/config";
+import { QuickPickItem } from "../../shared/types";
 import {
   escapeLike,
   extractCleanContainer,
@@ -8,10 +8,10 @@ import {
   extractName,
   extractWordColumns,
   LIKE_ESCAPE,
-} from "./queryText";
-import { clearSearchCache } from "./searchCache";
-import { classifySecondary, updateSecondaryColumn } from "./secondary";
-import { markDirty, state } from "./state";
+} from "../queryText";
+import { clearSearchCache } from "../searchCache";
+import { classifySecondary, updateSecondaryColumn } from "../secondary";
+import { markDirty, state } from "../state";
 
 export function insertSymbol(item: QuickPickItem): void {
   if (!state.db) {

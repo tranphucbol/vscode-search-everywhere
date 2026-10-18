@@ -3,11 +3,11 @@ import * as os from "os";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
-import { database } from "../../database";
-import { gitService } from "../../platform/gitService";
-import { logger } from "../../platform/logger";
-import { stubMultiple } from "../util/stubHelpers";
+import * as config from "../../../platform/config";
+import { database } from "../../../database";
+import { gitService } from "../../../platform/gitService";
+import { logger } from "../../../platform/logger";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const INDEX_FILE_NAME = "search-everywhere-index.db";
 export const FINGERPRINT = "fingerprint-1";

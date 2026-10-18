@@ -1,8 +1,8 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { database } from "../../database";
-import { QuickPickItem } from "../../shared/types";
-import { item1, item2, item3, useTestDatabase } from "../util/databaseFixtures";
+import { database } from "../../../database";
+import { QuickPickItem } from "../../../shared/types";
+import { item1, item2, item3, useTestDatabase } from "../../util/databaseFixtures";
 
 describe("Database store", () => {
   useTestDatabase();

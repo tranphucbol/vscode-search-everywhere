@@ -11,7 +11,7 @@ import {
   schedulePersist,
   setSeededFromTemplate,
   wasSeededFromTemplate,
-} from "./persistence";
+} from "./storage/persistence";
 import {
   escapeLike,
   extractCleanContainer,
@@ -26,7 +26,7 @@ import {
   splitPathQuery,
   splitWords,
 } from "./queryText";
-import { itemIdentity, search } from "./search";
+import { itemIdentity, search } from "./search/search";
 import { clearSearchCache } from "./searchCache";
 import {
   clearAll,
@@ -43,12 +43,12 @@ import {
   isEmpty,
   recomputeSecondary,
   upsertFileStates,
-} from "./store";
+} from "./storage/store";
 
-export { SeedMeta } from "./persistence";
+export { SeedMeta } from "./storage/persistence";
 export { CamelHumpsQuery, extractName, PathQuery, PatternQuery, QualifiedQuery } from "./queryText";
-export { RecentKey, SearchOptions } from "./search";
-export { FileState } from "./store";
+export { RecentKey, SearchOptions } from "./search/search";
+export { FileState } from "./storage/store";
 
 export const database = {
   initDatabase,

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { MatchBand, QuickPickItem } from "../shared/types";
+import { MatchBand, QuickPickItem } from "../../shared/types";
 import {
   CamelHumpsQuery,
   escapeLike,
@@ -11,10 +11,10 @@ import {
   PatternQuery,
   QualifiedQuery,
   splitPathQuery,
-} from "./queryText";
-import { cacheSearch, getCachedSearch } from "./searchCache";
-import { Secondary } from "./secondary";
-import { state } from "./state";
+} from "../queryText";
+import { cacheSearch, getCachedSearch } from "../searchCache";
+import { Secondary } from "../secondary";
+import { state } from "../state";
 
 export interface SearchOptions {
   symbolKinds?: number[];
