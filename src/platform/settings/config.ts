@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getConfigByKey, updateConfigByKey } from "./cache";
+import { getConfigByKey, updateConfigByKey } from "../cache";
 import { effectiveValue, getActivePresets, PresetKey } from "./presets";
 import {
   Category,
@@ -7,7 +7,7 @@ import {
   Icons,
   ItemsFilter,
   ItemsFilterPhrases,
-} from "../shared/types";
+} from "../../shared/types";
 
 const defaultSection = "searchEverywhere";
 const CODICON_ID_REGEX = /^[a-z0-9-]+$/;

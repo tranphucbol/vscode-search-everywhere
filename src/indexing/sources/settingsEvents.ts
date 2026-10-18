@@ -5,12 +5,12 @@ import {
   fetchSecondaryCode,
   isDebounceConfigurationToggled,
   isSortingConfigurationToggled,
-} from "../../platform/config";
+} from "../../platform/settings/config";
 import { dataConverter } from "../../symbols/items/dataConverter";
 import { scan } from "../../symbols/scan/scan";
 import { database } from "../../database";
 import { fileWatcher } from "./fileWatcher";
-import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/presets";
+import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/settings/presets";
 import { ActionTrigger, ExcludeMode } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { workspaceFolders } from "../../shared/workspaceFolders";

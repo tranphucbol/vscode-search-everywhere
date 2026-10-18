@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { fetchShouldHighlightSymbol } from "../../platform/config";
+import { fetchShouldHighlightSymbol } from "../../platform/settings/config";
 import { ensureUri } from "../../shared/paths";
 import { QuickPickItem } from "../../shared/types";
 import { handOff } from "../input/handOff";

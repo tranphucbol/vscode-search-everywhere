@@ -6,14 +6,14 @@ import {
   fetchInclude,
   fetchIndexedConfigSnapshot,
   fetchLanguagePresets,
-} from "../../platform/config";
+} from "../../platform/settings/config";
 import { dataConverter } from "../../symbols/items/dataConverter";
 import { scan } from "../../symbols/scan/scan";
 import { indexingProgress } from "./progress";
 import { database, FileState } from "../../database";
 import { onDidItemIndexed } from "../../shared/events";
 import { logger } from "../../platform/logger";
-import { getActivePresets } from "../../platform/presets";
+import { getActivePresets } from "../../platform/settings/presets";
 import { QuickPickItem, WorkspaceData } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";

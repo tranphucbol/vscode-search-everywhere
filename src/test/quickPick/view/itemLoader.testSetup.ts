@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { database } from "../../../database";
 import { quickPickState } from "../../../quickPick/state";
 import { recentItems } from "../../../quickPick/view/recentItems";

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "../../platform/config";
+import { fetchItemsFilter } from "../../platform/settings/config";
 import { dataConverter } from "../items/dataConverter";
 import { documentSymbols } from "./documentSymbols";
 import { FileState } from "../../database";
@@ -7,7 +7,7 @@ import { files } from "./files";
 import { itemsFilter } from "../items/itemsFilter";
 import { onDidItemIndexedEventEmitter } from "../../shared/events";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { Item, QuickPickItem, WorkspaceData } from "../../shared/types";
 import { warmup } from "./warmup";
 

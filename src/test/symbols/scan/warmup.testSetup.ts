@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { warmup } from "../../../symbols/scan/warmup";
 import { logger } from "../../../platform/logger";
 import { asyncUtils } from "../../../shared/async";

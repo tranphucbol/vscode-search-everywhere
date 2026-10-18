@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import { indexingProgress } from "../../../indexing/apply/progress";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {

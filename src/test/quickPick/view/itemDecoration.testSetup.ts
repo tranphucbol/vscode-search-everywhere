@@ -1,5 +1,5 @@
 import * as sinon from "sinon";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { dataConverter } from "../../../symbols/items/dataConverter";
 import { Icons } from "../../../shared/types";
 import { vscodeVersion } from "../../../shared/vscodeVersion";

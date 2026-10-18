@@ -1,4 +1,4 @@
-import { fetchSecondaryCode } from "../../platform/config";
+import { fetchSecondaryCode } from "../../platform/settings/config";
 import { logger } from "../../platform/logger";
 import { extractCleanName, extractCleanStem } from "../queryText";
 import { updateSecondaryColumn } from "../secondary";

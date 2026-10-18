@@ -1,6 +1,6 @@
 import { assert } from "chai";
-import * as config from "../../platform/config";
-import { detectPresets, setActivePresets } from "../../platform/presets";
+import * as config from "../../../platform/settings/config";
+import { detectPresets, setActivePresets } from "../../../platform/settings/presets";
 import {
   defaultExclude,
   defaultInclude,

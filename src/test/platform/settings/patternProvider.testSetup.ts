@@ -1,11 +1,11 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
-import { patternProvider } from "../../platform/patternProvider";
-import { ExcludeMode } from "../../shared/types";
-import { getItems } from "../util/itemMockFactory";
-import { getTextDocumentStub } from "../util/stubFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import * as config from "../../../platform/settings/config";
+import { patternProvider } from "../../../platform/settings/patternProvider";
+import { ExcludeMode } from "../../../shared/types";
+import { getItems } from "../../util/itemMockFactory";
+import { getTextDocumentStub } from "../../util/stubFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();

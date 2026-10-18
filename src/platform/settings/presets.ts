@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ItemsFilter } from "../shared/types";
+import { ItemsFilter } from "../../shared/types";
 
 export type PresetName = "go" | "java";
 export type PresetKey = "include" | "exclude" | "itemsFilter";

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { initCache } from "../platform/cache";
-import { fetchRestoreLastQuery, fetchShouldSearchSelection } from "../platform/config";
+import { fetchRestoreLastQuery, fetchShouldSearchSelection } from "../platform/settings/config";
 import { database } from "../database";
 import { logger } from "../platform/logger";
 import { quickPick } from "../quickPick/quickPick";

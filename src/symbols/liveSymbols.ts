@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "../platform/config";
+import { fetchItemsFilter } from "../platform/settings/config";
 import { dataConverter } from "./items/dataConverter";
 import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
+import { patternProvider } from "../platform/settings/patternProvider";
 import { itemsFilter } from "./items/itemsFilter";
 import { QuickPickItem } from "../shared/types";
 

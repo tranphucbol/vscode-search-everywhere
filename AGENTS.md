@@ -103,7 +103,7 @@ docs/plans/                 working implementation plans; only the template is t
   feature-detected at runtime and declared in `src/shared/types.ts` (see `iconPath` and
   `resourceUri`); it must degrade on older hosts rather than raise the floor silently.
 - A new setting goes in `package.json` `contributes.configuration`, gets a `fetch*` reader in
-  `src/platform/config.ts`, and is documented in the README settings list in the same change.
+  `src/platform/settings/config.ts`, and is documented in the README settings list in the same change.
 - A database schema change invalidates every cached index, including the shared worktree cache;
   say how existing users get a reindex.
 - Keep the search path cheap: it runs on every keystroke against indexes of millions of rows.

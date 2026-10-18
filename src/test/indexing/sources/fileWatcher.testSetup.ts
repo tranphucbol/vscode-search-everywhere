@@ -1,11 +1,11 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { files } from "../../../symbols/scan/files";
 import { database, FileState } from "../../../database";
 import { fileWatcher } from "../../../indexing/sources/fileWatcher";
 import { logger } from "../../../platform/logger";
-import { patternProvider } from "../../../platform/patternProvider";
+import { patternProvider } from "../../../platform/settings/patternProvider";
 import { ExcludeMode } from "../../../shared/types";
 import { changes } from "../../../indexing/queue/changes";
 import { reconciler } from "../../../indexing/sources/reconciler";

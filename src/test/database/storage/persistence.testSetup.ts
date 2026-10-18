@@ -3,7 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { database } from "../../../database";
 import { gitService } from "../../../platform/gitService";
 import { logger } from "../../../platform/logger";

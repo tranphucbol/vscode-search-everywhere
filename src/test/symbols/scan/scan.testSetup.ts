@@ -1,13 +1,13 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { documentSymbols } from "../../../symbols/scan/documentSymbols";
 import { itemsFilter } from "../../../symbols/items/itemsFilter";
 import { scan } from "../../../symbols/scan/scan";
 import { files } from "../../../symbols/scan/files";
 import { warmup } from "../../../symbols/scan/warmup";
 import { logger } from "../../../platform/logger";
-import { patternProvider } from "../../../platform/patternProvider";
+import { patternProvider } from "../../../platform/settings/patternProvider";
 import { ItemsFilter } from "../../../shared/types";
 import { asyncUtils } from "../../../shared/async";
 import { dataConverter } from "../../../symbols/items/dataConverter";

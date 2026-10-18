@@ -1,8 +1,8 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as cache from "../../platform/cache";
-import { getConfiguration, getVscodeConfiguration } from "../util/mockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import * as cache from "../../../platform/cache";
+import { getConfiguration, getVscodeConfiguration } from "../../util/mockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const configuration = getConfiguration();

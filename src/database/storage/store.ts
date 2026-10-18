@@ -1,4 +1,4 @@
-import { fetchSecondaryCode } from "../../platform/config";
+import { fetchSecondaryCode } from "../../platform/settings/config";
 import { QuickPickItem } from "../../shared/types";
 import {
   escapeLike,

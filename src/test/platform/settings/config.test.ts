@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import * as config from "../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { getTestSetups } from "./config.testSetup";
-import { getConfigurationChangeEvent } from "../util/eventMockFactory";
+import { getConfigurationChangeEvent } from "../../util/eventMockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 

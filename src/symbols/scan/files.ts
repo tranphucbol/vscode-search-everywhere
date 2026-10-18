@@ -1,10 +1,10 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
-import { fetchIndexNamesOnly } from "../../platform/config";
+import { fetchIndexNamesOnly } from "../../platform/settings/config";
 import { FileState } from "../../database";
 import { itemsFilter } from "../items/itemsFilter";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { matchesGlob } from "../../shared/glob";
 import { messages } from "../../shared/messages";
 import { workspaceFolders } from "../../shared/workspaceFolders";

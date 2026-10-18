@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { fetchPreviewOnSelect } from "../../platform/config";
+import { fetchPreviewOnSelect } from "../../platform/settings/config";
 import { ensureUri } from "../../shared/paths";
 import { QuickPickItem } from "../../shared/types";
 import { getNavigationPosition } from "./positions";

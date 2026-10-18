@@ -3,8 +3,8 @@ import * as os from "os";
 import * as path from "path";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as cache from "../../platform/cache";
-import { setActivePresets } from "../../platform/presets";
+import * as cache from "../../../platform/cache";
+import { setActivePresets } from "../../../platform/settings/presets";
 
 export const defaultInclude = "**/*.{js,jsx,ts,tsx}";
 export const defaultExclude = ["**/node_modules/**", "**/dist/**"];

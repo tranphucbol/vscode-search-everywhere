@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { fetchWatchFileSystem } from "../../platform/config";
+import { fetchWatchFileSystem } from "../../platform/settings/config";
 import { files } from "../../symbols/scan/files";
 import { database } from "../../database";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
 import { changes } from "../queue/changes";
 import { reconciler } from "./reconciler";

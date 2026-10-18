@@ -1,10 +1,10 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../platform/cache";
-import * as config from "../../platform/config";
+import * as config from "../../platform/settings/config";
 import { controller } from "../../commands/controller";
 import { database } from "../../database";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { quickPick } from "../../quickPick/quickPick";
 import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";

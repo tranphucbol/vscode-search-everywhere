@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { dataConverter } from "../../../symbols/items/dataConverter";
 import { Icons, ItemsFilterPhrases } from "../../../shared/types";
 import { pathUtils } from "../../../shared/paths";

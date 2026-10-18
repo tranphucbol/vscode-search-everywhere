@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { database } from "../../../database";
 import { dataConverter } from "../../../symbols/items/dataConverter";
 import { liveSymbols } from "../../../symbols/liveSymbols";

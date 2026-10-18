@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../../platform/settings/patternProvider";
 import { getTestSetups } from "./patternProvider.testSetup";
 
 type SetupsType = ReturnType<typeof getTestSetups>;

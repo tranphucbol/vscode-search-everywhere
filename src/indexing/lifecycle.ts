@@ -4,12 +4,12 @@ import {
   fetchIndexedConfigSnapshot,
   fetchShouldInitOnStartup,
   fetchShouldWorkspaceDataBeCached,
-} from "../platform/config";
+} from "../platform/settings/config";
 import { dataConverter } from "../symbols/items/dataConverter";
 import { scan } from "../symbols/scan/scan";
 import { database } from "../database";
 import { logger } from "../platform/logger";
-import { refreshPresets } from "../platform/presets";
+import { refreshPresets } from "../platform/settings/presets";
 import { ActionTrigger } from "../shared/types";
 import { workspaceFolders } from "../shared/workspaceFolders";
 import { onDidIndexWorkspace, onWillIndexWorkspace } from "../shared/events";

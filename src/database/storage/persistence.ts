@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { fetchShareCacheAcrossWorktrees } from "../../platform/config";
+import { fetchShareCacheAcrossWorktrees } from "../../platform/settings/config";
 import { gitService } from "../../platform/gitService";
 import { logger } from "../../platform/logger";
 import { createTables } from "./schema";

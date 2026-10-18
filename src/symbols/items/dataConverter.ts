@@ -3,7 +3,7 @@ import {
   fetchIcons,
   fetchItemsFilterPhrases,
   fetchShouldUseItemsFilterPhrases,
-} from "../../platform/config";
+} from "../../platform/settings/config";
 import {
   Icons,
   Item,

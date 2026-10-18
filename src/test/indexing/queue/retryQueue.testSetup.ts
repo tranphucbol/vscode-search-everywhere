@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { changes } from "../../../indexing/queue/changes";
 import { retryQueue } from "../../../indexing/queue/retryQueue";
 import { fileUpdate } from "../../../indexing/apply/fileUpdate";
-import * as config from "../../../platform/config";
+import * as config from "../../../platform/settings/config";
 import { itemsFilter } from "../../../symbols/items/itemsFilter";
 import { scan } from "../../../symbols/scan/scan";
 import { warmup } from "../../../symbols/scan/warmup";

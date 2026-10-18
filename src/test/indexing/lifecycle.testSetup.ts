@@ -1,10 +1,10 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../platform/cache";
-import * as config from "../../platform/config";
+import * as config from "../../platform/settings/config";
 import { database } from "../../database";
 import { logger } from "../../platform/logger";
-import * as presets from "../../platform/presets";
+import * as presets from "../../platform/settings/presets";
 import { dataConverter } from "../../symbols/items/dataConverter";
 import { scan } from "../../symbols/scan/scan";
 import { workspaceFolders } from "../../shared/workspaceFolders";

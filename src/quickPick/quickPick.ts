@@ -8,7 +8,7 @@ import {
   fetchShouldItemsBeSorted,
   fetchShouldUseDebounce,
   fetchShouldUseItemsFilterPhrases,
-} from "../platform/config";
+} from "../platform/settings/config";
 import { asyncUtils } from "../shared/async";
 import { CategoryButton, LibraryButton, QuickPickItem } from "../shared/types";
 import { vscodeVersion } from "../shared/vscodeVersion";

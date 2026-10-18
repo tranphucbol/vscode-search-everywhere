@@ -5,7 +5,7 @@ import {
   fetchRankRecentItemsHigher,
   fetchRecentItemsLimit,
   fetchShowRecentItemsOnEmptyQuery,
-} from "../../platform/config";
+} from "../../platform/settings/config";
 import { collections } from "../../shared/collections";
 import { QuickPickItem } from "../../shared/types";
 import { itemDecoration } from "./itemDecoration";

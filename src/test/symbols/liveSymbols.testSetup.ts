@@ -1,10 +1,10 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
+import * as config from "../../platform/settings/config";
 import { dataConverter } from "../../symbols/items/dataConverter";
 import { liveSymbols } from "../../symbols/liveSymbols";
 import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
+import { patternProvider } from "../../platform/settings/patternProvider";
 import { ItemsFilter } from "../../shared/types";
 import { stubMultiple } from "../util/stubHelpers";
 

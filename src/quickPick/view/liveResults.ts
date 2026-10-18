@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { database } from "../../database";
 import { lifecycle } from "../../indexing/lifecycle";
-import { fetchSearchLanguageServersWhileIndexing } from "../../platform/config";
+import { fetchSearchLanguageServersWhileIndexing } from "../../platform/settings/config";
 import { QuickPickItem } from "../../shared/types";
 import { liveSymbols } from "../../symbols/liveSymbols";
 import { itemDecoration } from "./itemDecoration";

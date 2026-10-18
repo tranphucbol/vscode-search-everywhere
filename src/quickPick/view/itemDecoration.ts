@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { fetchUseFileIconTheme } from "../../platform/config";
+import { fetchUseFileIconTheme } from "../../platform/settings/config";
 import { ensureUri } from "../../shared/paths";
 import { QuickPickItem } from "../../shared/types";
 import { vscodeVersion } from "../../shared/vscodeVersion";
