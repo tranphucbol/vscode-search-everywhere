@@ -9,7 +9,7 @@ import {
   extractWordColumns,
   LIKE_ESCAPE,
 } from "./queryText";
-import { clearSearchCache } from "./search";
+import { clearSearchCache } from "./searchCache";
 import { classifySecondary, updateSecondaryColumn } from "./secondary";
 import { markDirty, state } from "./state";
 

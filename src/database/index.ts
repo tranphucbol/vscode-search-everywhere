@@ -26,7 +26,8 @@ import {
   splitPathQuery,
   splitWords,
 } from "./queryText";
-import { clearSearchCache, itemIdentity, search } from "./search";
+import { itemIdentity, search } from "./search";
+import { clearSearchCache } from "./searchCache";
 import {
   clearAll,
   clearFileStates,
