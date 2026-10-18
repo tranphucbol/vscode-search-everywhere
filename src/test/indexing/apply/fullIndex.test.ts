@@ -39,12 +39,12 @@ describe("WorkspaceIndexer", () => {
   });
 
   describe("cancelIndexing", () => {
-    it("should call dataService.cancel and dataConverter.cancel methods", () => {
-      const [dataServiceCancelStub, dataConverterCancelStub] =
+    it("should call scan.cancel and dataConverter.cancel methods", () => {
+      const [scanCancelStub, dataConverterCancelStub] =
         setups.cancelIndexing.setupForCancellation();
       fullIndex.cancelIndexing();
 
-      assert.equal(dataServiceCancelStub.calledOnce, true);
+      assert.equal(scanCancelStub.calledOnce, true);
       assert.equal(dataConverterCancelStub.calledOnce, true);
     });
   });

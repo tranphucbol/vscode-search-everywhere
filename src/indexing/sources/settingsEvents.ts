@@ -7,7 +7,7 @@ import {
   isSortingConfigurationToggled,
 } from "../../platform/config";
 import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+import { scan } from "../../symbols/scan";
 import { database } from "../../database";
 import { fileWatcher } from "./fileWatcher";
 import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/presets";
@@ -25,7 +25,7 @@ const defaultSection = "searchEverywhere";
 
 function reloadComponents() {
   dataConverter.reload();
-  dataService.reload();
+  scan.reload();
 }
 
 async function handleDidChangeConfiguration(
@@ -78,7 +78,7 @@ async function handleDidChangeMarkerFile(uri: vscode.Uri) {
 
 async function reloadConfig() {
   clearConfig();
-  await dataService.fetchConfig();
+  await scan.fetchConfig();
   dataConverter.fetchConfig();
 }
 

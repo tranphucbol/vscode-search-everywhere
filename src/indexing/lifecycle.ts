@@ -6,7 +6,7 @@ import {
   fetchShouldWorkspaceDataBeCached,
 } from "../platform/config";
 import { dataConverter } from "../symbols/dataConverter";
-import { dataService } from "../symbols/dataService";
+import { scan } from "../symbols/scan";
 import { database } from "../database";
 import { logger } from "../platform/logger";
 import { refreshPresets } from "../platform/presets";
@@ -42,7 +42,7 @@ async function init() {
   clearConfig();
   await refreshPresets();
   clearIndexBuiltWithOtherConfig();
-  await dataService.fetchConfig();
+  await scan.fetchConfig();
   dataConverter.fetchConfig();
   lifecycle.registerEventListeners();
 }

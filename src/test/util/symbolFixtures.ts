@@ -50,7 +50,7 @@ export function loadSymbolFixture(fileName: string): vscode.DocumentSymbol[] {
   return raw.map(toDocumentSymbol);
 }
 
-// Mirrors dataService: children are flattened and named "<parent><splitter><name>".
+// Mirrors documentSymbols: children are flattened and named "<parent><splitter><name>".
 export function flattenSymbols(
   symbols: vscode.DocumentSymbol[],
   parentName?: string

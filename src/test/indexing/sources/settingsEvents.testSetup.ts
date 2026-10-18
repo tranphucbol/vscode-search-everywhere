@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import * as cache from "../../../platform/cache";
 import * as config from "../../../platform/config";
 import { dataConverter } from "../../../symbols/dataConverter";
-import { dataService } from "../../../symbols/dataService";
+import { scan } from "../../../symbols/scan";
 import { database } from "../../../database";
 import * as presets from "../../../platform/presets";
 import { ExcludeMode } from "../../../shared/types";
@@ -118,11 +118,11 @@ export const getTestSetups = () => {
               method: "reload",
             },
             {
-              object: dataService,
+              object: scan,
               method: "fetchConfig",
             },
             {
-              object: dataService,
+              object: scan,
               method: "reload",
             },
             {

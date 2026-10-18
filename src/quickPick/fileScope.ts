@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { database } from "../database";
 import { QuickPickItem } from "../shared/types";
 import { dataConverter } from "../symbols/dataConverter";
-import { dataService } from "../symbols/dataService";
+import { documentSymbols } from "../symbols/documentSymbols";
 import { itemLoader } from "./itemLoader";
 import { quickPickState, session } from "./state";
 
@@ -26,7 +26,7 @@ async function ensureFileSymbolsIndexed(
 
   checkedSymbolUris.add(uriStr);
   try {
-    const symbols = await dataService.getSymbolsForUri(targetUri);
+    const symbols = await documentSymbols.getSymbolsForUri(targetUri);
     if (symbols && symbols.length) {
       if (forceRefresh) {
         database.deleteByUri(uriStr);

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { dataConverter } from "./dataConverter";
-import { dataService } from "./dataService";
+import { documentSymbols } from "./documentSymbols";
 import { logger } from "../platform/logger";
 import { QuickPickItem } from "../shared/types";
 
@@ -78,7 +78,7 @@ async function resolveSymbol(
   item: QuickPickItem
 ): Promise<QuickPickItem | undefined> {
   try {
-    const symbols = await dataService.getSymbolsForUri(item.uri);
+    const symbols = await documentSymbols.getSymbolsForUri(item.uri);
     if (!symbols || !symbols.length) {
       return undefined;
     }

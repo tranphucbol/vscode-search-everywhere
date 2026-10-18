@@ -4,7 +4,9 @@ import { changes } from "../../../indexing/queue/changes";
 import { retryQueue } from "../../../indexing/queue/retryQueue";
 import { fileUpdate } from "../../../indexing/apply/fileUpdate";
 import * as config from "../../../platform/config";
-import { dataService } from "../../../symbols/dataService";
+import { itemsFilter } from "../../../symbols/itemsFilter";
+import { scan } from "../../../symbols/scan";
+import { warmup } from "../../../symbols/warmup";
 import { logger } from "../../../platform/logger";
 import { asyncUtils } from "../../../shared/async";
 import { getDocumentSymbolItemSingleLineArray } from "../../util/itemMockFactory";
@@ -40,8 +42,8 @@ export const getTestSetups = () => {
       },
 
       setupForLanguagesWarmedUp: (readyExtensions: string[]) => {
-        dataService.resetLanguageWarmup();
-        dataService.setIsCancelled(false);
+        warmup.resetLanguageWarmup();
+        scan.setIsCancelled(false);
         stubMultiple(
           [
             {
@@ -56,7 +58,7 @@ export const getTestSetups = () => {
             { object: vscode.workspace, method: "openTextDocument" },
             { object: asyncUtils, method: "sleep" },
             { object: config, method: "fetchIndexNamesOnly", returns: "" },
-            { object: dataService, method: "getItemsFilter", returns: {} },
+            { object: itemsFilter, method: "getItemsFilter", returns: {} },
             { object: logger, method: "log" },
           ],
           sandbox

@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../../platform/config";
-import { dataService } from "../../../symbols/dataService";
+import { scan } from "../../../symbols/scan";
 import { database } from "../../../database";
 import { logger } from "../../../platform/logger";
 import { asyncUtils } from "../../../shared/async";
@@ -29,7 +29,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "fetchData",
               returns: Promise.resolve(getWorkspaceData()),
             },

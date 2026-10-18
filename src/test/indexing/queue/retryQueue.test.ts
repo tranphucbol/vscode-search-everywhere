@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { dataService } from "../../../symbols/dataService";
+import { scan } from "../../../symbols/scan";
 import { retryQueue } from "../../../indexing/queue/retryQueue";
 import { getTestSetups } from "./retryQueue.testSetup";
 
@@ -71,7 +71,7 @@ describe("RetryQueue", () => {
         vscode.Uri.file("/fake/app.ts"),
       ];
       setups.retryQueue.setupForLanguagesWarmedUp(["ts"]);
-      const workspaceData = await dataService.fetchData([
+      const workspaceData = await scan.fetchData([
         goFile,
         otherGoFile,
         ...tsFiles,

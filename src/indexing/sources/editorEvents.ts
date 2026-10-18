@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { dataService } from "../../symbols/dataService";
+import { files } from "../../symbols/files";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { pathUtils } from "../../shared/paths";
@@ -10,7 +10,7 @@ async function handleDidChangeTextDocument(
   event: vscode.TextDocumentChangeEvent
 ) {
   const uri = event.document.uri;
-  const isUriExistingInWorkspace = await dataService.isUriExistingInWorkspace(
+  const isUriExistingInWorkspace = await files.isUriExistingInWorkspace(
     uri
   );
   const hasContentChanged = event.contentChanges.length;

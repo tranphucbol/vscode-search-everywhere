@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../../platform/config";
-import { dataService } from "../../../symbols/dataService";
+import { files } from "../../../symbols/files";
 import { database, FileState } from "../../../database";
 import { fileWatcher } from "../../../indexing/sources/fileWatcher";
 import { logger } from "../../../platform/logger";
@@ -88,7 +88,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
         callsFake: (uri: string) => stored.get(uri),
       },
       {
-        object: dataService,
+        object: files,
         method: "statUri",
         callsFake: async (uri: vscode.Uri) => onDisk.get(uri.toString()),
       },

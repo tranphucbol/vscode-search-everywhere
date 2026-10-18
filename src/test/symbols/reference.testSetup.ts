@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
+import { documentSymbols } from "../../symbols/documentSymbols";
 import { QuickPickItem } from "../../shared/types";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 
@@ -83,7 +83,7 @@ export const getTestSetups = () => {
     text: string,
     symbols: vscode.DocumentSymbol[]
   ) {
-    sandbox.stub(dataService, "getSymbolsForUri").resolves(symbols);
+    sandbox.stub(documentSymbols, "getSymbolsForUri").resolves(symbols);
     sandbox.stub(dataConverter, "getIcons").returns({
       [vscode.SymbolKind.Class]: "symbol-class",
       [vscode.SymbolKind.Method]: "symbol-method",

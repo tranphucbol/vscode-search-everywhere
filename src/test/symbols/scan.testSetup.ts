@@ -1,7 +1,11 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../platform/config";
-import { dataService } from "../../symbols/dataService";
+import { documentSymbols } from "../../symbols/documentSymbols";
+import { itemsFilter } from "../../symbols/itemsFilter";
+import { scan } from "../../symbols/scan";
+import { files } from "../../symbols/files";
+import { warmup } from "../../symbols/warmup";
 import { logger } from "../../platform/logger";
 import { patternProvider } from "../../platform/patternProvider";
 import { ItemsFilter } from "../../shared/types";
@@ -22,18 +26,18 @@ import { stubMultiple } from "../util/stubHelpers";
 
 const stubConfig = (
   sandbox: sinon.SinonSandbox,
-  itemsFilter: ItemsFilter = {},
+  filter: ItemsFilter = {},
   isCancelled: boolean = false
 ) => {
   stubMultiple(
     [
       {
-        object: dataService,
+        object: itemsFilter,
         method: "getItemsFilter",
-        returns: itemsFilter,
+        returns: filter,
       },
       {
-        object: dataService,
+        object: scan,
         method: "getIsCancelled",
         returns: isCancelled,
       },
@@ -61,7 +65,7 @@ const stubFetchingItems = (sandbox: sinon.SinonSandbox) => {
   stubMultiple(
     [
       {
-        object: dataService,
+        object: scan,
         method: "createWorkspaceData",
         returns: getWorkspaceData(),
       },
@@ -129,7 +133,7 @@ export const getTestSetups = () => {
     reload: {
       setupForFetchingConfig: () => {
         return stubMultiple(
-          [{ object: dataService, method: "fetchConfig" }],
+          [{ object: scan, method: "fetchConfig" }],
           sandbox
         );
       },
@@ -138,51 +142,7 @@ export const getTestSetups = () => {
     cancel: {
       setupForSettingCancelledFlag: () => {
         return stubMultiple(
-          [{ object: dataService, method: "setIsCancelled" }],
-          sandbox
-        );
-      },
-    },
-
-    getSymbolsForUri: {
-      setupForNestedSymbols: () => {
-        stubConfig(sandbox);
-        const range = new vscode.Range(
-          new vscode.Position(0, 0),
-          new vscode.Position(0, 0)
-        );
-        const run = new vscode.DocumentSymbol(
-          "run",
-          "",
-          vscode.SymbolKind.Method,
-          range,
-          range
-        );
-        const inner = new vscode.DocumentSymbol(
-          "Inner",
-          "",
-          vscode.SymbolKind.Class,
-          range,
-          range
-        );
-        inner.children = [run];
-        const outer = new vscode.DocumentSymbol(
-          "Outer",
-          "",
-          vscode.SymbolKind.Class,
-          range,
-          range
-        );
-        outer.children = [inner];
-
-        stubMultiple(
-          [
-            {
-              object: vscode.commands,
-              method: "executeCommand",
-              returns: Promise.resolve([outer]),
-            },
-          ],
+          [{ object: scan, method: "setIsCancelled" }],
           sandbox
         );
       },
@@ -222,7 +182,7 @@ export const getTestSetups = () => {
               method: "executeCommand",
             },
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
             },
           ],
@@ -240,7 +200,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: dataService,
+              object: documentSymbols,
               method: "getSymbolsForUri",
               returns: Promise.resolve(undefined),
             },
@@ -249,7 +209,7 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -273,7 +233,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "clearWorkspaceData",
             },
           ],
@@ -287,7 +247,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -313,7 +273,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -337,7 +297,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -391,7 +351,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(workspaceDataItems),
             },
@@ -425,7 +385,7 @@ export const getTestSetups = () => {
         const [getSymbolsForUriStub] = stubMultiple(
           [
             {
-              object: dataService,
+              object: documentSymbols,
               method: "getSymbolsForUri",
               returns: Promise.resolve(getDocumentSymbolItemSingleLineArray(1)),
             },
@@ -440,7 +400,7 @@ export const getTestSetups = () => {
               callsFake: (path: string) => path.replace("/./fake", ""),
             },
             {
-              object: dataService,
+              object: scan,
               method: "createWorkspaceData",
               returns: getWorkspaceData(),
             },
@@ -468,84 +428,30 @@ export const getTestSetups = () => {
       },
     },
 
-    warmup: {
-      setupForWarmup: (
-        uris: vscode.Uri[],
-        readyExtensions: string[],
-        namesOnlyGlob = "**/*.json",
-        plaintextExtensions: string[] = []
-      ) => {
+    urisToRetry: {
+      setupForTimedOutLanguages: (timedOutLanguages: string[]) => {
         stubConfig(sandbox);
-        dataService.resetLanguageWarmup();
-        const extensionOf = (uri: vscode.Uri) => uri.path.split(".").pop()!;
-        const isReady = (uri: vscode.Uri) =>
-          readyExtensions.includes(extensionOf(uri));
-        const [openTextDocumentStub, executeCommandStub, sleepStub] =
-          stubMultiple(
-            [
-              {
-                object: vscode.workspace,
-                method: "openTextDocument",
-                callsFake: async (uri: vscode.Uri) => ({
-                  languageId: plaintextExtensions.includes(extensionOf(uri))
-                    ? "plaintext"
-                    : extensionOf(uri),
-                }),
-              },
-              {
-                object: vscode.commands,
-                method: "executeCommand",
-                callsFake: async (_command: string, uri: vscode.Uri) =>
-                  isReady(uri) ? getDocumentSymbolItemSingleLineArray(1) : [],
-              },
-              {
-                object: asyncUtils,
-                method: "sleep",
-              },
-              {
-                object: config,
-                method: "fetchIndexNamesOnly",
-                returns: namesOnlyGlob,
-              },
-              {
-                object: workspaceFolders,
-                method: "normalizeUriPath",
-                callsFake: (path: string) => path.replace("/./fake", ""),
-              },
-              {
-                object: vscode.workspace,
-                method: "findFiles",
-                returns: Promise.resolve(uris),
-              },
-            ],
-            sandbox
-          );
-        return { openTextDocumentStub, executeCommandStub, sleepStub };
-      },
-    },
-
-    isUriExistingInWorkspace: {
-      setupForReturningTrueWhenUriExists: () => {
         stubMultiple(
           [
             {
-              object: vscode.workspace,
-              method: "getWorkspaceFolder",
-              returns: { uri: getItems()[0] },
+              object: warmup,
+              method: "warmupLanguageServers",
+              returns: Promise.resolve(new Set(timedOutLanguages)),
             },
-          ],
-          sandbox
-        );
-      },
-
-      setupForReturningFalseWhenUriDoesNotExist: () => {
-        stubMultiple(
-          [
             {
-              object: vscode.workspace,
-              method: "getWorkspaceFolder",
-              returns: undefined,
-              returnsIsUndefined: true,
+              object: documentSymbols,
+              method: "getSymbolsForUri",
+              returns: Promise.resolve(undefined),
+            },
+            {
+              object: files,
+              method: "statUri",
+              returns: Promise.resolve(undefined),
+            },
+            {
+              object: config,
+              method: "fetchIndexNamesOnly",
+              returns: "",
             },
           ],
           sandbox
