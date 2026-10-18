@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { actionQueue } from "../../../indexing/queue/actionQueue";
-import * as actionProcessorEventsEmitter from "../../../shared/events";
+import * as eventEmitters from "../../../shared/events";
 import { Action, ActionType } from "../../../shared/types";
 import { collections } from "../../../shared/collections";
 import { getAction, getActions, getEventEmitter } from "../../util/mockFactory";
@@ -168,7 +168,7 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: actionProcessorEventsEmitter,
+              object: eventEmitters,
               method: "onWillProcessingEventEmitter",
               returns: eventEmitter,
               isNotMethod: true,
@@ -201,7 +201,7 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: actionProcessorEventsEmitter,
+              object: eventEmitters,
               method: "onDidProcessingEventEmitter",
               returns: eventEmitter,
               isNotMethod: true,
@@ -243,7 +243,7 @@ export const getTestSetups = () => {
               isNotMethod: true,
             },
             {
-              object: actionProcessorEventsEmitter,
+              object: eventEmitters,
               method: "onWillExecuteActionEventEmitter",
               returns: eventEmitter,
               isNotMethod: true,

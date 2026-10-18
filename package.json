@@ -481,7 +481,8 @@
     "cov:fixpaths": "gulp fixCoverageReportSrcPaths",
     "package": "npx @vscode/vsce package",
     "publish:extension": "node ./scripts/publish.js",
-    "check:cycles": "madge --circular --extensions ts src"
+    "check:cycles": "madge --circular --extensions ts src",
+    "check:layers": "node ./scripts/check-layers.js"
   },
   "devDependencies": {
     "@types/chai": "^4.3.20",
