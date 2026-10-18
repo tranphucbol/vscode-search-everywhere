@@ -1,10 +1,10 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { itemsFilter } from "../../symbols/itemsFilter";
-import { scan } from "../../symbols/scan";
+import { itemsFilter } from "../../../symbols/items/itemsFilter";
+import { scan } from "../../../symbols/scan/scan";
 import { getTestSetups } from "./scan.testSetup";
-import { getItems } from "../util/itemMockFactory";
-import { getWorkspaceData } from "../util/mockFactory";
+import { getItems } from "../../util/itemMockFactory";
+import { getWorkspaceData } from "../../util/mockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 

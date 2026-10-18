@@ -2,8 +2,8 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { database } from "../database";
 import { QuickPickItem } from "../shared/types";
-import { dataConverter } from "../symbols/dataConverter";
-import { documentSymbols } from "../symbols/documentSymbols";
+import { dataConverter } from "../symbols/items/dataConverter";
+import { documentSymbols } from "../symbols/scan/documentSymbols";
 import { itemLoader } from "./itemLoader";
 import { quickPickState, session } from "./state";
 

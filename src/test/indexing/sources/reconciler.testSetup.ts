@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { files } from "../../../symbols/files";
+import { files } from "../../../symbols/scan/files";
 import { database, FileState } from "../../../database";
 import { logger } from "../../../platform/logger";
 import { changes } from "../../../indexing/queue/changes";

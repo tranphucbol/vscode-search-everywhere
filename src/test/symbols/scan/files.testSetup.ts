@@ -1,9 +1,9 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { itemsFilter } from "../../symbols/itemsFilter";
-import { ItemsFilter } from "../../shared/types";
-import { getItems } from "../util/itemMockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import { itemsFilter } from "../../../symbols/items/itemsFilter";
+import { ItemsFilter } from "../../../shared/types";
+import { getItems } from "../../util/itemMockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();

@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { documentSymbols } from "../../symbols/documentSymbols";
+import { documentSymbols } from "../../../symbols/scan/documentSymbols";
 import { getTestSetups } from "./documentSymbols.testSetup";
 
 type SetupsType = ReturnType<typeof getTestSetups>;

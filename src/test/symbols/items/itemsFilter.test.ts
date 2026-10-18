@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { itemsFilter } from "../../symbols/itemsFilter";
+import { itemsFilter } from "../../../symbols/items/itemsFilter";
 
 describe("ItemsFilter", () => {
   describe("isKindAllowed", () => {

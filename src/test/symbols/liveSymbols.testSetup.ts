@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
+import { dataConverter } from "../../symbols/items/dataConverter";
 import { liveSymbols } from "../../symbols/liveSymbols";
 import { logger } from "../../platform/logger";
 import { patternProvider } from "../../platform/patternProvider";

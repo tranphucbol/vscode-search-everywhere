@@ -1,10 +1,10 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { dataConverter } from "../../symbols/dataConverter";
-import { itemsFilter } from "../../symbols/itemsFilter";
-import { logger } from "../../platform/logger";
-import { ItemsFilter } from "../../shared/types";
-import { stubMultiple } from "../util/stubHelpers";
+import { dataConverter } from "../../../symbols/items/dataConverter";
+import { itemsFilter } from "../../../symbols/items/itemsFilter";
+import { logger } from "../../../platform/logger";
+import { ItemsFilter } from "../../../shared/types";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();

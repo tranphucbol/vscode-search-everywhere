@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../../platform/config";
-import { files } from "../../../symbols/files";
+import { files } from "../../../symbols/scan/files";
 import { database, FileState } from "../../../database";
 import { fileWatcher } from "../../../indexing/sources/fileWatcher";
 import { logger } from "../../../platform/logger";

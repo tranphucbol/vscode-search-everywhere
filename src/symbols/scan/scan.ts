@@ -1,14 +1,14 @@
 import * as vscode from "vscode";
-import { fetchItemsFilter } from "../platform/config";
-import { dataConverter } from "./dataConverter";
+import { fetchItemsFilter } from "../../platform/config";
+import { dataConverter } from "../items/dataConverter";
 import { documentSymbols } from "./documentSymbols";
-import { FileState } from "../database";
+import { FileState } from "../../database";
 import { files } from "./files";
-import { itemsFilter } from "./itemsFilter";
-import { onDidItemIndexedEventEmitter } from "../shared/events";
-import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
-import { Item, QuickPickItem, WorkspaceData } from "../shared/types";
+import { itemsFilter } from "../items/itemsFilter";
+import { onDidItemIndexedEventEmitter } from "../../shared/events";
+import { logger } from "../../platform/logger";
+import { patternProvider } from "../../platform/patternProvider";
+import { Item, QuickPickItem, WorkspaceData } from "../../shared/types";
 import { warmup } from "./warmup";
 
 export type OnBatch = (items: QuickPickItem[], fileState?: [string, FileState]) => void;

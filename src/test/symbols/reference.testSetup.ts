@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { dataConverter } from "../../symbols/dataConverter";
-import { documentSymbols } from "../../symbols/documentSymbols";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { documentSymbols } from "../../symbols/scan/documentSymbols";
 import { QuickPickItem } from "../../shared/types";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 

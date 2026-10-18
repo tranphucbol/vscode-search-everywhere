@@ -1,7 +1,7 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../../platform/cache";
-import { files } from "../../../symbols/files";
+import { files } from "../../../symbols/scan/files";
 import { pathUtils } from "../../../shared/paths";
 import { stubChanges } from "../../util/changesStub";
 import { insertAt, stubMultiple } from "../../util/stubHelpers";

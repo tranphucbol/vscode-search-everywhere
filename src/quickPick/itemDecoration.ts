@@ -3,7 +3,7 @@ import { fetchUseFileIconTheme } from "../platform/config";
 import { ensureUri } from "../shared/paths";
 import { QuickPickItem } from "../shared/types";
 import { vscodeVersion } from "../shared/vscodeVersion";
-import { dataConverter } from "../symbols/dataConverter";
+import { dataConverter } from "../symbols/items/dataConverter";
 import { COPY_ICON, COPY_REFERENCE_TOOLTIP } from "./copy";
 import { session } from "./state";
 

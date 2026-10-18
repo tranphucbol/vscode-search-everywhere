@@ -5,8 +5,8 @@ import {
   fetchShouldInitOnStartup,
   fetchShouldWorkspaceDataBeCached,
 } from "../platform/config";
-import { dataConverter } from "../symbols/dataConverter";
-import { scan } from "../symbols/scan";
+import { dataConverter } from "../symbols/items/dataConverter";
+import { scan } from "../symbols/scan/scan";
 import { database } from "../database";
 import { logger } from "../platform/logger";
 import { refreshPresets } from "../platform/presets";

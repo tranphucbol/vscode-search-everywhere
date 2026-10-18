@@ -1,6 +1,6 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { scan } from "../../../symbols/scan";
+import { scan } from "../../../symbols/scan/scan";
 import { retryQueue } from "../../../indexing/queue/retryQueue";
 import { getTestSetups } from "./retryQueue.testSetup";
 

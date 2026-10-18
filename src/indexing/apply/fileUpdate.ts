@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { database, FileState } from "../../database";
-import { dataConverter } from "../../symbols/dataConverter";
-import { scan } from "../../symbols/scan";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { DetailedActionType, QuickPickItem } from "../../shared/types";
 
 async function downloadData(

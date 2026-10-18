@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { dataConverter } from "./dataConverter";
-import { itemsFilter } from "./itemsFilter";
-import { logger } from "../platform/logger";
+import { dataConverter } from "../items/dataConverter";
+import { itemsFilter } from "../items/itemsFilter";
+import { logger } from "../../platform/logger";
 
 const CONTAINER_SEPARATOR = ".";
 

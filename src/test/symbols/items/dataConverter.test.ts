@@ -1,14 +1,14 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { dataConverter, normalizeSymbolName } from "../../symbols/dataConverter";
-import { QuickPickItem } from "../../shared/types";
+import { dataConverter, normalizeSymbolName } from "../../../symbols/items/dataConverter";
+import { QuickPickItem } from "../../../shared/types";
 import { getTestSetups } from "./dataConverter.testSetup";
 import {
   getDocumentSymbolItemWithDocComment,
   getDocumentSymbolItemWithSelectionOutsideRange,
   getSymbolInformation,
-} from "../util/itemMockFactory";
-import { flattenSymbols, loadSymbolFixture } from "../util/symbolFixtures";
+} from "../../util/itemMockFactory";
+import { flattenSymbols, loadSymbolFixture } from "../../util/symbolFixtures";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 

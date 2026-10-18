@@ -3,7 +3,7 @@ import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as config from "../../platform/config";
 import { database } from "../../database";
-import { dataConverter } from "../../symbols/dataConverter";
+import { dataConverter } from "../../symbols/items/dataConverter";
 import { liveSymbols } from "../../symbols/liveSymbols";
 import { quickPick } from "../../quickPick/quickPick";
 import { quickPickState } from "../../quickPick/state";

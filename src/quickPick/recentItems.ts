@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { getRecentItems as getStoredRecentItems, updateRecentItems, clearRecentItems as clearStoredRecentItems } from "../platform/cache";
-import { dataConverter } from "../symbols/dataConverter";
+import { dataConverter } from "../symbols/items/dataConverter";
 import { extractName, RecentKey } from "../database";
 import { QuickPickItem } from "../shared/types";
 import { pathUtils } from "../shared/paths";

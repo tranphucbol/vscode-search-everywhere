@@ -6,8 +6,8 @@ import {
   isDebounceConfigurationToggled,
   isSortingConfigurationToggled,
 } from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { scan } from "../../symbols/scan";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { database } from "../../database";
 import { fileWatcher } from "./fileWatcher";
 import { isRootMarker, markerFileGlob, refreshPresets } from "../../platform/presets";

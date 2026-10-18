@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
-import { fetchIndexNamesOnly } from "../platform/config";
-import { FileState } from "../database";
-import { itemsFilter } from "./itemsFilter";
-import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
-import { matchesGlob } from "../shared/glob";
-import { messages } from "../shared/messages";
-import { workspaceFolders } from "../shared/workspaceFolders";
+import { fetchIndexNamesOnly } from "../../platform/config";
+import { FileState } from "../../database";
+import { itemsFilter } from "../items/itemsFilter";
+import { logger } from "../../platform/logger";
+import { patternProvider } from "../../platform/patternProvider";
+import { matchesGlob } from "../../shared/glob";
+import { messages } from "../../shared/messages";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 
 const NON_SYMBOL_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "ico", "svg", "bmp", "webp",

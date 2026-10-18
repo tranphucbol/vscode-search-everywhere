@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import * as path from "path";
 import * as vscode from "vscode";
-import { dataConverter } from "../../symbols/dataConverter";
+import { dataConverter } from "../../symbols/items/dataConverter";
 import { database, RecentKey } from "../../database";
 import { QuickPickItem } from "../../shared/types";
 import { item1, item2, item3, useTestDatabase } from "../util/databaseFixtures";

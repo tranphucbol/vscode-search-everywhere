@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
 import { fetchItemsFilter } from "../platform/config";
-import { dataConverter } from "./dataConverter";
+import { dataConverter } from "./items/dataConverter";
 import { logger } from "../platform/logger";
 import { patternProvider } from "../platform/patternProvider";
-import { itemsFilter } from "./itemsFilter";
+import { itemsFilter } from "./items/itemsFilter";
 import { QuickPickItem } from "../shared/types";
 
 export interface LiveSymbolsQuery {

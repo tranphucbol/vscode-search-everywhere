@@ -1,13 +1,13 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { Icons, ItemsFilterPhrases } from "../../shared/types";
-import { pathUtils } from "../../shared/paths";
-import { workspaceFolders } from "../../shared/workspaceFolders";
-import { mocks } from "../util/dataConverter.mock";
-import { getConfiguration, getWorkspaceData } from "../util/mockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import * as config from "../../../platform/config";
+import { dataConverter } from "../../../symbols/items/dataConverter";
+import { Icons, ItemsFilterPhrases } from "../../../shared/types";
+import { pathUtils } from "../../../shared/paths";
+import { workspaceFolders } from "../../../shared/workspaceFolders";
+import { mocks } from "../../util/dataConverter.mock";
+import { getConfiguration, getWorkspaceData } from "../../util/mockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 const stubConfig = (
   sandbox: sinon.SinonSandbox,

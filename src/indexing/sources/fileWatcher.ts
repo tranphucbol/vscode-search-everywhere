@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { fetchWatchFileSystem } from "../../platform/config";
-import { files } from "../../symbols/files";
+import { files } from "../../symbols/scan/files";
 import { database } from "../../database";
 import { logger } from "../../platform/logger";
 import { patternProvider } from "../../platform/patternProvider";

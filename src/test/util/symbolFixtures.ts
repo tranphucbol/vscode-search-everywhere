@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { dataConverter } from "../../symbols/dataConverter";
+import { dataConverter } from "../../symbols/items/dataConverter";
 
 interface RawSymbol {
   name: string;

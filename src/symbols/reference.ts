@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { dataConverter } from "./dataConverter";
-import { documentSymbols } from "./documentSymbols";
+import { dataConverter } from "./items/dataConverter";
+import { documentSymbols } from "./scan/documentSymbols";
 import { logger } from "../platform/logger";
 import { QuickPickItem } from "../shared/types";
 

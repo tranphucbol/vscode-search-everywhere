@@ -7,8 +7,8 @@ import {
   fetchIndexedConfigSnapshot,
   fetchLanguagePresets,
 } from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { scan } from "../../symbols/scan";
+import { dataConverter } from "../../symbols/items/dataConverter";
+import { scan } from "../../symbols/scan/scan";
 import { indexingProgress } from "./progress";
 import { database, FileState } from "../../database";
 import { onDidItemIndexed } from "../../shared/events";

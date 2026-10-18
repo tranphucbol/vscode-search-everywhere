@@ -1,28 +1,28 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
-import { documentSymbols } from "../../symbols/documentSymbols";
-import { itemsFilter } from "../../symbols/itemsFilter";
-import { scan } from "../../symbols/scan";
-import { files } from "../../symbols/files";
-import { warmup } from "../../symbols/warmup";
-import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
-import { ItemsFilter } from "../../shared/types";
-import { asyncUtils } from "../../shared/async";
-import { dataConverter } from "../../symbols/dataConverter";
-import { messages } from "../../shared/messages";
-import { workspaceFolders } from "../../shared/workspaceFolders";
+import * as config from "../../../platform/config";
+import { documentSymbols } from "../../../symbols/scan/documentSymbols";
+import { itemsFilter } from "../../../symbols/items/itemsFilter";
+import { scan } from "../../../symbols/scan/scan";
+import { files } from "../../../symbols/scan/files";
+import { warmup } from "../../../symbols/scan/warmup";
+import { logger } from "../../../platform/logger";
+import { patternProvider } from "../../../platform/patternProvider";
+import { ItemsFilter } from "../../../shared/types";
+import { asyncUtils } from "../../../shared/async";
+import { dataConverter } from "../../../symbols/items/dataConverter";
+import { messages } from "../../../shared/messages";
+import { workspaceFolders } from "../../../shared/workspaceFolders";
 import {
   getDocumentSymbolItemSingleLineArray,
   getItems,
-} from "../util/itemMockFactory";
+} from "../../util/itemMockFactory";
 import {
   getConfiguration,
   getItemsFilter,
   getWorkspaceData,
-} from "../util/mockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+} from "../../util/mockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 const stubConfig = (
   sandbox: sinon.SinonSandbox,

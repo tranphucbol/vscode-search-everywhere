@@ -1,7 +1,7 @@
 import { assert } from "chai";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { warmup } from "../../symbols/warmup";
+import { warmup } from "../../../symbols/scan/warmup";
 import { getTestSetups } from "./warmup.testSetup";
 
 type SetupsType = ReturnType<typeof getTestSetups>;

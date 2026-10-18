@@ -3,16 +3,16 @@ import {
   fetchIcons,
   fetchItemsFilterPhrases,
   fetchShouldUseItemsFilterPhrases,
-} from "../platform/config";
+} from "../../platform/config";
 import {
   Icons,
   Item,
   ItemsFilterPhrases,
   QuickPickItem,
   WorkspaceData,
-} from "../shared/types";
-import { pathUtils } from "../shared/paths";
-import { workspaceFolders } from "../shared/workspaceFolders";
+} from "../../shared/types";
+import { pathUtils } from "../../shared/paths";
+import { workspaceFolders } from "../../shared/workspaceFolders";
 
 const GO_RECEIVER_METHOD = /^\((\*?)([A-Za-z_]\w*)(\[[^\]]*\])?\)\.(\w+)$/;
 // jdtls appends type parameters after the list: "convert(User, Class<T>) <T>".

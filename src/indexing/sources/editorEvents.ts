@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { files } from "../../symbols/files";
+import { files } from "../../symbols/scan/files";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
 import { asyncUtils } from "../../shared/async";
 import { pathUtils } from "../../shared/paths";

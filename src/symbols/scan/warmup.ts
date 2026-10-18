@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { documentSymbols } from "./documentSymbols";
 import { files } from "./files";
-import { logger } from "../platform/logger";
-import { asyncUtils } from "../shared/async";
+import { logger } from "../../platform/logger";
+import { asyncUtils } from "../../shared/async";
 
 type Progress = vscode.Progress<{
   message?: string | undefined;

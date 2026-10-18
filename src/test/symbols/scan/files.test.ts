@@ -1,8 +1,8 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { files } from "../../symbols/files";
+import { files } from "../../../symbols/scan/files";
 import { getTestSetups } from "./files.testSetup";
-import { getItem } from "../util/itemMockFactory";
+import { getItem } from "../../util/itemMockFactory";
 
 type SetupsType = ReturnType<typeof getTestSetups>;
 
