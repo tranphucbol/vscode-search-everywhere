@@ -116,9 +116,15 @@ export async function getHeadCommit(rootPath: string): Promise<string | undefine
   }
 }
 
+/**
+ * Returns the repository root as reached from `rootPath`, keeping the symlinks in it:
+ * `--show-toplevel` resolves them (/tmp becomes /private/tmp on macOS), and paths under
+ * that spelling fall outside the workspace folder.
+ */
 export async function getRepoRoot(rootPath: string): Promise<string | undefined> {
   try {
-    return (await gitService.execGit(["rev-parse", "--show-toplevel"], rootPath)) || undefined;
+    const upToRoot = await gitService.execGit(["rev-parse", "--show-cdup"], rootPath);
+    return path.resolve(rootPath, upToRoot);
   } catch {
     return undefined;
   }

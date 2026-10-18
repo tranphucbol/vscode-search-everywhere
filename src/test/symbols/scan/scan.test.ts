@@ -173,6 +173,14 @@ describe("Scan", () => {
 
       assert.deepEqual(workspaceData.urisToRetry, [goFile]);
     });
+
+    it("should not wait for a language server warm-up when one file is scanned", async () => {
+      const warmupStub = setups.urisToRetry.setupForTimedOutLanguages(["ts"]);
+      const workspaceData = await scan.fetchData([vscode.Uri.file("/./fake/app.ts")]);
+
+      assert.equal(warmupStub.called, false);
+      assert.isUndefined(workspaceData.urisToRetry);
+    });
   });
 
   describe("getIsCancelled", () => {

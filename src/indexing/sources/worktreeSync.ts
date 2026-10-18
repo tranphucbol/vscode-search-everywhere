@@ -6,6 +6,7 @@ import { gitService } from "../../platform/gitService";
 import { logger } from "../../platform/logger";
 import { patternProvider } from "../../platform/settings/patternProvider";
 import { ActionTrigger, DetailedActionType } from "../../shared/types";
+import { warmup } from "../../symbols/scan/warmup";
 import { changes } from "../queue/changes";
 import { reconciler } from "./reconciler";
 
@@ -45,12 +46,19 @@ async function syncSeededWorktree(rootPath: string): Promise<void> {
   const uris = [...relativePaths]
     .map((relativePath) => vscode.Uri.file(path.join(repoRoot, relativePath)))
     .filter((uri) => vscode.workspace.getWorkspaceFolder(uri));
-  const actions = uris.map((uri) => {
-    return worktreeSync.isIndexableFile(uri)
-      ? changes.queueUpdate(uri, DetailedActionType.TextChange, ActionTrigger.Startup)
-      : changes.queueRemove(uri, DetailedActionType.RemoveFile, ActionTrigger.Startup);
-  });
-  await Promise.all(actions);
+  const urisToUpdate = uris.filter((uri) => worktreeSync.isIndexableFile(uri));
+  const urisToRemove = uris.filter((uri) => !urisToUpdate.includes(uri));
+  // No language server runs yet in a window just opened, and a one-file update does not wait
+  // for one, so without this the files would be indexed without their symbols.
+  await warmup.warmupLanguageServers(urisToUpdate, () => false);
+  await Promise.all([
+    ...urisToUpdate.map((uri) =>
+      changes.queueUpdate(uri, DetailedActionType.TextChange, ActionTrigger.Startup)
+    ),
+    ...urisToRemove.map((uri) =>
+      changes.queueRemove(uri, DetailedActionType.RemoveFile, ActionTrigger.Startup)
+    ),
+  ]);
   // The template's mtimes come from another checkout, so they say nothing about this one.
   await reconciler.restatAll();
 }

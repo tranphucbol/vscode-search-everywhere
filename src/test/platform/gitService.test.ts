@@ -108,5 +108,25 @@ describe("gitService", () => {
 
       assert.deepEqual(paths.sort(), ["src/kept.ts", "src/removed.ts", "src/untracked.ts"]);
     });
+
+    it("should return the repository root under the symlinked path it was opened through", async () => {
+      const linkPath = `${repoRoot}-link`;
+      fs.symlinkSync(repoRoot, linkPath);
+      try {
+        assert.equal(await gitService.getRepoRoot(linkPath), linkPath);
+        assert.equal(await gitService.getRepoRoot(path.join(linkPath, "src")), linkPath);
+      } finally {
+        fs.unlinkSync(linkPath);
+      }
+    });
+
+    it("should return undefined for a directory outside a repository", async () => {
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "se-no-git-"));
+      try {
+        assert.isUndefined(await gitService.getRepoRoot(outside));
+      } finally {
+        fs.rmSync(outside, { recursive: true, force: true });
+      }
+    });
   });
 });

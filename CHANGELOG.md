@@ -3,6 +3,9 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### 🐛 Fixes
+- **Seeded worktrees opened through a symlink kept a stale index**: when the worktree's path ran through a symlink (such as `/tmp` on macOS), git reported the files under the resolved path, so every file in the git delta was dropped and new, changed and deleted files never reached the index. Files synced on startup are now also indexed with their symbols, after waiting for the language server, instead of by name only.
+
 ### 🧹 Internal
 - Source and tests are grouped in feature folders (`commands`, `quickPick`, `database`, `indexing`, `symbols`, `platform`, `shared`); the database and quick pick are split into smaller modules behind the same facades; import cycles removed and checked with `npm run check:cycles`; tslint, `publish.sh` and `vscode-test` dropped in favour of `@vscode/test-electron`. No change in behaviour.
 - `indexing`, `symbols`, `quickPick`, `database` and `platform` are grouped in role subfolders (for example `indexing/sources`, `queue`, `apply`); startup and worktree sync moved from the controller into `indexing/lifecycle`; every file change is queued through one module; the import order inside and between folders is checked with `npm run check:layers` (decision 009). No change in behaviour.

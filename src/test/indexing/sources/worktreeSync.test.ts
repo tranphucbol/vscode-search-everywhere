@@ -30,6 +30,18 @@ describe("WorktreeSync", () => {
       assert.isTrue(restatAllStub.calledAfter(queuedStub));
     });
 
+    it("should warm up the language servers for the changed files before queuing them", async () => {
+      const { queuedStub, warmupStub } =
+        setups.syncSeededWorktree.setupForTemplateCommit();
+      await worktreeSync.syncSeededWorktree("/workspace");
+
+      const warmedUp = (warmupStub.firstCall.args[0] as vscode.Uri[])
+        .map((uri) => uri.fsPath)
+        .sort();
+      assert.deepEqual(warmedUp, ["/workspace/src/changed.ts", "/workspace/src/edited.ts"]);
+      assert.isTrue(warmupStub.calledBefore(queuedStub));
+    });
+
     it("should remove files deleted since the template commit", async () => {
       const { queuedStub } = setups.syncSeededWorktree.setupForDeletedFile();
       await worktreeSync.syncSeededWorktree("/workspace");
