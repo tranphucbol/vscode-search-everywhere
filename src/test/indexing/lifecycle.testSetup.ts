@@ -9,13 +9,13 @@ import { dataConverter } from "../../symbols/dataConverter";
 import { dataService } from "../../symbols/dataService";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import * as events from "../../shared/events";
-import { retryQueue } from "../../indexing/retryQueue";
+import { retryQueue } from "../../indexing/queue/retryQueue";
 import { getFileSystemWatcherStub } from "../util/stubFactory";
-import { changes } from "../../indexing/changes";
+import { changes } from "../../indexing/queue/changes";
 import { lifecycle, QuickPickHandle } from "../../indexing/lifecycle";
-import { unsavedFiles } from "../../indexing/unsavedFiles";
-import { workspaceReconciler } from "../../indexing/workspaceReconciler";
-import { worktreeSync } from "../../indexing/worktreeSync";
+import { unsavedFiles } from "../../indexing/sources/unsavedFiles";
+import { reconciler } from "../../indexing/sources/reconciler";
+import { worktreeSync } from "../../indexing/sources/worktreeSync";
 import { stubMultiple } from "../util/stubHelpers";
 
 const emptyReconcileResult = {
@@ -150,7 +150,7 @@ function stubComponentsForStartup(
       { object: cache, method: "clearConfig" },
       { object: unsavedFiles, method: "reloadAll" },
       {
-        object: workspaceReconciler,
+        object: reconciler,
         method: "reconcile",
         returns: Promise.resolve(emptyReconcileResult),
       },

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { database } from "../database";
-import { changes } from "../indexing/changes";
+import { changes } from "../indexing/queue/changes";
 import { fetchSearchLanguageServersWhileIndexing } from "../platform/config";
 import { QuickPickItem } from "../shared/types";
 import { liveSymbols } from "../symbols/liveSymbols";

@@ -8,7 +8,7 @@ import { liveSymbols } from "../../symbols/liveSymbols";
 import { quickPick } from "../../quickPick/quickPick";
 import { quickPickState } from "../../quickPick/state";
 import { QuickPickItem } from "../../shared/types";
-import { changes } from "../../indexing/changes";
+import { changes } from "../../indexing/queue/changes";
 import {
   getQpItems,
   getQpItemWithNamePosition,

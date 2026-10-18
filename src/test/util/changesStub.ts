@@ -1,6 +1,6 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { changes } from "../../indexing/changes";
+import { changes } from "../../indexing/queue/changes";
 import { ActionType, DetailedActionType } from "../../shared/types";
 
 // One stub for both queue functions, so a test can assert the order of updates

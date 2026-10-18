@@ -13,14 +13,14 @@ import { refreshPresets } from "../platform/presets";
 import { ActionTrigger } from "../shared/types";
 import { workspaceFolders } from "../shared/workspaceFolders";
 import { onDidIndexWorkspace, onWillIndexWorkspace } from "../shared/events";
-import { changes } from "./changes";
-import { editorEvents } from "./editorEvents";
-import { fileWatcher } from "./fileWatcher";
-import { retryQueue } from "./retryQueue";
-import { settingsEvents } from "./settingsEvents";
-import { unsavedFiles } from "./unsavedFiles";
-import { workspaceReconciler } from "./workspaceReconciler";
-import { worktreeSync } from "./worktreeSync";
+import { changes } from "./queue/changes";
+import { editorEvents } from "./sources/editorEvents";
+import { fileWatcher } from "./sources/fileWatcher";
+import { retryQueue } from "./queue/retryQueue";
+import { settingsEvents } from "./sources/settingsEvents";
+import { unsavedFiles } from "./sources/unsavedFiles";
+import { reconciler } from "./sources/reconciler";
+import { worktreeSync } from "./sources/worktreeSync";
 
 export interface QuickPickHandle {
   isInitialized(): boolean;
@@ -198,7 +198,7 @@ function shouldReconcileOnStartup() {
 }
 
 function reconcileInBackground() {
-  workspaceReconciler
+  reconciler
     .reconcile(ActionTrigger.Reconcile)
     .catch((error) => logger.log(`Error reconciling the index with disk: ${error}`));
 }
