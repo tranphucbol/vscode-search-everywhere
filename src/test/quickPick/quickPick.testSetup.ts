@@ -3,8 +3,8 @@ import * as vscode from "vscode";
 import * as config from "../../platform/config";
 import { quickPick } from "../../quickPick/quickPick";
 import { quickPickState } from "../../quickPick/state";
-import { itemLoader } from "../../quickPick/itemLoader";
-import { opener } from "../../quickPick/open";
+import { itemLoader } from "../../quickPick/view/itemLoader";
+import { opener } from "../../quickPick/actions/open";
 import { getQuickPickOnDidChangeValueEventListeners } from "../util/eventMockFactory";
 import {
   getQpHelpItem,
