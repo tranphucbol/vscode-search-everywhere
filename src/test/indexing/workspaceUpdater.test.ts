@@ -1,8 +1,7 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { dataService } from "../../symbols/dataService";
 import { DetailedActionType } from "../../shared/types";
-import * as workspaceUpdater from "../../indexing/workspaceUpdater";
+import { workspaceUpdater } from "../../indexing/workspaceUpdater";
 import { getTestSetups } from "./workspaceUpdater.testSetup";
 import { getDirectory, getItem } from "../util/itemMockFactory";
 import {
@@ -20,17 +19,14 @@ describe("WorkspaceUpdater", () => {
   });
   afterEach(() => setups.afterEach());
 
-  describe("updateCacheByPath", () => {
-    it("should index method be invoked which register rebuild action if error is thrown", async () => {
-      const [indexStub] =
-        setups.updateCacheByPath.setupForInvokingIndexMethodWhenErrorThrown();
-      await workspaceUpdater.updateCacheByPath(
-        getItem(),
-        DetailedActionType.TextChange
-      );
-      assert.equal(indexStub.calledOnce, true);
+  describe("downloadData", () => {
+    it("should return downloaded qp items", async () => {
+      const qpItems = setups.downloadData.setupForDataDownload();
+      assert.deepEqual(await workspaceUpdater.downloadData(), getQpItems());
     });
+  });
 
+  describe("updateCacheByPath", () => {
     it("should update data for given uri when file text is changed", async () => {
       const [
         deleteByUriStub,
@@ -116,74 +112,104 @@ describe("WorkspaceUpdater", () => {
     });
   });
 
-  describe("retryQueue", () => {
-    const RETRY_INTERVAL_MS = 30_000;
-    const goFile = vscode.Uri.file("/fake/server.go");
-    const otherGoFile = vscode.Uri.file("/fake/client.go");
+  describe("removeFromCacheByPath", () => {
+    it("should remove given uri from stored data when file is removed ", () => {
+      const [deleteByUriStub] =
+        setups.removeFromCacheByPath.setupForRemovingGivenUriFromStoredDataWhenFileRemoved();
 
-    it("should retry files indexed while their language server was not ready", async () => {
-      const { clock, updateUriStub } = setups.retryQueue.setupForRetrying({
-        [goFile.path]: [0],
-        [otherGoFile.path]: [0],
-      });
-      workspaceUpdater.retryQueue.start([goFile, otherGoFile]);
-
-      await clock.tickAsync(RETRY_INTERVAL_MS - 1);
-      assert.equal(updateUriStub.callCount, 0);
-      await clock.tickAsync(1);
-      assert.deepEqual(
-        updateUriStub.getCalls().map((call) => call.args[0]),
-        [goFile, otherGoFile]
+      workspaceUpdater.removeFromCacheByPath(
+        getItem(),
+        DetailedActionType.RemoveFile
+      );
+      assert.equal(
+        deleteByUriStub.calledWith(getItem().toString()),
+        true
       );
     });
 
-    it("should stop retrying a file once it returns symbols", async () => {
-      const { clock, updateUriStub } = setups.retryQueue.setupForRetrying({
-        [goFile.path]: [3],
-        [otherGoFile.path]: [0],
-      });
-      workspaceUpdater.retryQueue.start([goFile, otherGoFile]);
+    it("should remove given uri from stored data when file is renamed or moved", () => {
+      const [deleteByUriStub] =
+        setups.removeFromCacheByPath.setupForRemovingGivenUriFromStoredDataWhenFileRenamedOrMoved();
 
-      await clock.tickAsync(RETRY_INTERVAL_MS * 2);
-      const retried = updateUriStub.getCalls().map((call) => call.args[0]);
-      assert.deepEqual(retried, [goFile, otherGoFile, otherGoFile]);
-      assert.deepEqual(workspaceUpdater.retryQueue.getPendingUris(), [
-        otherGoFile,
+      workspaceUpdater.removeFromCacheByPath(
+        getItem(),
+        DetailedActionType.RenameOrMoveFile
+      );
+      assert.equal(
+        deleteByUriStub.calledWith(getItem().toString()),
+        true
+      );
+    });
+
+    it("should remove given uri from stored data when text in file is changed", () => {
+      const [deleteByUriStub] =
+        setups.removeFromCacheByPath.setupForRemovingGivenUriFromStoredDataWhenTextInFileChanged();
+
+      workspaceUpdater.removeFromCacheByPath(
+        getItem(),
+        DetailedActionType.TextChange
+      );
+      assert.equal(
+        deleteByUriStub.calledWith(getItem().toString()),
+        true
+      );
+    });
+
+    it("should remove all uris for given folder uri when directory is removed", () => {
+      const [deleteByUriPrefixStub] =
+        setups.removeFromCacheByPath.setupForRemovingAllUrisForGivenFolderUriWhenDirectoryRemoved();
+
+      workspaceUpdater.removeFromCacheByPath(
+        getDirectory("./fake/"),
+        DetailedActionType.RemoveDirectory
+      );
+      assert.equal(
+        deleteByUriPrefixStub.calledWith(getDirectory("./fake/").toString()),
+        true
+      );
+    });
+
+    it("should remove all uris for given folder uri when directory is renamed", () => {
+      const [deleteByUriPrefixStub] =
+        setups.removeFromCacheByPath.setupForRemovingAllUrisForGivenFolderUriWhenDirectoryRenamed();
+
+      workspaceUpdater.removeFromCacheByPath(
+        getDirectory("./fake/"),
+        DetailedActionType.RenameOrMoveDirectory
+      );
+      assert.equal(
+        deleteByUriPrefixStub.calledWith(getDirectory("./fake/").toString()),
+        true
+      );
+    });
+
+    it("should remove the path and everything under it when a file or directory is removed", () => {
+      const [deleteByUriStub, deleteByUriPrefixStub] =
+        setups.removeFromCacheByPath.setupForRemovingPathAndChildrenWhenFileOrDirectoryRemoved();
+      const uri = getItem();
+
+      workspaceUpdater.removeFromCacheByPath(
+        uri,
+        DetailedActionType.RemoveFileOrDirectory
+      );
+      assert.deepEqual(deleteByUriStub.firstCall.args, [uri.toString()]);
+      assert.deepEqual(deleteByUriPrefixStub.firstCall.args, [
+        uri.with({ path: `${uri.path}/` }).toString(),
       ]);
     });
 
-    it("should stop retrying after ten minutes", async () => {
-      const { clock, updateUriStub } = setups.retryQueue.setupForRetrying({
-        [goFile.path]: [0],
-      });
-      workspaceUpdater.retryQueue.start([goFile]);
+    it("should remove given uri when file is reloaded if it is unsaved", () => {
+      const [deleteByUriStub] =
+        setups.removeFromCacheByPath.setupForRemovingGivenUriWhenFileReloadedIfUnsaved();
 
-      await clock.tickAsync(10 * 60_000);
-      const callCount = updateUriStub.callCount;
-      await clock.tickAsync(RETRY_INTERVAL_MS * 4);
-
-      assert.equal(callCount, 19);
-      assert.equal(updateUriStub.callCount, callCount);
-      assert.deepEqual(workspaceUpdater.retryQueue.getPendingUris(), []);
-    });
-
-    it("should not retry files of a language that warmed up", async () => {
-      const tsFiles = [
-        vscode.Uri.file("/fake/empty.ts"),
-        vscode.Uri.file("/fake/app.ts"),
-      ];
-      setups.retryQueue.setupForLanguagesWarmedUp(["ts"]);
-      const workspaceData = await dataService.fetchData([
-        goFile,
-        otherGoFile,
-        ...tsFiles,
-      ]);
-      workspaceUpdater.retryQueue.start(workspaceData.urisToRetry || []);
-
-      assert.deepEqual(workspaceUpdater.retryQueue.getPendingUris(), [
-        goFile,
-        otherGoFile,
-      ]);
+      workspaceUpdater.removeFromCacheByPath(
+        getItem(),
+        DetailedActionType.ReloadUnsavedUri
+      );
+      assert.equal(
+        deleteByUriStub.calledWith(getItem().toString()),
+        true
+      );
     });
   });
 });

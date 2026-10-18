@@ -7,7 +7,7 @@ import { fileWatcher } from "../../indexing/fileWatcher";
 import { logger } from "../../platform/logger";
 import { patternProvider } from "../../platform/patternProvider";
 import { ExcludeMode } from "../../shared/types";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
+import { changes } from "../../indexing/changes";
 import { workspaceReconciler } from "../../indexing/workspaceReconciler";
 import {
   FakeFileSystemWatcher,
@@ -93,7 +93,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
         callsFake: async (uri: vscode.Uri) => onDisk.get(uri.toString()),
       },
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "isRebuilding",
         returns: false,
       },

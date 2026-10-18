@@ -2,9 +2,7 @@ import { assert } from "chai";
 import { performance } from "perf_hooks";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { actionProcessor } from "../../indexing/actionProcessor";
 import * as cache from "../../platform/cache";
-import * as config from "../../platform/config";
 import { dataConverter } from "../../symbols/dataConverter";
 import { dataService } from "../../symbols/dataService";
 import { database } from "../../database";
@@ -31,6 +29,7 @@ export const getTestSetups = () => {
       setupForReturningData: () => {
         stubMultiple(
           [
+            { object: database, method: "isReady", returns: false },
             {
               object: cache,
               method: "getData",
@@ -45,6 +44,7 @@ export const getTestSetups = () => {
       setupForEmptyCache: () => {
         stubMultiple(
           [
+            { object: database, method: "isReady", returns: false },
             {
               object: cache,
               method: "getData",
@@ -54,33 +54,6 @@ export const getTestSetups = () => {
           sandbox
         );
         return [];
-      },
-    },
-
-    index: {
-      setupForActionRegistration: () => {
-        return stubMultiple(
-          [
-            {
-              object: actionProcessor,
-              method: "register",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    reindex: {
-      setupForClearingAndIndexing: () => {
-        return stubMultiple(
-          [
-            { object: cache, method: "clear" },
-            { object: database, method: "clearAll" },
-            { object: workspaceIndexer, method: "index" },
-          ],
-          sandbox
-        );
       },
     },
 
@@ -120,41 +93,6 @@ export const getTestSetups = () => {
       },
     },
 
-    registerAction: {
-      setupForActionRegistration: () => {
-        return stubMultiple(
-          [
-            {
-              object: actionProcessor,
-              method: "register",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    downloadData: {
-      setupForDataDownload: () => {
-        stubMultiple(
-          [
-            {
-              object: dataService,
-              method: "fetchData",
-              returns: Promise.resolve(getWorkspaceData()),
-            },
-            {
-              object: dataConverter,
-              method: "convertToQpData",
-              returns: getQpItems(),
-            },
-          ],
-          sandbox
-        );
-        return getQpItems();
-      },
-    },
-
     cancelIndexing: {
       setupForCancellation: () => {
         return stubMultiple(
@@ -180,62 +118,6 @@ export const getTestSetups = () => {
             {
               object: workspaceIndexer,
               method: "cancelIndexing",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    getNotificationLocation: {
-      setupForNotificationLocation: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: false,
-            },
-          ],
-          sandbox
-        );
-      },
-
-      setupForWindowLocation: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: true,
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    getNotificationTitle: {
-      setupForNotificationTitle: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: false,
-            },
-          ],
-          sandbox
-        );
-      },
-
-      setupForStatusBarTitle: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: true,
             },
           ],
           sandbox
@@ -588,28 +470,5 @@ export const getTestSetups = () => {
       },
     },
 
-    handleDidItemIndexed: {
-      setupForProgressCalculation: () => {
-        // Don't stub getProgressStep - let it work naturally to return the calculated value
-      },
-
-      setupForProgressReporting: () => {
-        stubMultiple(
-          [
-            {
-              object: workspaceIndexer,
-              method: "getProgressStep",
-              returns: 20,
-            },
-            {
-              object: workspaceIndexer,
-              method: "getCurrentProgressValue",
-              returns: 20,
-            },
-          ],
-          sandbox
-        );
-      },
-    },
   };
 };

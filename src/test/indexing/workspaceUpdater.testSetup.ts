@@ -6,8 +6,9 @@ import { database } from "../../database";
 import { logger } from "../../platform/logger";
 import { asyncUtils } from "../../shared/async";
 import { messages } from "../../shared/messages";
-import { workspaceIndexer as indexer } from "../../indexing/workspaceIndexer";
-import { retryQueue, workspaceUpdater } from "../../indexing/workspaceUpdater";
+import { workspaceUpdater } from "../../indexing/workspaceUpdater";
+import { dataConverter } from "../../symbols/dataConverter";
+import { getWorkspaceData } from "../util/mockFactory";
 import { getDocumentSymbolItemSingleLineArray } from "../util/itemMockFactory";
 import {
   getQpItems,
@@ -20,36 +21,31 @@ export const getTestSetups = () => {
 
   return {
     afterEach: () => {
-      retryQueue.stop();
       sandbox.restore();
     },
 
-    updateCacheByPath: {
-      setupForInvokingIndexMethodWhenErrorThrown: () => {
-        return stubMultiple(
+    downloadData: {
+      setupForDataDownload: () => {
+        stubMultiple(
           [
             {
-              object: indexer,
-              method: "index",
+              object: dataService,
+              method: "fetchData",
+              returns: Promise.resolve(getWorkspaceData()),
             },
             {
-              object: database,
-              method: "deleteByUri",
-            },
-            {
-              object: indexer,
-              method: "downloadData",
-              throws: new Error("test error"),
-            },
-            {
-              object: messages,
-              method: "printErrorMessage",
+              object: dataConverter,
+              method: "convertToQpData",
+              returns: getQpItems(),
             },
           ],
           sandbox
         );
+        return getQpItems();
       },
+    },
 
+    updateCacheByPath: {
       setupForUpdatingDataWhenFileTextChanged: () => {
         return stubMultiple(
           [
@@ -58,7 +54,7 @@ export const getTestSetups = () => {
               method: "deleteByUri",
             },
             {
-              object: indexer,
+              object: workspaceUpdater,
               method: "downloadData",
               returns: Promise.resolve(getQpItemsSymbolAndUri("./fake-new/")),
             },
@@ -83,7 +79,7 @@ export const getTestSetups = () => {
               method: "deleteByUri",
             },
             {
-              object: indexer,
+              object: workspaceUpdater,
               method: "downloadData",
               returns: Promise.resolve(getQpItems(1)),
             },
@@ -108,7 +104,7 @@ export const getTestSetups = () => {
               method: "deleteByUri",
             },
             {
-              object: indexer,
+              object: workspaceUpdater,
               method: "downloadData",
               returns: Promise.resolve(getQpItems(1)),
             },
@@ -145,7 +141,7 @@ export const getTestSetups = () => {
               method: "deleteByUri",
             },
             {
-              object: indexer,
+              object: workspaceUpdater,
               method: "downloadData",
               returns: Promise.resolve(getQpItemsSymbolAndUri("./fake-new/")),
             },
@@ -162,45 +158,119 @@ export const getTestSetups = () => {
         );
       },
     },
-    retryQueue: {
-      setupForRetrying: (symbolCountsByPath: {
-        [path: string]: number[];
-      }) => {
-        const clock = sandbox.useFakeTimers({ now: 0 });
-        const updateUriStub = sandbox
-          .stub(workspaceUpdater, "updateUri")
-          .callsFake(async (uri: vscode.Uri) => {
-            const counts = symbolCountsByPath[uri.path];
-            return counts.length > 1 ? counts.shift()! : counts[0];
-          });
-        sandbox
-          .stub(indexer, "registerAction")
-          .callsFake(async (_type, fn) => {
-            await fn();
-          });
-        sandbox.stub(logger, "log");
-        return { clock, updateUriStub };
-      },
 
-      setupForLanguagesWarmedUp: (readyExtensions: string[]) => {
-        dataService.resetLanguageWarmup();
-        dataService.setIsCancelled(false);
-        stubMultiple(
+    removeFromCacheByPath: {
+      setupForRemovingGivenUriFromStoredDataWhenFileRemoved: () => {
+        return stubMultiple(
           [
             {
-              object: vscode.commands,
-              method: "executeCommand",
-              callsFake: async (_command: string, uri: vscode.Uri) =>
-                readyExtensions.includes(uri.path.split(".").pop()!) &&
-                !uri.path.includes("empty")
-                  ? getDocumentSymbolItemSingleLineArray(1)
-                  : [],
+              object: database,
+              method: "deleteByUri",
             },
-            { object: vscode.workspace, method: "openTextDocument" },
-            { object: asyncUtils, method: "sleep" },
-            { object: config, method: "fetchIndexNamesOnly", returns: "" },
-            { object: dataService, method: "getItemsFilter", returns: {} },
-            { object: logger, method: "log" },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingGivenUriFromStoredDataWhenFileRenamedOrMoved: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUri",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingGivenUriFromStoredDataWhenTextInFileChanged: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUri",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingAllUrisForGivenFolderUriWhenDirectoryRemoved: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUriPrefix",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingAllUrisForGivenFolderUriWhenDirectoryRenamed: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUriPrefix",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingPathAndChildrenWhenFileOrDirectoryRemoved: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUri",
+            },
+            {
+              object: database,
+              method: "deleteByUriPrefix",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
+          ],
+          sandbox
+        );
+      },
+
+      setupForRemovingGivenUriWhenFileReloadedIfUnsaved: () => {
+        return stubMultiple(
+          [
+            {
+              object: database,
+              method: "deleteByUri",
+            },
+            {
+              object: database,
+              method: "schedulePersist",
+            },
           ],
           sandbox
         );

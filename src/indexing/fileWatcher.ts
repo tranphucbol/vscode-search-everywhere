@@ -6,7 +6,6 @@ import { logger } from "../platform/logger";
 import { patternProvider } from "../platform/patternProvider";
 import { ActionTrigger, DetailedActionType } from "../shared/types";
 import { changes } from "./changes";
-import { workspaceIndexer as indexer } from "./workspaceIndexer";
 import { workspaceReconciler } from "./workspaceReconciler";
 
 const WATCH_BATCH_DELAY_MS = 500;
@@ -63,7 +62,7 @@ export function stopWatching(): void {
 }
 
 function canQueue(): boolean {
-  return database.isReady() && !database.isEmpty() && !indexer.isRebuilding();
+  return database.isReady() && !database.isEmpty() && !changes.isRebuilding();
 }
 
 function enqueue(kind: WatchEventKind, uri: vscode.Uri): void {

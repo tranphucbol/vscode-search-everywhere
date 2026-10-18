@@ -1,21 +1,30 @@
 import * as vscode from "vscode";
 import { database, FileState } from "../database";
-import { logger } from "../platform/logger";
-import {
-  ActionTrigger,
-  ActionType,
-  DetailedActionType,
-  QuickPickItem,
-} from "../shared/types";
-import { messages } from "../shared/messages";
-import { workspaceIndexer as indexer } from "./workspaceIndexer";
+import { dataConverter } from "../symbols/dataConverter";
+import { dataService } from "../symbols/dataService";
+import { DetailedActionType, QuickPickItem } from "../shared/types";
+
+async function downloadData(
+  uris?: vscode.Uri[],
+  fileStates?: Array<[string, FileState]>
+): Promise<QuickPickItem[]> {
+  const items: QuickPickItem[] = [];
+  const workspaceData = await dataService.fetchData(uris, undefined, (batch, fileState) => {
+    items.push(...batch);
+    fileStates && fileState && fileStates.push(fileState);
+  });
+  if (items.length === 0 && workspaceData && workspaceData.items) {
+    return dataConverter.convertToQpData(workspaceData);
+  }
+  return items;
+}
 
 async function updateUri(uri: vscode.Uri): Promise<number> {
   // Delete old data for this URI, then re-index and insert
   database.deleteByUri(uri.toString());
   try {
     const fileStates: Array<[string, FileState]> = [];
-    const dataForUri = await indexer.downloadData([uri], fileStates);
+    const dataForUri = await workspaceUpdater.downloadData([uri], fileStates);
     if (dataForUri && dataForUri.length) {
       database.insertSymbolsBatch(dataForUri);
     }
@@ -42,113 +51,68 @@ async function updateUri(uri: vscode.Uri): Promise<number> {
 
 function updateFolder(uri: vscode.Uri, oldUri: vscode.Uri) {
   // For directory renames, we need to update all URIs with the old prefix.
-  // The simplest approach: the old paths were already removed by workspaceRemover.
+  // The simplest approach: the old paths were already removed by removeFromCacheByPath.
   // New paths will be indexed via the update action if they are files.
   // For directories, VSCode fires individual file events for each file inside.
   // So this is a no-op; individual file updates handle it.
   database.schedulePersist();
 }
 
-export async function updateCacheByPath(
+async function updateCacheByPath(
   uri: vscode.Uri,
   detailedActionType: DetailedActionType,
   oldUri?: vscode.Uri
 ) {
-  try {
-    const updateFnByDetailedActionType: { [key: string]: Function } = {
-      [DetailedActionType.CreateNewFile]: updateUri.bind(null, uri),
-      [DetailedActionType.RenameOrMoveFile]: updateUri.bind(null, uri),
-      [DetailedActionType.TextChange]: updateUri.bind(null, uri),
-      [DetailedActionType.ReloadUnsavedUri]: updateUri.bind(null, uri),
-      [DetailedActionType.RenameOrMoveDirectory]: updateFolder.bind(
-        null,
-        uri,
-        oldUri!
-      ),
-    };
+  const updateFnByDetailedActionType: { [key: string]: Function } = {
+    [DetailedActionType.CreateNewFile]: updateUri.bind(null, uri),
+    [DetailedActionType.RenameOrMoveFile]: updateUri.bind(null, uri),
+    [DetailedActionType.TextChange]: updateUri.bind(null, uri),
+    [DetailedActionType.ReloadUnsavedUri]: updateUri.bind(null, uri),
+    [DetailedActionType.RenameOrMoveDirectory]: updateFolder.bind(
+      null,
+      uri,
+      oldUri!
+    ),
+  };
 
-    const updateFn = updateFnByDetailedActionType[detailedActionType];
-    updateFn && (await updateFn());
-  } catch (error) {
-    messages.printErrorMessage(error as Error);
-    await indexer.index("on error catch");
-  }
+  const updateFn = updateFnByDetailedActionType[detailedActionType];
+  updateFn && (await updateFn());
 }
 
-const RETRY_INTERVAL_MS = 30_000;
-const RETRY_WINDOW_MS = 10 * 60_000;
-
-let pendingUris = new Map<string, vscode.Uri>();
-let retryTimer: ReturnType<typeof setInterval> | undefined;
-let retryDeadline = 0;
-
-function startRetrying(uris: vscode.Uri[]): void {
-  stopRetrying();
-  if (!uris.length) {
-    return;
-  }
-  pendingUris = new Map(uris.map((uri) => [uri.toString(), uri]));
-  retryDeadline = Date.now() + RETRY_WINDOW_MS;
-  retryTimer = setInterval(() => retryQueue.retryPending(), RETRY_INTERVAL_MS);
-  logger.log(
-    `${pendingUris.size} files returned no symbols before their language server was ready; retrying every ${
-      RETRY_INTERVAL_MS / 1000
-    } s for ${RETRY_WINDOW_MS / 60_000} min.`
-  );
+function removeUri(uri: vscode.Uri): void {
+  database.deleteByUri(uri.toString());
 }
 
-function stopRetrying(): void {
-  retryTimer && clearInterval(retryTimer);
-  retryTimer = undefined;
-  pendingUris.clear();
+function removeFolder(uri: vscode.Uri): void {
+  database.deleteByUriPrefix(uri.toString());
 }
 
-async function retryPending(): Promise<void> {
-  if (!pendingUris.size) {
-    return;
-  }
-  if (Date.now() >= retryDeadline) {
-    logger.log(
-      `Stopped retrying ${pendingUris.size} files that still return no symbols.`
-    );
-    stopRetrying();
-    return;
-  }
-
-  logger.log(`Retrying ${pendingUris.size} files that returned no symbols.`);
-  for (const [key, uri] of Array.from(pendingUris.entries())) {
-    await indexer.registerAction(
-      ActionType.Update,
-      retryUri.bind(null, key, uri),
-      ActionTrigger.RetryWithoutSymbols,
-      uri
-    );
-  }
+// A path deleted on disk can no longer be stat-ed to tell a file from a folder.
+function removeFileOrFolder(uri: vscode.Uri): void {
+  removeUri(uri);
+  removeFolder(uri.with({ path: `${uri.path}/` }));
 }
 
-async function retryUri(key: string, uri: vscode.Uri): Promise<void> {
-  if (!pendingUris.has(key)) {
-    return;
-  }
-  const symbolCount = await workspaceUpdater.updateUri(uri).catch(() => 0);
-  if (symbolCount > 0) {
-    pendingUris.delete(key);
-    !pendingUris.size && logger.log("All retried files are indexed.");
-    !pendingUris.size && stopRetrying();
-  }
-}
-
-function getPendingUris(): vscode.Uri[] {
-  return Array.from(pendingUris.values());
+function removeFromCacheByPath(
+  uri: vscode.Uri,
+  detailedActionType: DetailedActionType
+) {
+  const removeFnByDetailedActionType: { [key: string]: Function } = {
+    [DetailedActionType.RenameOrMoveFile]: removeUri.bind(null, uri),
+    [DetailedActionType.RemoveFile]: removeUri.bind(null, uri),
+    [DetailedActionType.RemoveFileOrDirectory]: removeFileOrFolder.bind(null, uri),
+    [DetailedActionType.TextChange]: removeUri.bind(null, uri),
+    [DetailedActionType.ReloadUnsavedUri]: removeUri.bind(null, uri),
+    [DetailedActionType.RemoveDirectory]: removeFolder.bind(null, uri),
+    [DetailedActionType.RenameOrMoveDirectory]: removeFolder.bind(null, uri),
+  };
+  removeFnByDetailedActionType[detailedActionType]();
+  database.schedulePersist();
 }
 
 export const workspaceUpdater = {
+  downloadData,
   updateUri,
-};
-
-export const retryQueue = {
-  start: startRetrying,
-  stop: stopRetrying,
-  retryPending,
-  getPendingUris,
+  updateCacheByPath,
+  removeFromCacheByPath,
 };

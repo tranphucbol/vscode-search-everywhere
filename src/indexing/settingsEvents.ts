@@ -19,7 +19,7 @@ import {
   onDidSortingConfigToggleEventEmitter,
   onWillReindexOnConfigurationChangeEventEmitter,
 } from "../shared/events";
-import { workspaceIndexer } from "./workspaceIndexer";
+import { changes } from "./changes";
 
 const defaultSection = "searchEverywhere";
 
@@ -36,7 +36,7 @@ async function handleDidChangeConfiguration(
     reloadComponents();
     settingsEvents.shouldRestartFileWatcher(event) && fileWatcher.startWatching();
     onWillReindexOnConfigurationChangeEventEmitter.fire();
-    await workspaceIndexer.reindex(ActionTrigger.ConfigurationChange);
+    await changes.reindex(ActionTrigger.ConfigurationChange);
   } else if (isDebounceConfigurationToggled(event)) {
     onDidDebounceConfigToggleEventEmitter.fire();
   } else if (isSortingConfigurationToggled(event)) {
@@ -64,7 +64,7 @@ async function handleDidChangeWorkspaceFolders(
     workspaceFolders.setWorkspaceFoldersCommonPath();
     await refreshPresets();
     await settingsEvents.reloadConfig();
-    await workspaceIndexer.reindex(ActionTrigger.WorkspaceFoldersChange);
+    await changes.reindex(ActionTrigger.WorkspaceFoldersChange);
   }
 }
 
@@ -72,7 +72,7 @@ async function handleDidChangeMarkerFile(uri: vscode.Uri) {
   if (isRootMarker(uri) && (await refreshPresets())) {
     await settingsEvents.reloadConfig();
     onWillReindexOnConfigurationChangeEventEmitter.fire();
-    await workspaceIndexer.reindex(ActionTrigger.ConfigurationChange);
+    await changes.reindex(ActionTrigger.ConfigurationChange);
   }
 }
 

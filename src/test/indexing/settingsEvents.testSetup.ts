@@ -10,7 +10,7 @@ import { ExcludeMode } from "../../shared/types";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import { settingsEvents } from "../../indexing/settingsEvents";
 import * as events from "../../shared/events";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
+import { changes } from "../../indexing/changes";
 import { getEventEmitter } from "../util/mockFactory";
 import { getFileSystemWatcherStub } from "../util/stubFactory";
 import { stubChanges } from "../util/changesStub";
@@ -97,7 +97,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {
@@ -212,7 +212,7 @@ export const getTestSetups = () => {
               returns: false,
             },
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {
@@ -314,7 +314,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {
@@ -355,7 +355,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {

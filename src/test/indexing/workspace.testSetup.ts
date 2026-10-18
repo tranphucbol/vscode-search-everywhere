@@ -9,7 +9,7 @@ import { logger } from "../../platform/logger";
 import * as presets from "../../platform/presets";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import * as events from "../../shared/events";
-import { retryQueue } from "../../indexing/workspaceUpdater";
+import { retryQueue } from "../../indexing/retryQueue";
 import { getFileSystemWatcherStub } from "../util/stubFactory";
 import { stubMultiple } from "../util/stubHelpers";
 

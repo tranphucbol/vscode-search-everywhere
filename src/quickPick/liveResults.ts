@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { database } from "../database";
-import { workspaceIndexer } from "../indexing/workspaceIndexer";
+import { changes } from "../indexing/changes";
 import { fetchSearchLanguageServersWhileIndexing } from "../platform/config";
 import { QuickPickItem } from "../shared/types";
 import { liveSymbols } from "../symbols/liveSymbols";
@@ -21,7 +21,7 @@ let indexBusy = false;
 function isIndexIncomplete(hasIndexResults: boolean): boolean {
   return (
     !database.isReady() ||
-    workspaceIndexer.isRebuilding() ||
+    changes.isRebuilding() ||
     (!hasIndexResults && database.isEmpty())
   );
 }

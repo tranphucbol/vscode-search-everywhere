@@ -195,7 +195,7 @@ function handleWillReindexOnConfigurationChange() {
 function startIndexOnQuickPickOpen(): void {
   clear();
   database.clearAll();
-  workspaceIndexer
+  changes
     .reindex(ActionTrigger.Search)
     .catch((error) => logger.log(`Error indexing the workspace: ${error}`));
   !quickPick.isInitialized() && quickPick.init();
@@ -251,7 +251,7 @@ async function reload(): Promise<void> {
   clearNotSavedUriPaths();
 
   workspaceFolders.hasWorkspaceAnyFolder()
-    ? await workspaceIndexer.reindex(ActionTrigger.Reload)
+    ? await changes.reindex(ActionTrigger.Reload)
     : messages.printNoFolderOpenedMessage();
 }
 
@@ -277,7 +277,7 @@ async function startup(): Promise<void> {
   const shouldReconcile = controller.shouldReconcileOnStartup();
 
   if (controller.shouldIndexOnStartup()) {
-    await workspaceIndexer.reindex(ActionTrigger.Startup);
+    await changes.reindex(ActionTrigger.Startup);
   }
 
   if (controller.shouldLoadDataFromCacheOnStartup()) {
@@ -349,7 +349,7 @@ function isIndexableFile(uri: vscode.Uri): boolean {
 
 async function indexSeededWorktreeInFull(): Promise<void> {
   database.clearAll();
-  await workspaceIndexer.reindex(ActionTrigger.Startup);
+  await changes.reindex(ActionTrigger.Startup);
 }
 
 function shouldReconcileOnStartup() {

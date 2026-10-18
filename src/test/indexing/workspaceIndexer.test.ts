@@ -1,6 +1,5 @@
 import { assert } from "chai";
 import * as vscode from "vscode";
-import { ActionType } from "../../shared/types";
 import { workspaceIndexer } from "../../indexing/workspaceIndexer";
 import { getTestSetups } from "./workspaceIndexer.testSetup";
 import { getProgress } from "../util/mockFactory";
@@ -34,28 +33,6 @@ describe("WorkspaceIndexer", () => {
     });
   });
 
-  describe("index", () => {
-    it("should call actionProcessor.register method", async () => {
-      const [registerStub] = setups.index.setupForActionRegistration();
-      await workspaceIndexer.index("test comment");
-
-      assert.equal(registerStub.calledOnce, true);
-    });
-  });
-
-  describe("reindex", () => {
-    it("should clear the cache and the database before registering a rebuild", async () => {
-      const [clearStub, clearAllStub, indexStub] =
-        setups.reindex.setupForClearingAndIndexing();
-      await workspaceIndexer.reindex("test comment");
-
-      assert.equal(clearStub.calledOnce, true);
-      assert.equal(clearAllStub.calledOnce, true);
-      assert.isTrue(indexStub.calledOnceWith("test comment"));
-      assert.isTrue(clearAllStub.calledBefore(indexStub));
-    });
-  });
-
   describe("indexWithProgress", () => {
     it("should workspaceFolders.hasWorkspaceAnyFolder method be invoked", async () => {
       const [hasWorkspaceAnyFolderStub] =
@@ -71,26 +48,6 @@ describe("WorkspaceIndexer", () => {
       await workspaceIndexer.indexWithProgress();
 
       assert.equal(printNoFolderOpenedMessageStub.calledOnce, true);
-    });
-  });
-
-  describe("registerAction", () => {
-    it("should call actionProcessor.register method", async () => {
-      const [registerStub] = setups.registerAction.setupForActionRegistration();
-      await workspaceIndexer.registerAction(
-        ActionType.Rebuild,
-        () => {},
-        "test trigger"
-      );
-
-      assert.equal(registerStub.calledOnce, true);
-    });
-  });
-
-  describe("downloadData", () => {
-    it("should return downloaded qp items", async () => {
-      const qpItems = setups.downloadData.setupForDataDownload();
-      assert.deepEqual(await workspaceIndexer.downloadData(), getQpItems());
     });
   });
 
@@ -112,39 +69,6 @@ describe("WorkspaceIndexer", () => {
       (workspaceIndexer as any).handleCancellationRequested();
 
       assert.equal(cancelIndexingStub.calledOnce, true);
-    });
-  });
-
-  describe("getNotificationLocation", () => {
-    it("should return vscode.ProgressLocation.Notification if shouldDisplayNotificationInStatusBar returns false", () => {
-      setups.getNotificationLocation.setupForNotificationLocation();
-      assert.equal(
-        workspaceIndexer.getNotificationLocation(),
-        vscode.ProgressLocation.Notification
-      );
-    });
-
-    it("should return vscode.ProgressLocation.Window if shouldDisplayNotificationInStatusBar returns true", () => {
-      setups.getNotificationLocation.setupForWindowLocation();
-      assert.equal(
-        workspaceIndexer.getNotificationLocation(),
-        vscode.ProgressLocation.Window
-      );
-    });
-  });
-
-  describe("getNotificationTitle", () => {
-    it("should return 'Indexing workspace... file' if shouldDisplayNotificationInStatusBar returns false", () => {
-      setups.getNotificationTitle.setupForNotificationTitle();
-      assert.equal(
-        workspaceIndexer.getNotificationTitle(),
-        "Indexing workspace... file"
-      );
-    });
-
-    it("should return 'Indexing...' if shouldDisplayNotificationInStatusBar returns true", () => {
-      setups.getNotificationTitle.setupForStatusBarTitle();
-      assert.equal(workspaceIndexer.getNotificationTitle(), "Indexing...");
     });
   });
 
@@ -224,25 +148,6 @@ describe("WorkspaceIndexer", () => {
       assert.equal(printStatsMessageStub.calledOnce, true);
       assert.equal(logScanTimeStub.calledOnce, true);
       assert.equal(logStructureStub.calledOnce, true);
-    });
-  });
-
-  describe("handleDidItemIndexed", () => {
-    it("should call calculateProgressStep and other progress methods on first call", () => {
-      setups.handleDidItemIndexed.setupForProgressCalculation();
-      // Call the method twice to test the calculation
-      workspaceIndexer.handleDidItemIndexed(getProgress(), 5);
-      workspaceIndexer.handleDidItemIndexed(getProgress(), 5);
-
-      assert.equal(workspaceIndexer.getProgressStep(), 20);
-    });
-
-    it("should call progress.report method", () => {
-      const progress = getProgress();
-      setups.handleDidItemIndexed.setupForProgressReporting();
-      workspaceIndexer.handleDidItemIndexed(progress, 5);
-
-      assert.equal(progress.report.calledOnce, true);
     });
   });
 });

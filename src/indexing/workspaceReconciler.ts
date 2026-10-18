@@ -4,7 +4,6 @@ import { database, FileState } from "../database";
 import { logger } from "../platform/logger";
 import { ActionTrigger, DetailedActionType } from "../shared/types";
 import { changes } from "./changes";
-import { workspaceIndexer as indexer } from "./workspaceIndexer";
 
 const STAT_CONCURRENCY = 32;
 const FULL_INDEX_MIN_FILES = 2000;
@@ -98,7 +97,7 @@ export async function reconcile(trigger: ActionTrigger): Promise<ReconcileResult
   if (result.added + result.changed > threshold) {
     result.fullIndex = true;
     logger.log(`Reconciled with disk: full index in ${Date.now() - startedAt} ms`);
-    await indexer.reindex(trigger);
+    await changes.reindex(trigger);
     return result;
   }
 

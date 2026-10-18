@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { dataService } from "../../symbols/dataService";
 import { database, FileState } from "../../database";
 import { logger } from "../../platform/logger";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
+import { changes } from "../../indexing/changes";
 import { stubChanges } from "../util/changesStub";
 import { stubMultiple } from "../util/stubHelpers";
 
@@ -20,7 +20,7 @@ function stubDisk(
   const [queuedStub, indexStub, upsertFileStatesStub] = [stubChanges(sandbox), ...stubMultiple(
     [
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "reindex",
         returns: Promise.resolve(),
       },

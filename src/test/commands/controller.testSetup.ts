@@ -13,6 +13,7 @@ import { messages } from "../../shared/messages";
 import { workspaceFolders } from "../../shared/workspaceFolders";
 import { unsavedFiles } from "../../indexing/unsavedFiles";
 import { workspace } from "../../indexing/workspace";
+import { changes } from "../../indexing/changes";
 import { workspaceIndexer } from "../../indexing/workspaceIndexer";
 import * as workspaceEventsEmitter from "../../shared/events";
 import { workspaceReconciler } from "../../indexing/workspaceReconciler";
@@ -94,7 +95,7 @@ function stubComponentsForStartup(
         returns: returnsValues.setItems,
       },
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "reindex",
         returns: returnsValues.index,
       },
@@ -152,7 +153,7 @@ function stubSeededStartup(
   const [queuedStub, indexStub, clearAllStub, restatAllStub] = [stubChanges(sandbox), ...stubMultiple(
     [
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "reindex",
       },
       {
@@ -240,7 +241,7 @@ function stubComponentsForSearch(
   return stubMultiple(
     [
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "reindex",
         returns: returnsValues.index ?? Promise.resolve(),
       },
@@ -853,7 +854,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {
@@ -887,7 +888,7 @@ export const getTestSetups = () => {
               method: "clearNotSavedUriPaths",
             },
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {
@@ -965,7 +966,7 @@ export const getTestSetups = () => {
               returns: Promise.resolve(emptyReconcileResult),
             },
             {
-              object: workspaceIndexer,
+              object: changes,
               method: "reindex",
             },
             {

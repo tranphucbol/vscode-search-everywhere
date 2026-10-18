@@ -8,7 +8,7 @@ import { liveSymbols } from "../../symbols/liveSymbols";
 import { quickPick } from "../../quickPick/quickPick";
 import { quickPickState } from "../../quickPick/state";
 import { QuickPickItem } from "../../shared/types";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
+import { changes } from "../../indexing/changes";
 import {
   getQpItems,
   getQpItemWithNamePosition,
@@ -89,7 +89,7 @@ describe("QuickPick live results", () => {
         .stub(database, "search")
         .callsFake(() => indexItems.map((item) => ({ ...item })));
       isRebuildingStub = sandbox
-        .stub(workspaceIndexer, "isRebuilding")
+        .stub(changes, "isRebuilding")
         .returns(true);
       fetchStub = sandbox.stub(liveSymbols, "fetchLiveSymbols").resolves([]);
       quickPick.show();

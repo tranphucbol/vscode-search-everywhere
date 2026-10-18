@@ -10,7 +10,7 @@ import { workspaceFolders } from "../shared/workspaceFolders";
 import { onDidIndexWorkspace, onWillIndexWorkspace } from "../shared/events";
 import { editorEvents } from "./editorEvents";
 import { settingsEvents } from "./settingsEvents";
-import { retryQueue } from "./workspaceUpdater";
+import { retryQueue } from "./retryQueue";
 
 function clearIndexBuiltWithOtherConfig() {
   const indexedConfig = getIndexedConfig();

@@ -75,7 +75,7 @@ describe("Controller", () => {
       assert.equal(clearStub.calledOnce, true);
     });
 
-    it("should workspaceIndexer.reindex method be invoked if shouldIndexOnQuickPickOpen method returns true", async () => {
+    it("should changes.reindex method be invoked if shouldIndexOnQuickPickOpen method returns true", async () => {
       const [indexStub] =
         setups.search.setupForWorkspaceIndexingWhenIndexingOnOpen();
       await controller.search();
@@ -221,7 +221,7 @@ describe("Controller", () => {
       assert.equal(printNoFolderOpenedMessageStub.calledOnce, true);
     });
 
-    it("should workspaceIndexer.reindex method be invoked", async () => {
+    it("should changes.reindex method be invoked", async () => {
       const [indexStub] = setups.reload.setupForWorkspaceIndexing();
       await controller.reload();
 
@@ -239,7 +239,7 @@ describe("Controller", () => {
   });
 
   describe("startup", () => {
-    it("should workspaceIndexer.reindex method be invoked if shouldInitOnStartup method returns true", async () => {
+    it("should changes.reindex method be invoked if shouldInitOnStartup method returns true", async () => {
       const [, , , , , indexStub] =
         setups.startup.setupForIndexingWhenEnabledOnStartup();
       await controller.startup();
