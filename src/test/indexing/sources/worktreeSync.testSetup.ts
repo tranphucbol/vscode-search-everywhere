@@ -6,6 +6,7 @@ import { logger } from "../../../platform/logger";
 import { changes } from "../../../indexing/queue/changes";
 import { reconciler } from "../../../indexing/sources/reconciler";
 import { worktreeSync } from "../../../indexing/sources/worktreeSync";
+import { warmup } from "../../../symbols/scan/warmup";
 import { stubChanges } from "../../util/changesStub";
 import { stubMultiple } from "../../util/stubHelpers";
 
@@ -23,7 +24,7 @@ function stubSeededWorktree(
   const folder = { uri: seededRoot, name: "workspace", index: 0 };
   const existingPaths = options.existingPaths || [];
   const queuedStub = stubChanges(sandbox);
-  const [indexStub, restatAllStub] = stubMultiple(
+  const [indexStub, restatAllStub, warmupStub] = stubMultiple(
     [
       {
         object: changes,
@@ -33,6 +34,11 @@ function stubSeededWorktree(
         object: reconciler,
         method: "restatAll",
         returns: Promise.resolve(0),
+      },
+      {
+        object: warmup,
+        method: "warmupLanguageServers",
+        returns: Promise.resolve(new Set<string>()),
       },
       {
         object: database,
@@ -72,7 +78,7 @@ function stubSeededWorktree(
     ],
     sandbox
   );
-  return { queuedStub, indexStub, restatAllStub };
+  return { queuedStub, indexStub, restatAllStub, warmupStub };
 }
 
 export const getTestSetups = () => {

@@ -49,6 +49,14 @@ describe("Warmup", () => {
       ]);
     });
 
+    it("should warm up the language of a single file", async () => {
+      const sample = uri("app.ts");
+      const { openTextDocumentStub } = setups.warmup.setupForWarmup(["ts"]);
+      await warmup.warmupLanguageServers([sample], notCancelled);
+
+      assert.isTrue(openTextDocumentStub.calledOnceWith(sample));
+    });
+
     it("should wait longer for Java than for other languages", async () => {
       const goSample = uri("b.go");
       const javaSample = uri("B.java");

@@ -431,7 +431,7 @@ export const getTestSetups = () => {
     urisToRetry: {
       setupForTimedOutLanguages: (timedOutLanguages: string[]) => {
         stubConfig(sandbox);
-        stubMultiple(
+        const [warmupStub] = stubMultiple(
           [
             {
               object: warmup,
@@ -456,6 +456,7 @@ export const getTestSetups = () => {
           ],
           sandbox
         );
+        return warmupStub;
       },
     },
 

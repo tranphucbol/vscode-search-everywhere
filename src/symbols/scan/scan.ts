@@ -32,11 +32,11 @@ async function includeSymbols(
     return;
   }
 
-  const timedOutLanguages = await warmup.warmupLanguageServers(
-    uris,
-    scan.getIsCancelled,
-    progress
-  );
+  // One file is an edit or a file event; it must not wait up to the warm-up timeout.
+  const timedOutLanguages =
+    uris.length > 1
+      ? await warmup.warmupLanguageServers(uris, scan.getIsCancelled, progress)
+      : new Set<string>();
   const urisToRetry: vscode.Uri[] = [];
 
   const CONCURRENCY = 20;

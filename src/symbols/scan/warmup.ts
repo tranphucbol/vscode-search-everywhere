@@ -77,10 +77,6 @@ async function warmupLanguageServers(
   progress?: Progress
 ): Promise<Set<string>> {
   const timedOut = new Set<string>();
-  if (uris.length <= 1) {
-    return timedOut;
-  }
-
   const samples = pickWarmupSamples(uris);
   await Promise.all(
     Array.from(samples.entries()).map(async ([language, sampleUri]) => {
