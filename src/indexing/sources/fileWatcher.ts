@@ -1,14 +1,12 @@
 import * as vscode from "vscode";
-import { fetchWatchFileSystem } from "../platform/config";
-import { dataService } from "../symbols/dataService";
-import { database } from "../database";
-import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
-import { ActionTrigger, ActionType, DetailedActionType } from "../shared/types";
-import { workspaceIndexer as indexer } from "./workspaceIndexer";
-import { workspaceReconciler } from "./workspaceReconciler";
-import { removeFromCacheByPath } from "./workspaceRemover";
-import { updateCacheByPath } from "./workspaceUpdater";
+import { fetchWatchFileSystem } from "../../platform/config";
+import { dataService } from "../../symbols/dataService";
+import { database } from "../../database";
+import { logger } from "../../platform/logger";
+import { patternProvider } from "../../platform/patternProvider";
+import { ActionTrigger, DetailedActionType } from "../../shared/types";
+import { changes } from "../queue/changes";
+import { reconciler } from "./reconciler";
 
 const WATCH_BATCH_DELAY_MS = 500;
 const WATCH_BURST_THRESHOLD = 1000;
@@ -25,7 +23,7 @@ let disposables: vscode.Disposable[] = [];
 let pending = new Map<string, WatchEvent>();
 let batchTimer: NodeJS.Timeout | undefined;
 
-export function startWatching(): void {
+function startWatching(): void {
   fileWatcher.stopWatching();
   if (!fetchWatchFileSystem()) {
     return;
@@ -55,7 +53,7 @@ export function startWatching(): void {
   ];
 }
 
-export function stopWatching(): void {
+function stopWatching(): void {
   disposables.forEach((disposable) => disposable.dispose());
   disposables = [];
   batchTimer && clearTimeout(batchTimer);
@@ -64,7 +62,7 @@ export function stopWatching(): void {
 }
 
 function canQueue(): boolean {
-  return database.isReady() && !database.isEmpty() && !indexer.isRebuilding();
+  return database.isReady() && !database.isEmpty() && !changes.isRebuilding();
 }
 
 function enqueue(kind: WatchEventKind, uri: vscode.Uri): void {
@@ -135,51 +133,21 @@ async function filterEvents(events: WatchEvent[]): Promise<WatchEvent[]> {
   return events.filter((_, i) => keep[i]);
 }
 
-function removePathAndChildren(uri: vscode.Uri): void {
-  removeFromCacheByPath(uri, DetailedActionType.RemoveFile);
-  removeFromCacheByPath(
-    uri.with({ path: `${uri.path}/` }),
-    DetailedActionType.RemoveDirectory
-  );
-}
-
-function registerActions(event: WatchEvent): Promise<void>[] {
+function queueChanges(event: WatchEvent): Promise<void>[] {
   const { kind, uri } = event;
   const trigger = ActionTrigger.DidChangeFileSystem;
 
   if (kind === "create") {
-    return [
-      indexer.registerAction(
-        ActionType.Update,
-        updateCacheByPath.bind(null, uri, DetailedActionType.CreateNewFile),
-        trigger,
-        uri
-      ),
-    ];
+    return [changes.queueUpdate(uri, DetailedActionType.CreateNewFile, trigger)];
   }
   if (kind === "change") {
     return [
-      indexer.registerAction(
-        ActionType.Remove,
-        removeFromCacheByPath.bind(null, uri, DetailedActionType.TextChange),
-        trigger,
-        uri
-      ),
-      indexer.registerAction(
-        ActionType.Update,
-        updateCacheByPath.bind(null, uri, DetailedActionType.TextChange),
-        trigger,
-        uri
-      ),
+      changes.queueRemove(uri, DetailedActionType.TextChange, trigger),
+      changes.queueUpdate(uri, DetailedActionType.TextChange, trigger),
     ];
   }
   return [
-    indexer.registerAction(
-      ActionType.Remove,
-      removePathAndChildren.bind(null, uri),
-      trigger,
-      uri
-    ),
+    changes.queueRemove(uri, DetailedActionType.RemoveFileOrDirectory, trigger),
   ];
 }
 
@@ -202,11 +170,11 @@ async function processBatch(): Promise<void> {
     logger.log(
       `${kept.length} files changed on disk; reconciling the index instead of updating each file.`
     );
-    await workspaceReconciler.reconcile(ActionTrigger.Reconcile);
+    await reconciler.reconcile(ActionTrigger.Reconcile);
     return;
   }
 
-  await Promise.all(kept.flatMap(registerActions));
+  await Promise.all(kept.flatMap(queueChanges));
 }
 
 export const fileWatcher = {

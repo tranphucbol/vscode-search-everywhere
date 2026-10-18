@@ -1,27 +1,14 @@
-import * as fs from "fs";
-import * as path from "path";
 import * as vscode from "vscode";
-import { clear, clearConfig, clearNotSavedUriPaths, initCache } from "../platform/cache";
-import {
-  fetchRestoreLastQuery,
-  fetchShouldInitOnStartup,
-  fetchShouldSearchSelection,
-  fetchShouldWorkspaceDataBeCached,
-} from "../platform/config";
+import { initCache } from "../platform/cache";
+import { fetchRestoreLastQuery, fetchShouldSearchSelection } from "../platform/config";
 import { database } from "../database";
-import { gitService } from "../platform/gitService";
 import { logger } from "../platform/logger";
-import { patternProvider } from "../platform/patternProvider";
 import { quickPick } from "../quickPick/quickPick";
-import { Action, ActionTrigger, ActionType, DetailedActionType } from "../shared/types";
+import { Action, ActionType } from "../shared/types";
 import { asyncUtils } from "../shared/async";
 import { messages } from "../shared/messages";
 import { workspaceFolders } from "../shared/workspaceFolders";
-import { workspace } from "../indexing/workspace";
-import { workspaceIndexer } from "../indexing/workspaceIndexer";
-import { workspaceReconciler } from "../indexing/workspaceReconciler";
-import { removeFromCacheByPath } from "../indexing/workspaceRemover";
-import { updateCacheByPath } from "../indexing/workspaceUpdater";
+import { lifecycle } from "../indexing/lifecycle";
 import {
   onDidDebounceConfigToggle,
   onDidProcessing,
@@ -73,74 +60,6 @@ function setQuickPickPlaceholder(isBusy: boolean) {
   quickPick.setPlaceholder(isBusy);
 }
 
-function isDataEmpty() {
-  return database.isEmpty();
-}
-
-function shouldIndexOnQuickPickOpen() {
-  return (
-    controller.isInitOnStartupDisabledAndWorkspaceCachingDisabled() ||
-    controller.isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty()
-  );
-}
-
-function isInitOnStartupDisabledAndWorkspaceCachingDisabled() {
-  return (
-    !fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    !fetchShouldWorkspaceDataBeCached()
-  );
-}
-
-function isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty() {
-  return (
-    !fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    fetchShouldWorkspaceDataBeCached() &&
-    isDataEmpty()
-  );
-}
-
-function shouldIndexOnStartup() {
-  return (
-    controller.isInitOnStartupEnabledAndWorkspaceCachingDisabled() ||
-    controller.isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty()
-  );
-}
-
-function isInitOnStartupEnabledAndWorkspaceCachingDisabled() {
-  return (
-    fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    !fetchShouldWorkspaceDataBeCached()
-  );
-}
-
-function isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty() {
-  return (
-    fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    fetchShouldWorkspaceDataBeCached() &&
-    isDataEmpty()
-  );
-}
-
-function shouldLoadDataFromCacheOnQuickPickOpen() {
-  return (
-    !fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    fetchShouldWorkspaceDataBeCached()
-  );
-}
-
-function shouldLoadDataFromCacheOnStartup() {
-  return (
-    fetchShouldInitOnStartup() &&
-    !quickPick.isInitialized() &&
-    fetchShouldWorkspaceDataBeCached()
-  );
-}
-
 function shouldSearchSelection(editor: vscode.TextEditor | undefined) {
   return quickPick.isInitialized() && fetchShouldSearchSelection() && !!editor;
 }
@@ -152,7 +71,7 @@ function handleWillProcessing() {
 
 function setQuickPickData() {
   !quickPick.isInitialized() && quickPick.init();
-  quickPick.setItems(workspace.getData());
+  quickPick.setItems(database.isReady() ? database.search("") : []);
 }
 
 function handleDidProcessing() {
@@ -190,28 +109,8 @@ function handleWillReindexOnConfigurationChange() {
   quickPick.reload();
 }
 
-// The first index can take minutes on a large repository; the quick pick opens at once
-// and shows what is indexed so far plus live language server results.
-function startIndexOnQuickPickOpen(): void {
-  clear();
-  database.clearAll();
-  workspace
-    .index(ActionTrigger.Search)
-    .catch((error) => logger.log(`Error indexing the workspace: ${error}`));
-  !quickPick.isInitialized() && quickPick.init();
-}
-
 async function search(): Promise<void> {
-  if (controller.shouldIndexOnQuickPickOpen()) {
-    startIndexOnQuickPickOpen();
-  }
-
-  if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {
-    clearConfig();
-    !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
-    // Data is already in SQLite — no need to setQuickPickData
-  }
+  await lifecycle.prepareQuickPickOpen(quickPick);
 
   const activeEditorOrUndefined = vscode.window.activeTextEditor;
 
@@ -246,130 +145,13 @@ function restoreOnDidChangeValueEventListener(expectedText: string) {
 }
 
 async function reload(): Promise<void> {
-  clear();
-  database.clearAll();
-  clearNotSavedUriPaths();
-
   workspaceFolders.hasWorkspaceAnyFolder()
-    ? await workspace.index(ActionTrigger.Reload)
+    ? await lifecycle.reload()
     : messages.printNoFolderOpenedMessage();
 }
 
 async function startup(): Promise<void> {
-  if (database.wasSeededFromTemplate()) {
-    database.setSeededFromTemplate(false);
-    clearConfig();
-    !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
-
-    const workspaceFolder =
-      vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
-    if (workspaceFolder && workspaceFolder.uri.scheme === "file") {
-      try {
-        await controller.syncSeededWorktree(workspaceFolder.uri.fsPath);
-      } catch (error) {
-        logger.log(`Error syncing worktree delta: ${error}`);
-      }
-    }
-    return;
-  }
-
-  const shouldReconcile = controller.shouldReconcileOnStartup();
-
-  if (controller.shouldIndexOnStartup()) {
-    await workspace.index(ActionTrigger.Startup);
-  }
-
-  if (controller.shouldLoadDataFromCacheOnStartup()) {
-    clearConfig();
-    !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
-    // Data is already in SQLite — no need to setQuickPickData
-  }
-
-  shouldReconcile && reconcileInBackground();
-}
-
-async function syncSeededWorktree(rootPath: string): Promise<void> {
-  const meta = database.getSeedMeta();
-  const commit = meta && meta.commit;
-  if (!commit) {
-    logger.log(
-      "The shared cache template records no commit; indexing the seeded worktree in full."
-    );
-    await indexSeededWorktreeInFull();
-    return;
-  }
-
-  const [changedPaths, workingTreePaths, repoRoot] = await Promise.all([
-    gitService.getChangedPathsBetween(rootPath, commit),
-    gitService.getWorkingTreePaths(rootPath),
-    gitService.getRepoRoot(rootPath),
-  ]);
-  if (!changedPaths || !repoRoot) {
-    logger.log(
-      `Could not diff the seeded worktree against template commit ${commit}; indexing it in full.`
-    );
-    await indexSeededWorktreeInFull();
-    return;
-  }
-
-  const relativePaths = new Set([
-    ...changedPaths,
-    ...workingTreePaths,
-    ...((meta && meta.dirtyPaths) || []),
-  ]);
-  logger.log(
-    `Syncing ${relativePaths.size} files changed since template commit ${commit} for seeded worktree...`
-  );
-
-  const uris = [...relativePaths]
-    .map((relativePath) => vscode.Uri.file(path.join(repoRoot, relativePath)))
-    .filter((uri) => vscode.workspace.getWorkspaceFolder(uri));
-  const actions = uris.map((uri) => {
-    return controller.isIndexableFile(uri)
-      ? workspaceIndexer.registerAction(
-          ActionType.Update,
-          updateCacheByPath.bind(null, uri, DetailedActionType.TextChange),
-          ActionTrigger.Startup,
-          uri
-        )
-      : workspaceIndexer.registerAction(
-          ActionType.Remove,
-          removeFromCacheByPath.bind(null, uri, DetailedActionType.RemoveFile),
-          ActionTrigger.Startup,
-          uri
-        );
-  });
-  await Promise.all(actions);
-  // The template's mtimes come from another checkout, so they say nothing about this one.
-  await workspaceReconciler.restatAll();
-}
-
-function isIndexableFile(uri: vscode.Uri): boolean {
-  try {
-    if (!fs.statSync(uri.fsPath).isFile()) {
-      return false;
-    }
-  } catch {
-    return false;
-  }
-  return patternProvider.isIncluded(vscode.workspace.asRelativePath(uri, false));
-}
-
-async function indexSeededWorktreeInFull(): Promise<void> {
-  database.clearAll();
-  await workspace.index(ActionTrigger.Startup);
-}
-
-function shouldReconcileOnStartup() {
-  return fetchShouldWorkspaceDataBeCached() && !isDataEmpty();
-}
-
-function reconcileInBackground() {
-  workspaceReconciler
-    .reconcile(ActionTrigger.Reconcile)
-    .catch((error) => logger.log(`Error reconciling the index with disk: ${error}`));
+  await lifecycle.startup(quickPick);
 }
 
 let extensionContext: vscode.ExtensionContext;
@@ -396,22 +178,14 @@ async function init(newExtensionContext: vscode.ExtensionContext) {
   setExtensionContext(newExtensionContext);
   initCache(controller.getExtensionContext());
   await database.initDatabase(newExtensionContext);
-  await workspace.init();
+  await lifecycle.init();
   registerWorkspaceEventListeners();
 
   logger.log(`Extension "vscode-search-everywhere" has been activated.`);
 }
 
 async function searchCurrentFile(): Promise<void> {
-  if (controller.shouldIndexOnQuickPickOpen()) {
-    startIndexOnQuickPickOpen();
-  }
-
-  if (controller.shouldLoadDataFromCacheOnQuickPickOpen()) {
-    clearConfig();
-    !quickPick.isInitialized() && quickPick.init();
-    await workspace.removeDataForUnsavedUris();
-  }
+  await lifecycle.prepareQuickPickOpen(quickPick);
 
   await quickPick.searchCurrentFile();
 }
@@ -449,19 +223,8 @@ function toggleIncludeLibraries(): void {
 }
 
 export const controller = {
-  shouldIndexOnQuickPickOpen,
-  shouldLoadDataFromCacheOnQuickPickOpen,
-  shouldIndexOnStartup,
-  shouldLoadDataFromCacheOnStartup,
-  shouldReconcileOnStartup,
-  syncSeededWorktree,
-  isIndexableFile,
   shouldSearchSelection,
   restoreOnDidChangeValueEventListener,
-  isInitOnStartupEnabledAndWorkspaceCachingEnabledButDataIsEmpty,
-  isInitOnStartupDisabledAndWorkspaceCachingEnabledButDataIsEmpty,
-  isInitOnStartupEnabledAndWorkspaceCachingDisabled,
-  isInitOnStartupDisabledAndWorkspaceCachingDisabled,
   setBusy,
   setQuickPickData,
   getExtensionContext,

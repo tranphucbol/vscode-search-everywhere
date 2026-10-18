@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { controller } from "./commands/controller";
 import { database } from "./database";
-import { fileWatcher } from "./indexing/fileWatcher";
+import { fileWatcher } from "./indexing/sources/fileWatcher";
 
 export async function search() {
   await controller.search();

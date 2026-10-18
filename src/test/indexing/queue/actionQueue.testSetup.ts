@@ -1,11 +1,11 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { actionProcessor } from "../../indexing/actionProcessor";
-import * as actionProcessorEventsEmitter from "../../shared/events";
-import { Action, ActionType } from "../../shared/types";
-import { collections } from "../../shared/collections";
-import { getAction, getActions, getEventEmitter } from "../util/mockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import { actionQueue } from "../../../indexing/queue/actionQueue";
+import * as actionProcessorEventsEmitter from "../../../shared/events";
+import { Action, ActionType } from "../../../shared/types";
+import { collections } from "../../../shared/collections";
+import { getAction, getActions, getEventEmitter } from "../../util/mockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();
@@ -20,7 +20,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "add",
             },
           ],
@@ -32,7 +32,7 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "process",
             },
           ],
@@ -44,11 +44,11 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "process",
             },
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "getIsBusy",
               returns: true,
             },
@@ -80,12 +80,12 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "getPreviousAction",
               returns: undefined,
             },
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
@@ -140,7 +140,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
@@ -162,7 +162,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
@@ -195,7 +195,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
@@ -231,7 +231,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: getActions(
                 1,
@@ -263,13 +263,13 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
             },
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "getPreviousAction",
               returns: undefined,
               returnsIsUndefined: true,
@@ -294,13 +294,13 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,
             },
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "getPreviousAction",
               returns: getAction(ActionType.Rebuild),
             },
@@ -340,7 +340,7 @@ export const getTestSetups = () => {
         stubMultiple(
           [
             {
-              object: actionProcessor,
+              object: actionQueue,
               method: "queue",
               returns: queue,
               isNotMethod: true,

@@ -55,6 +55,16 @@ export const stubMultiple = (
   return stubs;
 };
 
+export const insertAt = (
+  stubs: sinon.SinonStub<any[], any>[],
+  index: number,
+  stub: sinon.SinonStub<any[], any>
+): sinon.SinonStub<any[], any>[] => [
+  ...stubs.slice(0, index),
+  stub,
+  ...stubs.slice(index),
+];
+
 export const restoreStubbedMultiple = (
   configList: RestoreStubbedMultipleConfig[]
 ) => {

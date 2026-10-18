@@ -2,22 +2,20 @@ import { assert } from "chai";
 import { performance } from "perf_hooks";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { actionProcessor } from "../../indexing/actionProcessor";
-import * as cache from "../../platform/cache";
-import * as config from "../../platform/config";
-import { dataConverter } from "../../symbols/dataConverter";
-import { dataService } from "../../symbols/dataService";
-import { database } from "../../database";
-import * as dataServiceEventsEmitter from "../../shared/events";
-import { logger } from "../../platform/logger";
-import { asyncUtils } from "../../shared/async";
-import { messages } from "../../shared/messages";
-import { workspaceFolders } from "../../shared/workspaceFolders";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
-import * as workspaceEventsEmitter from "../../shared/events";
-import { getWorkspaceData } from "../util/mockFactory";
-import { getQpItems } from "../util/qpItemMockFactory";
-import { stubMultiple } from "../util/stubHelpers";
+import * as cache from "../../../platform/cache";
+import { dataConverter } from "../../../symbols/dataConverter";
+import { dataService } from "../../../symbols/dataService";
+import { database } from "../../../database";
+import * as dataServiceEventsEmitter from "../../../shared/events";
+import { logger } from "../../../platform/logger";
+import { asyncUtils } from "../../../shared/async";
+import { messages } from "../../../shared/messages";
+import { workspaceFolders } from "../../../shared/workspaceFolders";
+import { fullIndex } from "../../../indexing/apply/fullIndex";
+import * as workspaceEventsEmitter from "../../../shared/events";
+import { getWorkspaceData } from "../../util/mockFactory";
+import { getQpItems } from "../../util/qpItemMockFactory";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();
@@ -25,63 +23,6 @@ export const getTestSetups = () => {
   return {
     afterEach: () => {
       sandbox.restore();
-    },
-
-    getData: {
-      setupForReturningData: () => {
-        stubMultiple(
-          [
-            {
-              object: cache,
-              method: "getData",
-              returns: getQpItems(),
-            },
-          ],
-          sandbox
-        );
-        return getQpItems();
-      },
-
-      setupForEmptyCache: () => {
-        stubMultiple(
-          [
-            {
-              object: cache,
-              method: "getData",
-              returns: undefined,
-            },
-          ],
-          sandbox
-        );
-        return [];
-      },
-    },
-
-    index: {
-      setupForActionRegistration: () => {
-        return stubMultiple(
-          [
-            {
-              object: actionProcessor,
-              method: "register",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    reindex: {
-      setupForClearingAndIndexing: () => {
-        return stubMultiple(
-          [
-            { object: cache, method: "clear" },
-            { object: database, method: "clearAll" },
-            { object: workspaceIndexer, method: "index" },
-          ],
-          sandbox
-        );
-      },
     },
 
     indexWithProgress: {
@@ -120,41 +61,6 @@ export const getTestSetups = () => {
       },
     },
 
-    registerAction: {
-      setupForActionRegistration: () => {
-        return stubMultiple(
-          [
-            {
-              object: actionProcessor,
-              method: "register",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    downloadData: {
-      setupForDataDownload: () => {
-        stubMultiple(
-          [
-            {
-              object: dataService,
-              method: "fetchData",
-              returns: Promise.resolve(getWorkspaceData()),
-            },
-            {
-              object: dataConverter,
-              method: "convertToQpData",
-              returns: getQpItems(),
-            },
-          ],
-          sandbox
-        );
-        return getQpItems();
-      },
-    },
-
     cancelIndexing: {
       setupForCancellation: () => {
         return stubMultiple(
@@ -178,64 +84,8 @@ export const getTestSetups = () => {
         return stubMultiple(
           [
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "cancelIndexing",
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    getNotificationLocation: {
-      setupForNotificationLocation: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: false,
-            },
-          ],
-          sandbox
-        );
-      },
-
-      setupForWindowLocation: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: true,
-            },
-          ],
-          sandbox
-        );
-      },
-    },
-
-    getNotificationTitle: {
-      setupForNotificationTitle: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: false,
-            },
-          ],
-          sandbox
-        );
-      },
-
-      setupForStatusBarTitle: () => {
-        stubMultiple(
-          [
-            {
-              object: config,
-              method: "fetchShouldDisplayNotificationInStatusBar",
-              returns: true,
             },
           ],
           sandbox
@@ -279,7 +129,7 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "convertMsToSec",
               returns: 1,
             },
@@ -401,7 +251,7 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "convertMsToSec",
               returns: 1,
             },
@@ -458,7 +308,7 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "convertMsToSec",
               returns: 1,
             },
@@ -510,7 +360,7 @@ export const getTestSetups = () => {
               method: "updateData",
             },
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "convertMsToSec",
               returns: 1,
             },
@@ -578,7 +428,7 @@ export const getTestSetups = () => {
               method: "sleep",
             },
             {
-              object: workspaceIndexer,
+              object: fullIndex,
               method: "convertMsToSec",
               returns: 1,
             },
@@ -588,28 +438,5 @@ export const getTestSetups = () => {
       },
     },
 
-    handleDidItemIndexed: {
-      setupForProgressCalculation: () => {
-        // Don't stub getProgressStep - let it work naturally to return the calculated value
-      },
-
-      setupForProgressReporting: () => {
-        stubMultiple(
-          [
-            {
-              object: workspaceIndexer,
-              method: "getProgressStep",
-              returns: 20,
-            },
-            {
-              object: workspaceIndexer,
-              method: "getCurrentProgressValue",
-              returns: 20,
-            },
-          ],
-          sandbox
-        );
-      },
-    },
   };
 };

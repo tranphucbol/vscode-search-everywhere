@@ -2,9 +2,9 @@ import {
   onDidProcessingEventEmitter,
   onWillExecuteActionEventEmitter,
   onWillProcessingEventEmitter,
-} from "../shared/events";
-import { Action, ActionType } from "../shared/types";
-import { collections } from "../shared/collections";
+} from "../../shared/events";
+import { Action, ActionType } from "../../shared/types";
+import { collections } from "../../shared/collections";
 
 function add(action: Action): void {
   assignId(action);
@@ -18,11 +18,11 @@ function assignId(action: Action): void {
 }
 
 function addToQueue(action: Action): void {
-  actionProcessor.queue.push(action);
+  actionQueue.queue.push(action);
 }
 
 async function processIfIsNotBusy(): Promise<void> {
-  !actionProcessor.getIsBusy() && (await actionProcessor.process());
+  !actionQueue.getIsBusy() && (await actionQueue.process());
 }
 
 async function process() {
@@ -37,7 +37,7 @@ async function process() {
 }
 
 async function processEachAction() {
-  while (actionProcessor.queue.length) {
+  while (actionQueue.queue.length) {
     reduce();
     const action = getNextActionFromQueue();
     setPreviousAction(action);
@@ -55,7 +55,7 @@ function getIsBusy() {
 }
 
 function getNextActionFromQueue(): Action | undefined {
-  return actionProcessor.queue.shift();
+  return actionQueue.queue.shift();
 }
 
 function reduce(): void {
@@ -85,18 +85,18 @@ function reduceByActionType(actionType: ActionType) {
 
 function reduceRebuildAction(actionType: ActionType, actions: Action[]) {
   if (isPreviousActionRebuildType()) {
-    actionProcessor.queue = [];
+    actionQueue.queue = [];
   } else if (ifActionArrayContainsRebuildType(actions)) {
     const last = collections.getLastFromArray(
-      actionProcessor.queue,
+      actionQueue.queue,
       (action: Action) => action.type === actionType
     );
-    actionProcessor.queue = [last];
+    actionQueue.queue = [last];
   }
 }
 
 function isPreviousActionRebuildType(): boolean {
-  const previousAction = actionProcessor.getPreviousAction();
+  const previousAction = actionQueue.getPreviousAction();
   return !!previousAction && previousAction.type === ActionType.Rebuild;
 }
 
@@ -119,12 +119,12 @@ function reduceByFsPath(
   fsPath: string
 ) {
   const lastAction: Action = collections.getLastFromArray(
-    actionProcessor.queue,
+    actionQueue.queue,
     (action: Action) =>
       action.type === actionType && action.uri!.path === fsPath
   );
 
-  actionProcessor.queue = actionProcessor.queue.filter(
+  actionQueue.queue = actionQueue.queue.filter(
     shouldActionRemainInQueue.bind(null, actionType, fsPath, lastAction)
   );
 }
@@ -143,7 +143,7 @@ function shouldActionRemainInQueue(
 }
 
 function getActionsFromQueueByType(actionType: ActionType): Action[] {
-  return actionProcessor.queue.filter(
+  return actionQueue.queue.filter(
     (action: Action) => action.type === actionType
   );
 }
@@ -157,7 +157,7 @@ function getPreviousAction() {
 }
 
 async function register(action: Action): Promise<void> {
-  actionProcessor.add(action);
+  actionQueue.add(action);
   await processIfIsNotBusy();
 }
 
@@ -173,7 +173,7 @@ let actionId = 0;
 let isBusy = false;
 let previousAction: Action | undefined = undefined;
 
-export const actionProcessor = {
+export const actionQueue = {
   queue: [] as Action[],
   getIsBusy,
   getPreviousAction,

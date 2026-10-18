@@ -1,19 +1,20 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import * as config from "../../platform/config";
-import { dataService } from "../../symbols/dataService";
-import { database, FileState } from "../../database";
-import { fileWatcher } from "../../indexing/fileWatcher";
-import { logger } from "../../platform/logger";
-import { patternProvider } from "../../platform/patternProvider";
-import { ExcludeMode } from "../../shared/types";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
-import { workspaceReconciler } from "../../indexing/workspaceReconciler";
+import * as config from "../../../platform/config";
+import { dataService } from "../../../symbols/dataService";
+import { database, FileState } from "../../../database";
+import { fileWatcher } from "../../../indexing/sources/fileWatcher";
+import { logger } from "../../../platform/logger";
+import { patternProvider } from "../../../platform/patternProvider";
+import { ExcludeMode } from "../../../shared/types";
+import { changes } from "../../../indexing/queue/changes";
+import { reconciler } from "../../../indexing/sources/reconciler";
 import {
   FakeFileSystemWatcher,
   getFileSystemWatcherStub,
-} from "../util/stubFactory";
-import { stubMultiple } from "../util/stubHelpers";
+} from "../../util/stubFactory";
+import { stubChanges } from "../../util/changesStub";
+import { insertAt, stubMultiple } from "../../util/stubHelpers";
 
 const workspaceRoot = "/workspace";
 
@@ -37,11 +38,11 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
 
   const [
     createFileSystemWatcherStub,
-    registerActionStub,
+    queuedStub,
     reconcileStub,
     deleteByUriStub,
     deleteByUriPrefixStub,
-  ] = stubMultiple(
+  ] = insertAt(stubMultiple(
     [
       {
         object: vscode.workspace,
@@ -55,12 +56,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
         },
       },
       {
-        object: workspaceIndexer,
-        method: "registerAction",
-        returns: Promise.resolve(),
-      },
-      {
-        object: workspaceReconciler,
+        object: reconciler,
         method: "reconcile",
         returns: Promise.resolve(),
       },
@@ -97,7 +93,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
         callsFake: async (uri: vscode.Uri) => onDisk.get(uri.toString()),
       },
       {
-        object: workspaceIndexer,
+        object: changes,
         method: "isRebuilding",
         returns: false,
       },
@@ -147,7 +143,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
       },
     ],
     sandbox
-  );
+  ), 1, stubChanges(sandbox));
 
   fileWatcher.startWatching();
 
@@ -164,7 +160,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
     fire,
     watchers,
     createFileSystemWatcherStub,
-    registerActionStub,
+    queuedStub,
     reconcileStub,
     deleteByUriStub,
     deleteByUriPrefixStub,

@@ -1,6 +1,6 @@
 import * as assert from "assert";
-import { fileWatcher } from "../../indexing/fileWatcher";
-import { ActionTrigger, ActionType } from "../../shared/types";
+import { fileWatcher } from "../../../indexing/sources/fileWatcher";
+import { ActionTrigger, ActionType, DetailedActionType } from "../../../shared/types";
 import {
   fileUri,
   getTestSetups,
@@ -19,70 +19,66 @@ describe("FileWatcher", () => {
 
   describe("processBatch", () => {
     it("should queue an update when an included file is created outside VS Code", async () => {
-      const { fire, registerActionStub } = setups.processBatch.setupForIncludedFile();
+      const { fire, queuedStub } = setups.processBatch.setupForIncludedFile();
       const uri = fileUri("src/NewService.ts");
 
       fire("create", uri);
       await fileWatcher.processBatch();
 
-      assert.equal(registerActionStub.calledOnce, true);
-      const [type, , trigger, actionUri] = registerActionStub.firstCall.args;
+      assert.equal(queuedStub.calledOnce, true);
+      const [type, actionUri, , trigger] = queuedStub.firstCall.args;
       assert.equal(type, ActionType.Update);
       assert.equal(trigger, ActionTrigger.DidChangeFileSystem);
       assert.equal(actionUri.toString(), uri.toString());
     });
 
     it("should ignore a created file that the exclude patterns match", async () => {
-      const { fire, registerActionStub } = setups.processBatch.setupForIncludedFile();
+      const { fire, queuedStub } = setups.processBatch.setupForIncludedFile();
 
       fire("create", fileUri("node_modules/lib/index.ts"));
       fire("create", fileUri("src/generated/api.ts"));
       await fileWatcher.processBatch();
 
-      assert.equal(registerActionStub.called, false);
+      assert.equal(queuedStub.called, false);
     });
 
     it("should ignore a change to a file that is open in an editor", async () => {
       const uri = fileUri("src/Open.ts");
-      const { fire, registerActionStub } = setups.processBatch.setupForOpenFile(uri);
+      const { fire, queuedStub } = setups.processBatch.setupForOpenFile(uri);
 
       fire("change", uri);
       await fileWatcher.processBatch();
 
-      assert.equal(registerActionStub.called, false);
+      assert.equal(queuedStub.called, false);
     });
 
     it("should ignore a change whose mtime and size equal the stored state", async () => {
       const uri = fileUri("src/Saved.ts");
-      const { fire, registerActionStub } =
+      const { fire, queuedStub } =
         setups.processBatch.setupForUnchangedState(uri);
 
       fire("change", uri);
       await fileWatcher.processBatch();
 
-      assert.equal(registerActionStub.called, false);
+      assert.equal(queuedStub.called, false);
     });
 
     it("should remove a deleted path and everything under it", async () => {
-      const { fire, registerActionStub, deleteByUriStub, deleteByUriPrefixStub } =
-        setups.processBatch.setupForIncludedFile();
+      const { fire, queuedStub } = setups.processBatch.setupForIncludedFile();
       const uri = fileUri("src/feature");
 
       fire("delete", uri);
       await fileWatcher.processBatch();
 
-      assert.equal(registerActionStub.calledOnce, true);
-      const [type, fn] = registerActionStub.firstCall.args;
+      assert.equal(queuedStub.calledOnce, true);
+      const [type, actionUri, detailedType] = queuedStub.firstCall.args;
       assert.equal(type, ActionType.Remove);
-      fn();
-      assert.deepEqual(deleteByUriStub.firstCall.args, [uri.toString()]);
-      assert.deepEqual(deleteByUriPrefixStub.firstCall.args, [
-        `${uri.toString()}/`,
-      ]);
+      assert.equal(actionUri.toString(), uri.toString());
+      assert.equal(detailedType, DetailedActionType.RemoveFileOrDirectory);
     });
 
     it("should reconcile instead of queuing when a batch exceeds the burst threshold", async () => {
-      const { fire, registerActionStub, reconcileStub } =
+      const { fire, queuedStub, reconcileStub } =
         setups.processBatch.setupForIncludedFile();
 
       for (let i = 0; i <= 1000; i++) {
@@ -91,7 +87,7 @@ describe("FileWatcher", () => {
       await fileWatcher.processBatch();
 
       assert.equal(reconcileStub.calledOnceWith(ActionTrigger.Reconcile), true);
-      assert.equal(registerActionStub.called, false);
+      assert.equal(queuedStub.called, false);
     });
   });
 

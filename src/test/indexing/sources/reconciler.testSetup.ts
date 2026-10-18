@@ -1,10 +1,11 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import { dataService } from "../../symbols/dataService";
-import { database, FileState } from "../../database";
-import { logger } from "../../platform/logger";
-import { workspaceIndexer } from "../../indexing/workspaceIndexer";
-import { stubMultiple } from "../util/stubHelpers";
+import { dataService } from "../../../symbols/dataService";
+import { database, FileState } from "../../../database";
+import { logger } from "../../../platform/logger";
+import { changes } from "../../../indexing/queue/changes";
+import { stubChanges } from "../../util/changesStub";
+import { stubMultiple } from "../../util/stubHelpers";
 
 export const fileUri = (name: string) => vscode.Uri.file(`/workspace/src/${name}`);
 
@@ -16,15 +17,10 @@ function stubDisk(
   stored: Map<string, FileState>,
   indexedUris: string[] = [...stored.keys()]
 ) {
-  const [registerActionStub, indexStub, upsertFileStatesStub] = stubMultiple(
+  const [queuedStub, indexStub, upsertFileStatesStub] = [stubChanges(sandbox), ...stubMultiple(
     [
       {
-        object: workspaceIndexer,
-        method: "registerAction",
-        returns: Promise.resolve(),
-      },
-      {
-        object: workspaceIndexer,
+        object: changes,
         method: "reindex",
         returns: Promise.resolve(),
       },
@@ -67,8 +63,8 @@ function stubDisk(
       },
     ],
     sandbox
-  );
-  return { registerActionStub, indexStub, upsertFileStatesStub };
+  )];
+  return { queuedStub, indexStub, upsertFileStatesStub };
 }
 
 function manyFiles(count: number, mtime: number): Map<string, FileState> {
