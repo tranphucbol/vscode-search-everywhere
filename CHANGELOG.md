@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+
+## [0.4.2] - 2026-10-18
 ### 🐛 Fixes
 - **Seeded worktrees opened through a symlink kept a stale index**: when the worktree's path ran through a symlink (such as `/tmp` on macOS), git reported the files under the resolved path, so every file in the git delta was dropped and new, changed and deleted files never reached the index. Files synced on startup are now also indexed with their symbols, after waiting for the language server, instead of by name only.
 
