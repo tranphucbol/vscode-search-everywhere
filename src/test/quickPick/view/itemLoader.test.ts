@@ -123,6 +123,28 @@ describe("QuickPick item loader", () => {
       sandbox.restore();
       control.dispose();
     });
+
+    it("should search without a range suffix and attach the target lines", () => {
+      const control = vscode.window.createQuickPick<any>();
+      control.value = "User.ts:50-100";
+      const item = getQpItems()[0];
+      const sandbox = sinon.createSandbox();
+      sandbox.stub(quickPickState, "getControl").returns(control);
+      sandbox.stub(quickPickState, "getShouldUseItemsFilterPhrases").returns(false);
+      sandbox.stub(quickPickState, "getShouldItemsBeSorted").returns(false);
+      sandbox.stub(database, "isReady").returns(true);
+      const searchStub = sandbox.stub(database, "search").returns([item]);
+
+      quickPick.loadItems();
+
+      assert.equal(searchStub.firstCall.args[0], "User.ts");
+      const loaded = control.items[0];
+      assert.equal(loaded.targetPosition.line, 49);
+      assert.equal(loaded.targetEndLine, 99);
+      assert.isUndefined(item.targetEndLine);
+      sandbox.restore();
+      control.dispose();
+    });
   });
 
   describe("loadItems with a qualified query", () => {

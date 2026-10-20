@@ -6,7 +6,7 @@ export const HAND_OFF_PREFIXES: Record<string, HandOffTarget> = {
   ">": "commands",
   "%": "text",
 };
-const LINE_SUFFIX_REGEX = /^(.*?\S)\s*:(\d+)(?::(\d+))?$/;
+const LINE_SUFFIX_REGEX = /^(.*?\S)\s*:(\d+)(?::(\d+)|-(\d*))?$/;
 
 export interface ResolvedFilterPhrase {
   kinds?: number[];
@@ -56,30 +56,43 @@ function resolveFilterPhrase(text: string): ResolvedFilterPhrase {
 export function parseLineSuffix(query: string): {
   query: string;
   position?: vscode.Position;
+  endLine?: number;
 } {
   const match = query.match(LINE_SUFFIX_REGEX);
   if (!match) {
     return { query };
   }
   const line = Math.max(parseInt(match[2], 10) - 1, 0);
+  if (match[4]) {
+    const endLine = Math.max(parseInt(match[4], 10) - 1, 0);
+    return {
+      query: match[1],
+      position: new vscode.Position(Math.min(line, endLine), 0),
+      endLine: Math.max(line, endLine),
+    };
+  }
   const character = match[3] ? Math.max(parseInt(match[3], 10) - 1, 0) : 0;
   return { query: match[1], position: new vscode.Position(line, character) };
 }
 
 function withQueryOverrides(
   items: QuickPickItem[],
-  targetPosition?: vscode.Position
+  targetPosition?: vscode.Position,
+  targetEndLine?: number
 ): QuickPickItem[] {
   // Clone so cached database results are not mutated; alwaysShow keeps VS Code
   // from hiding items whose label does not contain the "@@" filter phrase, the
   // ":line" suffix, the "Class." qualifier, the words of a multi-word or "*" query, or the pieces of a
   // CamelHumps words query such as "uSerImp".
+  const target = targetPosition
+    ? targetEndLine === undefined
+      ? { targetPosition }
+      : { targetPosition, targetEndLine }
+    : {};
   return items.map((item) =>
     item.kind === vscode.QuickPickItemKind.Separator
       ? item
-      : targetPosition
-      ? { ...item, targetPosition, alwaysShow: true }
-      : { ...item, alwaysShow: true }
+      : { ...item, ...target, alwaysShow: true }
   );
 }
 

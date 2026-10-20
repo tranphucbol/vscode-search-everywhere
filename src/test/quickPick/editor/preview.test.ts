@@ -10,6 +10,7 @@ import {
   getQpItem,
   getQpItemWithNamePosition,
 } from "../../util/qpItemMockFactory";
+import { getTextDocumentWithLines } from "../../util/stubFactory";
 
 describe("QuickPick preview", () => {
   describe("preview on select", () => {
@@ -142,6 +143,23 @@ describe("QuickPick preview", () => {
       const options = showTextDocumentStub.firstCall.args[1];
       assert.isTrue(options.selection.isEmpty);
       assert.isTrue(options.selection.start.isEqual(new vscode.Position(12, 4)));
+    });
+
+    it("should preview a :start-end target with its lines selected", async () => {
+      (vscode.workspace.openTextDocument as sinon.SinonStub).callsFake(
+        async () => getTextDocumentWithLines(200, 10)
+      );
+      quickPick.show();
+
+      await moveTo({
+        ...getQpItemWithNamePosition(),
+        targetPosition: new vscode.Position(49, 0),
+        targetEndLine: 99,
+      });
+
+      const options = showTextDocumentStub.firstCall.args[1];
+      assert.isTrue(options.selection.start.isEqual(new vscode.Position(49, 0)));
+      assert.isTrue(options.selection.end.isEqual(new vscode.Position(99, 10)));
     });
   });
 });
