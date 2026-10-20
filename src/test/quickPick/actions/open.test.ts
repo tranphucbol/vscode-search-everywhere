@@ -10,6 +10,7 @@ import {
   getQpItemWithNamePosition,
 } from "../../util/qpItemMockFactory";
 import { stubControl } from "../../util/quickPickStubs";
+import { getTextDocumentWithLines } from "../../util/stubFactory";
 
 describe("QuickPick open", () => {
   describe("openToTheSide", () => {
@@ -37,12 +38,19 @@ describe("QuickPick open", () => {
   describe("opening at the symbol name", () => {
     let sandbox: sinon.SinonSandbox;
     let highlight: boolean;
-    let editor: { selection?: vscode.Selection; revealRange: sinon.SinonStub };
+    let editor: {
+      document: vscode.TextDocument;
+      selection?: vscode.Selection;
+      revealRange: sinon.SinonStub;
+    };
 
     beforeEach(() => {
       sandbox = sinon.createSandbox();
       highlight = false;
-      editor = { revealRange: sandbox.stub() };
+      editor = {
+        document: getTextDocumentWithLines(200, 10),
+        revealRange: sandbox.stub(),
+      };
       sandbox
         .stub(config, "fetchShouldHighlightSymbol")
         .callsFake(() => highlight);
@@ -102,6 +110,53 @@ describe("QuickPick open", () => {
 
       assert.isTrue(editor.selection!.active.isEqual(targetPosition));
       assert.isTrue(revealed().start.isEqual(targetPosition));
+    });
+
+    const withLines = (startLine: number, targetEndLine: number) => ({
+      ...getQpItemWithNamePosition(),
+      targetPosition: new vscode.Position(startLine, 0),
+      targetEndLine,
+    });
+
+    it("should select whole lines for a :start-end target", async () => {
+      await quickPick.openItem(withLines(49, 99));
+
+      assert.isTrue(editor.selection!.anchor.isEqual(new vscode.Position(49, 0)));
+      assert.isTrue(editor.selection!.active.isEqual(new vscode.Position(99, 10)));
+    });
+
+    it("should clamp a :start-end target past the end of the file to its last line", async () => {
+      await quickPick.openItem(withLines(189, 9998));
+      assert.isTrue(editor.selection!.start.isEqual(new vscode.Position(189, 0)));
+      assert.isTrue(editor.selection!.end.isEqual(new vscode.Position(199, 10)));
+
+      editor.revealRange.resetHistory();
+      await quickPick.openItem(withLines(4999, 9998));
+      assert.isTrue(editor.selection!.start.isEqual(new vscode.Position(199, 0)));
+      assert.isTrue(editor.selection!.end.isEqual(new vscode.Position(199, 10)));
+    });
+
+    it("should select a :start-end target with symbol highlighting off", async () => {
+      highlight = true;
+      await quickPick.openItem(withLines(49, 99));
+      const highlighted = editor.selection!;
+
+      highlight = false;
+      await quickPick.openItem(withLines(49, 99));
+
+      assert.isTrue(editor.selection!.isEqual(highlighted));
+      assert.isTrue(editor.selection!.start.isEqual(new vscode.Position(49, 0)));
+    });
+
+    it("should reveal a :start-end target from its start", async () => {
+      await quickPick.openItem(withLines(49, 99));
+
+      assert.isTrue(revealed().start.isEqual(new vscode.Position(49, 0)));
+      assert.isTrue(revealed().end.isEqual(new vscode.Position(99, 10)));
+      assert.equal(
+        editor.revealRange.firstCall.args[1],
+        vscode.TextEditorRevealType.InCenterIfOutsideViewport
+      );
     });
 
     it("should fall back to the range start when there is no name position", async () => {

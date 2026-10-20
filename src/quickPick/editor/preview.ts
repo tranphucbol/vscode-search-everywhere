@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { fetchPreviewOnSelect } from "../../platform/settings/config";
 import { ensureUri } from "../../shared/paths";
 import { QuickPickItem } from "../../shared/types";
-import { getNavigationPosition } from "./positions";
+import { getNavigationPosition, getTargetSelection } from "./positions";
 import { session } from "../state";
 
 const PREVIEW_DELAY_MS = 150;
@@ -71,19 +71,22 @@ function handleDidChangeActive(items: readonly QuickPickItem[]): void {
   }, PREVIEW_DELAY_MS);
 }
 
-function getPreviewPosition(qpItem: QuickPickItem): vscode.Position {
-  if (qpItem.targetPosition) {
-    return qpItem.targetPosition;
+function getPreviewRange(
+  document: vscode.TextDocument,
+  qpItem: QuickPickItem
+): vscode.Range {
+  const targetSelection = getTargetSelection(document, qpItem);
+  if (targetSelection) {
+    return targetSelection;
   }
-  return getNavigationPosition(qpItem);
+  const position = getNavigationPosition(qpItem);
+  return new vscode.Range(position, position);
 }
 
 async function previewItem(qpItem: QuickPickItem): Promise<void> {
   if (!session.isVisible) {
     return;
   }
-  const position = getPreviewPosition(qpItem);
-  const range = new vscode.Range(position, position);
   try {
     const document = await vscode.workspace.openTextDocument(
       ensureUri(qpItem.uri)
@@ -91,6 +94,7 @@ async function previewItem(qpItem: QuickPickItem): Promise<void> {
     if (!session.isVisible) {
       return;
     }
+    const range = getPreviewRange(document, qpItem);
     const editor = await vscode.window.showTextDocument(document, {
       preview: true,
       preserveFocus: true,

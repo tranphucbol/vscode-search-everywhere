@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### ✨ Features
+- **Select a line range**: end the query with `:start-end`, such as `User.ts:50-100`, to open the selected file or symbol with those whole lines selected, in the preview too. A reversed range is swapped, an end past the last line stops at the last line, and `:50-` still typing acts as `:50`.
 
 ## [0.4.2] - 2026-10-18
 ### 🐛 Fixes

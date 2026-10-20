@@ -72,6 +72,22 @@ export function getTextDocumentStub(
   } as vscode.TextDocument;
 }
 
+export function getTextDocumentWithLines(
+  lineCount: number,
+  lineLength: number = 10,
+  uriPath: string = "#"
+): vscode.TextDocument {
+  return {
+    ...getTextDocumentStub(false, uriPath),
+    lineCount,
+    lineAt: (line: number) => {
+      const start = new vscode.Position(line, 0);
+      const end = new vscode.Position(line, lineLength);
+      return { lineNumber: line, range: new vscode.Range(start, end) } as vscode.TextLine;
+    },
+  } as vscode.TextDocument;
+}
+
 export interface FakeFileSystemWatcher extends vscode.FileSystemWatcher {
   globPattern: vscode.GlobPattern;
   fireCreate(uri: vscode.Uri): void;

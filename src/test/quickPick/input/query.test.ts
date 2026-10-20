@@ -45,5 +45,30 @@ describe("QuickPick query", () => {
     it("should not treat a bare line suffix as a query", () => {
       assert.deepEqual(parseLineSuffix(":5"), { query: ":5" });
     });
+
+    it("should extract a line range as a 0-based start position and end line", () => {
+      const result = parseLineSuffix("User.ts:50-100");
+      assert.equal(result.query, "User.ts");
+      assert.equal(result.position!.line, 49);
+      assert.equal(result.position!.character, 0);
+      assert.equal(result.endLine, 99);
+    });
+
+    it("should swap a reversed line range", () => {
+      const result = parseLineSuffix("User.ts:100-50");
+      assert.equal(result.position!.line, 49);
+      assert.equal(result.endLine, 99);
+    });
+
+    it("should treat a range with no end line as a single line", () => {
+      const result = parseLineSuffix("User.ts:50-");
+      assert.equal(result.query, "User.ts");
+      assert.equal(result.position!.line, 49);
+      assert.isUndefined(result.endLine);
+    });
+
+    it("should not treat a bare line range as a query", () => {
+      assert.deepEqual(parseLineSuffix(":5-9"), { query: ":5-9" });
+    });
   });
 });

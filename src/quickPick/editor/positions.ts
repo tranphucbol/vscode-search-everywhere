@@ -26,6 +26,26 @@ export function getRevealRange(qpItem: QuickPickItem): vscode.Range {
   return new vscode.Range(toPosition(range.start), name);
 }
 
+export function getTargetSelection(
+  document: vscode.TextDocument,
+  qpItem: QuickPickItem
+): vscode.Selection | undefined {
+  const { targetPosition, targetEndLine } = qpItem;
+  if (!targetPosition) {
+    return undefined;
+  }
+  if (targetEndLine === undefined) {
+    return new vscode.Selection(targetPosition, targetPosition);
+  }
+  const lastLine = Math.max(document.lineCount - 1, 0);
+  const startLine = Math.min(targetPosition.line, lastLine);
+  const endLine = Math.min(Math.max(targetEndLine, startLine), lastLine);
+  return new vscode.Selection(
+    new vscode.Position(startLine, 0),
+    document.lineAt(endLine).range.end
+  );
+}
+
 export function getSelectionForQpItem(
   qpItem: QuickPickItem,
   shouldHighlightSymbol: boolean

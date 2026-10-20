@@ -78,6 +78,7 @@ the language servers while indexing, and for libraries, commands and text search
 | `impl user` | `UserServiceImpl` (words in any order) |
 | `user*impl` | `UserServiceImpl` (wildcard) |
 | `HTTPServer.ts:13`, `src/user.ts:10:5` | opens the item at that line and column |
+| `User.ts:50-100` | opens the item with lines 50 to 100 selected |
 | `@@order` | types only: classes, enums, interfaces, structs (category) |
 | `!!save` | members only: methods, fields, constructors, functions… (category) |
 | `$$order` | files only (category) |
@@ -108,7 +109,7 @@ the language servers while indexing, and for libraries, commands and text search
   literally inside a query; a leading `>` or `%` is a [hand-off](#beyond-the-index). Queries
   containing `/` use the directory search instead of multi-word and `*` matching.
 - **Jump to line**: append `:line` or `:line:column` to the query to open the selected item at
-  that position.
+  that position, or `:start-end` (such as `User.ts:50-100`) to open it with those lines selected.
 
   ![Jump to line](img/jump-to-line.gif)
 

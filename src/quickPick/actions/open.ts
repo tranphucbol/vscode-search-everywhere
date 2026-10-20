@@ -4,7 +4,11 @@ import { ensureUri } from "../../shared/paths";
 import { QuickPickItem } from "../../shared/types";
 import { handOff } from "../input/handOff";
 import { itemLoader } from "../view/itemLoader";
-import { getRevealRange, getSelectionForQpItem } from "../editor/positions";
+import {
+  getRevealRange,
+  getSelectionForQpItem,
+  getTargetSelection,
+} from "../editor/positions";
 import { preview } from "../editor/preview";
 import { query } from "../input/query";
 import { recentItems } from "../view/recentItems";
@@ -27,11 +31,11 @@ async function openItem(
 }
 
 function selectQpItem(editor: vscode.TextEditor, qpItem: QuickPickItem): void {
-  if (qpItem.targetPosition) {
-    const position = qpItem.targetPosition;
-    editor.selection = new vscode.Selection(position, position);
+  const targetSelection = getTargetSelection(editor.document, qpItem);
+  if (targetSelection) {
+    editor.selection = targetSelection;
     editor.revealRange(
-      new vscode.Range(position, position),
+      targetSelection,
       vscode.TextEditorRevealType.InCenterIfOutsideViewport
     );
     return;

@@ -108,6 +108,8 @@ export interface QuickPickItem extends vscode.QuickPickItem {
   filterPhrase?: string;
   handOff?: HandOffTarget;
   targetPosition?: vscode.Position;
+  // 0-based, inclusive; set with targetPosition by a ":start-end" query.
+  targetEndLine?: number;
   containerName?: string;
   matchBand?: MatchBand;
   isSecondary?: boolean;

@@ -93,7 +93,11 @@ function loadItems() {
     !!database.parsePatternQuery(cleanQuery) ||
     database.parseCamelHumpsQuery(cleanQuery)?.kind === "words";
   const dbResults = needsOverrides
-    ? query.withQueryOverrides(searchResults, lineSuffix.position)
+    ? query.withQueryOverrides(
+        searchResults,
+        lineSuffix.position,
+        lineSuffix.endLine
+      )
     : searchResults;
   itemDecoration.reinitQpItemsButton(dbResults);
   itemDecoration.syncItemsFilterPhrases(dbResults);
