@@ -128,7 +128,7 @@ const keys = {
   },
   useFileIconTheme: {
     name: "useFileIconTheme",
-    value: false,
+    value: true,
   },
   previewOnSelect: {
     name: "previewOnSelect",

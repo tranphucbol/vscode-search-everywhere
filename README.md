@@ -332,8 +332,8 @@ the language servers while indexing, and for libraries, commands and text search
 
   ![Debounce disabled](img/debounce-off.gif)
 
-- A configurable icon for each item type (`searchEverywhere.icons`), or file icons from the
-  active file icon theme (`searchEverywhere.useFileIconTheme`).
+- File icons from the active file icon theme (`searchEverywhere.useFileIconTheme`, on by
+  default), and a configurable icon for each item type (`searchEverywhere.icons`).
 
 ## Performance
 
@@ -625,7 +625,7 @@ against them. Measured on an Apple M4:
 
   Highlight the selected symbol after opening it.
 
-- `searchEverywhere.useFileIconTheme`, default `false`
+- `searchEverywhere.useFileIconTheme`, default `true`
 
   Show file results with icons from the active VS Code file icon theme (e.g. Seti, Material Icon
   Theme) instead of the built-in icon. Symbols keep their built-in icons. Requires VS Code 1.108
