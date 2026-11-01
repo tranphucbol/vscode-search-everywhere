@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { matchesGlob } from "../../shared/glob";
+import { expandBraces, matchesGlob, mergeGlobs } from "../../shared/glob";
 
 describe("Glob", () => {
   describe("matchesGlob", () => {
@@ -36,6 +36,47 @@ describe("Glob", () => {
     it("should match any glob of an array and ignore empty globs", () => {
       assert.equal(matchesGlob("a.sum", ["", "**/*.sum"]), true);
       assert.equal(matchesGlob("a.go", ""), false);
+    });
+  });
+
+  describe("expandBraces", () => {
+    it("should expand every brace group, nested ones included", () => {
+      assert.deepEqual(expandBraces("**/*.go"), ["**/*.go"]);
+      assert.deepEqual(expandBraces("src/*.{ts,{js,jsx}}"), [
+        "src/*.ts",
+        "src/*.js",
+        "src/*.jsx",
+      ]);
+      assert.deepEqual(expandBraces("**/*.{test,spec}.{ts,tsx}"), [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+      ]);
+    });
+
+    it("should keep a glob with an unclosed brace as it is", () => {
+      assert.deepEqual(expandBraces("**/*.{ts"), ["**/*.{ts"]);
+    });
+  });
+
+  describe("mergeGlobs", () => {
+    it("should keep a single glob unchanged", () => {
+      assert.equal(mergeGlobs(["**/*.{js,ts}", ""]), "**/*.{js,ts}");
+      assert.equal(mergeGlobs([]), "");
+    });
+
+    it("should merge globs into one flat brace group matching the same files", () => {
+      const globs = ["**/*.{ts,tsx}", "**/*.{yaml,ts}", "**/{.env,.env.*,Dockerfile}"];
+      const merged = mergeGlobs(globs);
+
+      assert.equal(
+        merged,
+        "{**/*.ts,**/*.tsx,**/*.yaml,**/.env,**/.env.*,**/Dockerfile}"
+      );
+      ["src/a.ts", "deploy/values.yaml", ".env.local", "docker/Dockerfile", "a.md"].forEach(
+        (path) => assert.equal(matchesGlob(path, merged), matchesGlob(path, globs), path)
+      );
     });
   });
 });

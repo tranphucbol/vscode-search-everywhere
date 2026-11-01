@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import * as config from "../../../platform/settings/config";
+import { setActivePresets } from "../../../platform/settings/presets";
 import { getTestSetups } from "./config.testSetup";
 import { getConfigurationChangeEvent } from "../../util/eventMockFactory";
 
@@ -266,6 +267,40 @@ describe("Config", () => {
       const key = "include";
 
       assert.equal(config.fetchInclude(), configuration[section][key]);
+    });
+  });
+
+  describe("fetchAlwaysInclude", () => {
+    afterEach(() => {
+      setActivePresets([]);
+      delete configuration.searchEverywhere.languagePresets;
+    });
+
+    it("should return the always include patterns from the configuration", () => {
+      assert.deepEqual(config.fetchAlwaysInclude(), [
+        "**/*.{json,yaml}",
+        "**/Dockerfile",
+      ]);
+    });
+
+    it("should not let a language preset change the always include patterns", () => {
+      configuration.searchEverywhere.languagePresets = "auto";
+      setActivePresets(["go"]);
+
+      assert.notEqual(config.fetchInclude(), configuration.searchEverywhere.include);
+      assert.deepEqual(config.fetchAlwaysInclude(), [
+        "**/*.{json,yaml}",
+        "**/Dockerfile",
+      ]);
+    });
+
+    it("should include the always include patterns in the indexed config snapshot", () => {
+      const snapshot = JSON.parse(config.fetchIndexedConfigSnapshot());
+
+      assert.deepEqual(snapshot.alwaysInclude, [
+        "**/*.{json,yaml}",
+        "**/Dockerfile",
+      ]);
     });
   });
 

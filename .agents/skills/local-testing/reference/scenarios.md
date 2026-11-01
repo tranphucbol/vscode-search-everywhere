@@ -1,6 +1,6 @@
 # Scenarios
 
-Steps and expected results on the `acme-shop` sample with default settings (17 files, 77 items),
+Steps and expected results on the `acme-shop` sample with default settings (19 files, 79 items),
 recorded with VS Code 1.142 and its built-in TypeScript server. `SE` is the driver function from
 `SKILL.md`. Rows are written as `label  description`; the path line is left out unless it matters.
 
@@ -43,7 +43,7 @@ src/utils/dates.ts               addDays()
 src/generated/Schema.ts          interface GeneratedSchema; listed in .gitignore
 ```
 
-`--big` adds `src/modules/<domain><n>/<Name>Service.ts` (400 by default: 417 files, 2,477 items),
+`--big` adds `src/modules/<domain><n>/<Name>Service.ts` (400 by default: 419 files, 2,479 items),
 e.g. `Payment1Service.ts`, `Payment2Service.ts`.
 
 ## Query syntax
@@ -232,23 +232,40 @@ itself (`indexing/sources/settingsEvents.ts`). Wait about 3 s after `SE set`, th
 
 ```sh
 SE set excludeMode=gitignore
-SE command "Search everywhere: Reload"   # index ready: ... scanned files: 16 | indexed items: 75
+SE command "Search everywhere: Reload"   # index ready: ... scanned files: 18 | indexed items: 77
 SE search "Schema"                       # (no rows); with the default mode Schema.ts is found
 ```
 
 | Setting | Reload result | Check |
 |---|---|---|
-| default | 17 files, 77 items | |
-| `excludeMode=gitignore` | 16 files, 75 items | `Schema` finds nothing |
-| `excludeProperties=false` | 94 items | `email` finds `email  Property at line: 5 in User` |
-| `excludeVariables=true` | 65 items | `requestCount`, `MAX_VALUE`, `EMPTY_STRING` find nothing |
-| `itemsFilter={"ignoredKinds":[5]}` (methods) | 57 items | `save` finds nothing |
-| `itemsFilter={"ignoredNames":["Order"]}` | 70 items | `Order` finds nothing: every name containing `Order` is dropped, files included |
+| default | 19 files, 79 items | |
+| `excludeMode=gitignore` | 18 files, 77 items | `Schema` finds nothing |
+| `excludeProperties=false` | 96 items | `email` finds `email  Property at line: 5 in User` |
+| `excludeVariables=true` | 67 items | `requestCount`, `MAX_VALUE`, `EMPTY_STRING` find nothing |
+| `itemsFilter={"ignoredKinds":[5]}` (methods) | 59 items | `save` finds nothing |
+| `itemsFilter={"ignoredNames":["Order"]}` | 61 items | `Order` finds nothing: every name containing `Order` is dropped, files included |
 | `include="**/*.ts"`, `exclude=[...]` | counts change accordingly | |
 
 Put `itemsFilter` in single quotes so the shell keeps the JSON. Restore with
 `SE set 'itemsFilter={"allowedKinds":[],"ignoredKinds":[],"ignoredNames":[]}'`, or `SE stop` and
 start again.
+
+## Config files (`alwaysInclude`)
+
+```sh
+SE search "tsconfig"          # tsconfig.json, by name only
+SE search "compilerOptions"   # (no rows): config files get no symbols in the index
+printf 'services:\n' > /tmp/se-lt/acme-shop/docker-compose.yml
+mkdir -p /tmp/se-lt/acme-shop/node_modules/lib && echo '{}' > /tmp/se-lt/acme-shop/node_modules/lib/package.json
+sleep 2
+SE search "docker-compose"    # docker-compose.yml, picked up by the file watcher
+SE search "package.json"      # /package.json only; node_modules stays excluded
+SE set 'alwaysInclude=[]'     # reindexes: 17 files, 77 items
+SE search "tsconfig"          # (no rows)
+```
+
+Search `compilerOptions` before opening `tsconfig.json`: an open editor indexes its file with
+symbols.
 
 ## Notifications and debounce
 
@@ -258,12 +275,12 @@ Use the big sample so indexing is slow enough to see:
 SE start --big
 SE command "Search everywhere: Reload"
 # seen while indexing:
-#   - toast: Indexing workspace... file: 58 / 417 ... 14%
-#   - toast: Elapsed time: 1s Scanned files: 417 Indexed items: 2477
+#   - toast: Indexing workspace... file: 58 / 419 ... 14%
+#   - toast: Elapsed time: 1s Scanned files: 419 Indexed items: 2479
 SE set shouldDisplayNotificationInStatusBar=true
 SE command "Search everywhere: Reload"
 # seen while indexing:
-#   - status: Indexing...: 47 / 417 ... 11%
+#   - status: Indexing...: 47 / 419 ... 11%
 #   - toast: Elapsed time: ...
 ```
 

@@ -52,7 +52,13 @@ async function handleDidChangeConfiguration(
 function shouldRestartFileWatcher(
   event: vscode.ConfigurationChangeEvent
 ): boolean {
-  return ["include", "exclude", "excludeMode", "watchFileSystem"].some(
+  return [
+    "include",
+    "alwaysInclude",
+    "exclude",
+    "excludeMode",
+    "watchFileSystem",
+  ].some(
     (config: string) => event.affectsConfiguration(`${defaultSection}.${config}`)
   );
 }

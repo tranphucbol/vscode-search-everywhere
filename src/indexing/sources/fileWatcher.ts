@@ -30,7 +30,7 @@ function startWatching(): void {
   }
 
   const contentWatcher = vscode.workspace.createFileSystemWatcher(
-    patternProvider.getIncludePatterns() || "**/*",
+    patternProvider.getIncludeGlob() || "**/*",
     false,
     false,
     true

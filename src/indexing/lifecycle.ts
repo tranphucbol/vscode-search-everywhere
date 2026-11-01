@@ -28,8 +28,20 @@ export interface QuickPickHandle {
 }
 
 function clearIndexBuiltWithOtherConfig() {
+  const currentConfig = fetchIndexedConfigSnapshot();
+  if (database.wasSeededFromTemplate()) {
+    const seedConfig = database.getSeedMeta()?.configSnapshot;
+    if (seedConfig !== currentConfig) {
+      logger.log(
+        "Shared repository template was built with other index settings; indexing this worktree from scratch."
+      );
+      database.setSeededFromTemplate(false);
+      database.clearAll();
+    }
+    return;
+  }
   const indexedConfig = getIndexedConfig();
-  if (indexedConfig && indexedConfig !== fetchIndexedConfigSnapshot()) {
+  if (indexedConfig && indexedConfig !== currentConfig) {
     logger.log(
       "Language presets or index settings changed since the last index; the workspace will be reindexed."
     );

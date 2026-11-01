@@ -31,6 +31,51 @@ describe("Files", () => {
     });
   });
 
+  describe("fetchUris", () => {
+    it("should list the include and always include files in one findFiles call", async () => {
+      const { findFilesStub } = setups.fetchUris.setupForIncludePatterns([
+        "**/*.{ts,tsx}",
+        "**/*.{yaml,md}",
+        "**/{.env,Dockerfile}",
+      ]);
+
+      await files.fetchUris();
+
+      assert.equal(findFilesStub.calledOnce, true);
+      assert.deepEqual(findFilesStub.firstCall.args, [
+        "{**/*.ts,**/*.tsx,**/*.yaml,**/*.md,**/.env,**/Dockerfile}",
+        "**/node_modules/**",
+      ]);
+    });
+
+    it("should pass a single include pattern to findFiles unchanged", async () => {
+      const { findFilesStub } = setups.fetchUris.setupForIncludePatterns([
+        "**/*.{js,jsx,ts,tsx}",
+      ]);
+
+      await files.fetchUris();
+
+      assert.deepEqual(findFilesStub.firstCall.args, [
+        "**/*.{js,jsx,ts,tsx}",
+        "**/node_modules/**",
+      ]);
+    });
+  });
+
+  describe("isNamesOnly", () => {
+    it("should treat a file matched only by an always include pattern as names only", () => {
+      setups.isNamesOnly.setupForNamesOnlyGlobs("", true);
+
+      assert.equal(files.isNamesOnly(vscode.Uri.file("/./fake/README.md")), true);
+    });
+
+    it("should keep symbols for a file matched by include even when it is always included", () => {
+      setups.isNamesOnly.setupForNamesOnlyGlobs("", false);
+
+      assert.equal(files.isNamesOnly(vscode.Uri.file("/./fake/README.md")), false);
+    });
+  });
+
   describe("isUriExistingInWorkspace", () => {
     it("should return true if uri exists in workspace", async () => {
       setups.isUriExistingInWorkspace.setupForReturningTrueWhenUriExists();

@@ -31,7 +31,7 @@ a loop over strings like `'search USI'` hands `SE` one argument and prints the u
    screen) compiles (`npm run compile`), writes the sample to `/tmp/se-lt/acme-shop`,
    launches VS Code on it with a fresh profile, opens Search Everywhere once to activate the
    extension, and waits until the index is built. It ends with a line like
-   `index ready: Workspace scan completed - ... scanned files: 17 | indexed items: 77`.
+   `index ready: Workspace scan completed - ... scanned files: 19 | indexed items: 79`.
    Settings for the run go on the command line: `SE start --setting shouldHighlightSymbol=true`.
 2. **Act and read.** `SE search "USI"` prints the rows; `SE key Enter` opens the selected one;
    `SE state` shows the editor, cursor and notifications. See the commands below.
@@ -83,7 +83,7 @@ SE stop
 
 | Command | Does |
 |---|---|
-| `start [--headless] [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]` | Compile, write the sample, launch, activate, wait for the index. `--big` adds 400 generated modules (417 files, 2,477 items) for progress, debounce and notifications. `--git` makes the sample a git repository with a worktree at `acme-shop-wt`. `--workspace` opens your own folder instead of the sample. `--headless` runs it in the Linux box |
+| `start [--headless] [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]` | Compile, write the sample, launch, activate, wait for the index. `--big` adds 400 generated modules (419 files, 2,479 items) for progress, debounce and notifications. `--git` makes the sample a git repository with a worktree at `acme-shop-wt`. `--workspace` opens your own folder instead of the sample. `--headless` runs it in the Linux box |
 | `restart [--no-compile] [--no-activate] [--workspace <dir>]` | Quit gracefully and relaunch the same instance. `--workspace` reopens the same profile on another folder |
 | `search "<query>" [--file]` | Open Search Everywhere (`--file`: Search in Current File), type the query, print the rows |
 | `type "<text>"` | Replace the text in the open quick pick, print the rows |
@@ -130,7 +130,8 @@ query form: `UserServiceImpl`, `UserService.save`, `Order#cancel`, `OrderStatus`
 `MAX_VALUE`, `models/User.find`, `admin/index.ts` next to `billing/index.ts`, and line 13 of
 `UserServiceImpl.ts` and `HTTPServer.ts`. `src/generated/Schema.ts` is listed in `.gitignore` for the
 `gitignore` exclude mode. `start` writes 20 files; the default include pattern indexes the 17
-`.ts` files (not `package.json`, `tsconfig.json`, `.gitignore`), with 77 items. The full list of names
+`.ts` files and `alwaysInclude` adds `package.json` and `tsconfig.json` by name (not `.gitignore`):
+19 files, 79 items. The full list of names
 and expected results is in `reference/scenarios.md`; read the sample files under
 `/tmp/se-lt/acme-shop/src` when you need exact lines.
 

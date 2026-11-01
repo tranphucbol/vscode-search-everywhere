@@ -1,4 +1,5 @@
 import * as assert from "assert";
+import * as sinon from "sinon";
 import { fileWatcher } from "../../../indexing/sources/fileWatcher";
 import { ActionTrigger, ActionType, DetailedActionType } from "../../../shared/types";
 import {
@@ -97,6 +98,52 @@ describe("FileWatcher", () => {
         setups.startWatching.setupForDisabledWatching();
 
       assert.equal(createFileSystemWatcherStub.called, false);
+    });
+
+    it("should watch the include and always include patterns with one watcher", () => {
+      const { watchers } = setups.startWatching.setupForIncludePatterns([
+        "**/*.ts",
+        "**/*.{yaml,md}",
+      ]);
+
+      assert.deepEqual(
+        watchers.map((watcher) => watcher.globPattern),
+        ["{**/*.ts,**/*.yaml,**/*.md}", "**/*"]
+      );
+    });
+
+    it("should watch every file when there is no include pattern", () => {
+      const { watchers } = setups.startWatching.setupForIncludePatterns([]);
+
+      assert.deepEqual(
+        watchers.map((watcher) => watcher.globPattern),
+        ["**/*", "**/*"]
+      );
+    });
+
+    it("should dispose every watcher on stop", () => {
+      const { watchers } = setups.startWatching.setupForIncludePatterns([
+        "**/*.ts",
+        "**/*.md",
+      ]);
+
+      fileWatcher.stopWatching();
+
+      watchers.forEach((watcher) =>
+        assert.equal((watcher.dispose as sinon.SinonStub).calledOnce, true)
+      );
+    });
+
+    it("should queue a config file created under an always include pattern", async () => {
+      const { fire, queuedStub } = setups.startWatching.setupForIncludePatterns([
+        "**/*.ts",
+        "**/*.yaml",
+      ]);
+
+      fire("create", fileUri("deploy/values.yaml"));
+      await fileWatcher.processBatch();
+
+      assert.equal(queuedStub.calledOnce, true);
     });
   });
 });

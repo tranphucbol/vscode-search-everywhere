@@ -17,10 +17,10 @@ const NON_SYMBOL_EXTENSIONS = new Set([
 ]);
 
 async function fetchUris(): Promise<vscode.Uri[]> {
-  const includePatterns = patternProvider.getIncludePatterns();
+  const includeGlob = patternProvider.getIncludeGlob();
   const excludePatterns = await patternProvider.getExcludePatterns();
   try {
-    return await vscode.workspace.findFiles(includePatterns, excludePatterns);
+    return await vscode.workspace.findFiles(includeGlob, excludePatterns);
   } catch (error) {
     messages.printErrorMessage(error as Error);
     return Promise.resolve([]);
@@ -37,7 +37,10 @@ function isNonSymbolFile(uri: vscode.Uri): boolean {
 }
 
 function isNamesOnly(uri: vscode.Uri): boolean {
-  return matchesGlob(workspaceFolders.normalizeUriPath(uri.path), fetchIndexNamesOnly());
+  return (
+    matchesGlob(workspaceFolders.normalizeUriPath(uri.path), fetchIndexNamesOnly()) ||
+    patternProvider.isAlwaysIncludedOnly(vscode.workspace.asRelativePath(uri, false))
+  );
 }
 
 const statFailuresLogged = new Set<string>();

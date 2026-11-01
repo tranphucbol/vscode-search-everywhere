@@ -17,7 +17,61 @@ describe("PatternProvider", () => {
       const includePatterns =
         setups.getIncludePatterns.setupForReturningIncludePatterns();
 
-      assert.equal(patternProvider.getIncludePatterns(), includePatterns);
+      assert.deepEqual(patternProvider.getIncludePatterns(), includePatterns);
+    });
+
+    it("should return the include pattern followed by the always include patterns", async () => {
+      setups.getIncludePatterns.setupForIncludeAndAlwaysInclude("**/*.ts", [
+        "**/*.{yaml,yml}",
+        "**/Dockerfile",
+      ]);
+      await patternProvider.fetchConfig();
+
+      assert.deepEqual(patternProvider.getIncludePatterns(), [
+        "**/*.ts",
+        "**/*.{yaml,yml}",
+        "**/Dockerfile",
+      ]);
+    });
+
+    it("should drop empty and duplicate include patterns", async () => {
+      setups.getIncludePatterns.setupForIncludeAndAlwaysInclude("**/*.ts", [
+        "",
+        "**/*.ts",
+        "**/*.md",
+        "**/*.md",
+      ]);
+      await patternProvider.fetchConfig();
+
+      assert.deepEqual(patternProvider.getIncludePatterns(), [
+        "**/*.ts",
+        "**/*.md",
+      ]);
+    });
+  });
+
+  describe("isAlwaysIncludedOnly", () => {
+    it("should report a file matched only by an always include pattern as always included only", async () => {
+      setups.isAlwaysIncludedOnly.setupForIncludeAndAlwaysInclude([
+        "**/*.{json,yaml,md}",
+      ]);
+      await patternProvider.fetchConfig();
+
+      assert.equal(patternProvider.isAlwaysIncludedOnly("config/app.yaml"), true);
+      assert.equal(
+        patternProvider.isAlwaysIncludedOnly("node_modules/x/package.json"),
+        false
+      );
+    });
+
+    it("should not report a file matched by include as always included only", async () => {
+      setups.isAlwaysIncludedOnly.setupForIncludeAndAlwaysInclude([
+        "**/*.{ts,md}",
+      ]);
+      await patternProvider.fetchConfig();
+
+      assert.equal(patternProvider.isAlwaysIncludedOnly("src/user.ts"), false);
+      assert.equal(patternProvider.isAlwaysIncludedOnly("README.md"), true);
     });
   });
 
@@ -82,6 +136,31 @@ describe("PatternProvider", () => {
       );
       assert.equal(patternProvider.isIncluded("packages/a/dist/a.js"), false);
     });
+
+    it("should include a config file matched only by an always include pattern", async () => {
+      setups.isIncluded.setupForIncludeAndAlwaysInclude([
+        "**/*.{yaml,md}",
+        "**/{.env,.env.*,Dockerfile}",
+      ]);
+      await patternProvider.fetchConfig();
+
+      assert.equal(patternProvider.isIncluded("src/app/README.md"), true);
+      assert.equal(patternProvider.isIncluded("deploy/values.yaml"), true);
+      assert.equal(patternProvider.isIncluded(".env.local"), true);
+      assert.equal(patternProvider.isIncluded("docker/Dockerfile"), true);
+      assert.equal(patternProvider.isIncluded("notes.txt"), false);
+    });
+
+    it("should not include an always included file that is excluded", async () => {
+      setups.isIncluded.setupForIncludeAndAlwaysInclude(["**/*.json"]);
+      await patternProvider.fetchConfig();
+
+      assert.equal(
+        patternProvider.isIncluded("node_modules/lib/package.json"),
+        false
+      );
+      assert.equal(patternProvider.isIncluded("dist/manifest.json"), false);
+    });
   });
 
   describe("fetchConfig", () => {
@@ -95,7 +174,7 @@ describe("PatternProvider", () => {
       const includePatterns =
         setups.fetchConfig.setupForFetchingIncludePatterns();
       await patternProvider.fetchConfig();
-      assert.equal(patternProvider.getIncludePatterns(), includePatterns);
+      assert.deepEqual(patternProvider.getIncludePatterns(), [includePatterns]);
     });
 
     it("should fetch extension exclude patterns", async () => {
