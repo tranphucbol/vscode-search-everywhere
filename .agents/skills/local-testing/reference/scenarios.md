@@ -311,7 +311,7 @@ SE log | grep -i seeded          # Seeded database from shared repository templa
 ```
 
 The template lives in
-`/tmp/se-lt/user-data/User/globalStorage/tranphucbol.jetbrain-search-everywhere/repo-<fingerprint>.db`.
+`/tmp/se-lt/user-data/User/globalStorage/tranphucbol.search-everywhere-classic/repo-<fingerprint>.db`.
 `SE command "Search everywhere: Clear Shared Worktree Cache"` deletes it. Quitting within 2 s of
 indexing leaves no template, and the worktree then rebuilds; wait first.
 

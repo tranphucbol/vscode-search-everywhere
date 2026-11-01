@@ -1,6 +1,6 @@
 {
-  "name": "jetbrain-search-everywhere",
-  "displayName": "Jetbrain Search Everywhere",
+  "name": "search-everywhere-classic",
+  "displayName": "Search Everywhere Classic",
   "description": "Fast and customizable files, symbols search engine. An alternative for 'Go to symbol in workspace' built-in feature.",
   "version": "0.5.0",
   "preview": false,
@@ -20,8 +20,7 @@
     "Search",
     "Everywhere",
     "Go to",
-    "Browser",
-    "JetBrains"
+    "Browser"
   ],
   "activationEvents": [
     "onStartupFinished",
