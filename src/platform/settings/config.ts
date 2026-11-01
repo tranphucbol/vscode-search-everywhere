@@ -94,6 +94,10 @@ const keys = {
     name: "include",
     value: "",
   },
+  alwaysInclude: {
+    name: "alwaysInclude",
+    value: [] as string[],
+  },
   excludeMode: {
     name: "excludeMode",
     value: ExcludeMode.SearchEverywhere,
@@ -385,6 +389,13 @@ export function fetchInclude(): string {
   return withPresets("include", get(keys.include.name, keys.include.value));
 }
 
+export function fetchAlwaysInclude(): string[] {
+  const globs = get(keys.alwaysInclude.name, keys.alwaysInclude.value);
+  return Array.isArray(globs)
+    ? globs.filter((glob) => typeof glob === "string" && glob.length > 0)
+    : [];
+}
+
 /**
  * The effective settings an index was built with, as a string to compare
  * against the next start: a preset appearing or going away changes it.
@@ -393,6 +404,7 @@ export function fetchIndexedConfigSnapshot(): string {
   return JSON.stringify({
     presets: fetchLanguagePresets() === "auto" ? getActivePresets() : [],
     include: fetchInclude(),
+    alwaysInclude: fetchAlwaysInclude(),
     exclude: fetchExclude(),
     itemsFilter: fetchItemsFilter(),
   });

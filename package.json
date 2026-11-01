@@ -254,6 +254,17 @@
           "default": "**/*.{js,jsx,ts,tsx}",
           "description": "String with include pattern. Any file matching this glob will be included in indexing."
         },
+        "searchEverywhere.alwaysInclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.{json,jsonc,yaml,yml,toml,ini,conf,cfg,properties,xml,md}",
+            "**/{.env,.env.*,Dockerfile,Makefile,.editorconfig}"
+          ],
+          "description": "Glob patterns of files indexed by name in addition to `include`, whatever language preset applies. `exclude` still applies. Set to [] to index only `include`."
+        },
         "searchEverywhere.indexNamesOnly": {
           "type": "string",
           "default": "**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}",

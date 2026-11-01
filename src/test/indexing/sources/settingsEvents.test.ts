@@ -51,6 +51,16 @@ describe("SettingsEvents", () => {
       assert.equal(settingsEvents.shouldReindexOnConfigurationChange(event), false);
     });
 
+    it("should reindex when always include changes", () => {
+      setups.shouldReindexOnConfigurationChange.setupForReturningTrueWhenConfigurationChangedAndNotExcluded();
+      const changed = ["searchEverywhere", "searchEverywhere.alwaysInclude"];
+      const event = {
+        affectsConfiguration: (section: string) => changed.includes(section),
+      } as vscode.ConfigurationChangeEvent;
+
+      assert.equal(settingsEvents.shouldReindexOnConfigurationChange(event), true);
+    });
+
     it("should return false if extension configuration has not changed", () => {
       setups.shouldReindexOnConfigurationChange.setupForReturningFalseWhenConfigurationNotChanged();
 
@@ -95,6 +105,17 @@ describe("SettingsEvents", () => {
         ),
         true
       );
+    });
+  });
+
+  describe("shouldRestartFileWatcher", () => {
+    it("should restart the file watcher when always include changes", () => {
+      const changed = ["searchEverywhere", "searchEverywhere.alwaysInclude"];
+      const event = {
+        affectsConfiguration: (section: string) => changed.includes(section),
+      } as vscode.ConfigurationChangeEvent;
+
+      assert.equal(settingsEvents.shouldRestartFileWatcher(event), true);
     });
   });
 

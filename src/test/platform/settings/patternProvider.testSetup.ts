@@ -10,6 +10,44 @@ import { stubMultiple } from "../../util/stubHelpers";
 export const getTestSetups = () => {
   const sandbox = sinon.createSandbox();
 
+  const stubConfig = (include: string, alwaysInclude: string[]) => {
+    stubMultiple(
+      [
+        {
+          object: config,
+          method: "fetchExcludeMode",
+          returns: ExcludeMode.SearchEverywhere,
+        },
+        {
+          object: config,
+          method: "fetchInclude",
+          returns: include,
+        },
+        {
+          object: config,
+          method: "fetchAlwaysInclude",
+          returns: alwaysInclude,
+        },
+        {
+          object: config,
+          method: "fetchExclude",
+          returns: ["**/node_modules/**", "**/dist/**"],
+        },
+        {
+          object: config,
+          method: "fetchFilesAndSearchExclude",
+          returns: [],
+        },
+        {
+          object: vscode.workspace,
+          method: "findFiles",
+          returns: [],
+        },
+      ],
+      sandbox
+    );
+  };
+
   return {
     afterEach: () => {
       sandbox.restore();
@@ -17,7 +55,7 @@ export const getTestSetups = () => {
 
     getIncludePatterns: {
       setupForReturningIncludePatterns: () => {
-        const patterns = "**/*.{js,ts}";
+        const patterns = ["**/*.{js,ts}"];
         stubMultiple(
           [
             {
@@ -31,16 +69,33 @@ export const getTestSetups = () => {
 
         return patterns;
       },
+
+      setupForIncludeAndAlwaysInclude: (
+        include: string,
+        alwaysInclude: string[]
+      ) => {
+        stubConfig(include, alwaysInclude);
+      },
+    },
+
+    isAlwaysIncludedOnly: {
+      setupForIncludeAndAlwaysInclude: (alwaysInclude: string[]) => {
+        stubConfig("**/*.{js,ts}", alwaysInclude);
+      },
     },
 
     isIncluded: {
+      setupForIncludeAndAlwaysInclude: (alwaysInclude: string[]) => {
+        stubConfig("**/*.{js,ts}", alwaysInclude);
+      },
+
       setupForIncludeAndExcludePatterns: () => {
         stubMultiple(
           [
             {
               object: patternProvider,
               method: "getIncludePatterns",
-              returns: "**/*.{js,ts}",
+              returns: ["**/*.{js,ts}"],
             },
             {
               object: patternProvider,
@@ -207,6 +262,11 @@ export const getTestSetups = () => {
             },
             {
               object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
+            },
+            {
+              object: config,
               method: "fetchExclude",
             },
             {
@@ -239,6 +299,11 @@ export const getTestSetups = () => {
             },
             {
               object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
+            },
+            {
+              object: config,
               method: "fetchExclude",
             },
             {
@@ -267,6 +332,11 @@ export const getTestSetups = () => {
             {
               object: config,
               method: "fetchInclude",
+            },
+            {
+              object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
             },
             {
               object: config,
@@ -302,6 +372,11 @@ export const getTestSetups = () => {
             },
             {
               object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
+            },
+            {
+              object: config,
               method: "fetchExclude",
             },
             {
@@ -332,6 +407,11 @@ export const getTestSetups = () => {
             {
               object: config,
               method: "fetchInclude",
+            },
+            {
+              object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
             },
             {
               object: config,
@@ -377,6 +457,11 @@ export const getTestSetups = () => {
             },
             {
               object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
+            },
+            {
+              object: config,
               method: "fetchExclude",
               returns: expected,
             },
@@ -407,6 +492,11 @@ export const getTestSetups = () => {
             {
               object: config,
               method: "fetchInclude",
+            },
+            {
+              object: config,
+              method: "fetchAlwaysInclude",
+              returns: [],
             },
             {
               object: config,

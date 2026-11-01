@@ -195,6 +195,35 @@ describe("Database persistence", () => {
       );
     });
 
+    it("should write the config snapshot to the shared template meta", async () => {
+      setups.stubConfigSnapshot('{"alwaysInclude":["**/*.md"]}');
+      await setups.initWithSharing();
+      database.insertSymbol(item1);
+
+      await database.flushPersist();
+
+      const meta = JSON.parse(fs.readFileSync(setups.templateMetaPath(), "utf8"));
+      assert.equal(meta.configSnapshot, '{"alwaysInclude":["**/*.md"]}');
+    });
+
+    it("should hand the template config snapshot to a seeded worktree", async () => {
+      setups.stubConfigSnapshot('{"alwaysInclude":["**/*.md"]}');
+      await setups.initWithSharing();
+      database.insertSymbol(item1);
+      await database.flushPersist();
+      database.closeDatabase();
+      fs.rmSync(setups.indexPath());
+
+      await setups.init();
+
+      assert.isTrue(database.wasSeededFromTemplate());
+      assert.equal(
+        database.getSeedMeta()?.configSnapshot,
+        '{"alwaysInclude":["**/*.md"]}'
+      );
+      database.setSeededFromTemplate(false);
+    });
+
     it("should compute the repository fingerprint once per init", async () => {
       const fingerprintStub = await setups.initWithSharing();
       database.insertSymbol(item1);

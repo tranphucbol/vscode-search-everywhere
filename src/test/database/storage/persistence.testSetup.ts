@@ -89,6 +89,8 @@ export const getPersistenceTestSetups = (extensionPath: string) => {
       await database.initDatabase(getContext());
       return fingerprintStub;
     },
+    stubConfigSnapshot: (snapshot: string) =>
+      sandbox.stub(config, "fetchIndexedConfigSnapshot").returns(snapshot),
     spyWriteFile: () => sandbox.spy(fs.promises, "writeFile"),
     spyRename: () => sandbox.spy(fs.promises, "rename"),
     failWriteFileOnce: () => {

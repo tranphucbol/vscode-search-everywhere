@@ -45,6 +45,53 @@ describe("Lifecycle", () => {
       assert.equal(clearAllStub.called, false);
     });
 
+    it("should reindex when the stored snapshot has no always include patterns", async () => {
+      const [clearAllStub] = setups.init.setupForComparingIndexedConfig(
+        '{"presets":[],"include":"**/*.ts"}',
+        '{"presets":[],"include":"**/*.ts","alwaysInclude":["**/*.md"]}'
+      );
+      await lifecycle.init();
+
+      assert.equal(clearAllStub.calledOnce, true);
+    });
+
+    it("should not keep a worktree seeded from a template built with other index settings", async () => {
+      const [clearAllStub, setSeededFromTemplateStub] =
+        setups.init.setupForComparingIndexedConfig(
+          undefined,
+          '{"presets":["go"]}',
+          { configSnapshot: '{"presets":[]}' }
+        );
+      await lifecycle.init();
+
+      assert.equal(clearAllStub.calledOnce, true);
+      assert.equal(setSeededFromTemplateStub.calledOnceWith(false), true);
+    });
+
+    it("should not keep a worktree seeded from a template without a config snapshot", async () => {
+      const [clearAllStub, setSeededFromTemplateStub] =
+        setups.init.setupForComparingIndexedConfig(undefined, '{"presets":[]}', {
+          commit: "abc",
+        });
+      await lifecycle.init();
+
+      assert.equal(clearAllStub.calledOnce, true);
+      assert.equal(setSeededFromTemplateStub.calledOnceWith(false), true);
+    });
+
+    it("should keep a worktree seeded from a template built with the same index settings", async () => {
+      const [clearAllStub, setSeededFromTemplateStub] =
+        setups.init.setupForComparingIndexedConfig(
+          '{"presets":["java"]}',
+          '{"presets":["go"]}',
+          { configSnapshot: '{"presets":["go"]}' }
+        );
+      await lifecycle.init();
+
+      assert.equal(clearAllStub.called, false);
+      assert.equal(setSeededFromTemplateStub.called, false);
+    });
+
     it("should workspaceFolders.setWorkspaceFoldersCommonPath method be invoked", async () => {
       const [setWorkspaceFoldersCommonPathStub] =
         setups.init.setupForInvokingSetWorkspaceFoldersCommonPath();

@@ -1,7 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { fetchShareCacheAcrossWorktrees } from "../../platform/settings/config";
+import {
+  fetchIndexedConfigSnapshot,
+  fetchShareCacheAcrossWorktrees,
+} from "../../platform/settings/config";
 import { gitService } from "../../platform/gitService";
 import { logger } from "../../platform/logger";
 import { createTables } from "./schema";
@@ -32,6 +35,7 @@ interface TemplateGitState {
 export interface SeedMeta {
   commit?: string;
   dirtyPaths?: string[];
+  configSnapshot?: string;
 }
 
 const PERSIST_DEBOUNCE_MS = 10000;
@@ -136,7 +140,11 @@ export async function initDatabase(
       try {
         if (fs.existsSync(template.dbPath) && fs.existsSync(template.metaPath)) {
           const meta = JSON.parse(fs.readFileSync(template.metaPath, "utf8"));
-          seedMeta = { commit: meta.commit, dirtyPaths: meta.dirtyPaths };
+          seedMeta = {
+            commit: meta.commit,
+            dirtyPaths: meta.dirtyPaths,
+            configSnapshot: meta.configSnapshot,
+          };
           const templateRootUriStr = meta.templateRootUri;
           const currentRootUriStr = template.rootUri;
 
@@ -397,6 +405,7 @@ function writeSharedTemplate(
     lastUpdated: Date.now(),
     commit: gitState.commit,
     dirtyPaths: gitState.dirtyPaths,
+    configSnapshot: fetchIndexedConfigSnapshot(),
   });
   const onError = (error: unknown) => {
     if (generation === dbGeneration) {

@@ -37,6 +37,50 @@ export function globToRegExp(glob: string): RegExp {
   return regExp;
 }
 
+/**
+ * Expands every brace group of a glob: `src/*.{ts,{js,jsx}}` gives `src/*.ts`, `src/*.js` and
+ * `src/*.jsx`.
+ */
+export function expandBraces(glob: string): string[] {
+  const start = glob.indexOf("{");
+  if (start === -1) {
+    return [glob];
+  }
+  const alternatives: string[] = [];
+  let depth = 0;
+  let from = start + 1;
+  for (let i = start; i < glob.length; i++) {
+    const char = glob[i];
+    if (char === "{") {
+      depth++;
+    } else if (char === "}" && --depth === 0) {
+      alternatives.push(glob.slice(from, i));
+      const prefix = glob.slice(0, start);
+      const suffix = glob.slice(i + 1);
+      return alternatives.flatMap((alternative) =>
+        expandBraces(`${prefix}${alternative}${suffix}`)
+      );
+    } else if (char === "," && depth === 1) {
+      alternatives.push(glob.slice(from, i));
+      from = i + 1;
+    }
+  }
+  return [glob];
+}
+
+/**
+ * Merges globs into one, for APIs that take a single glob: VS Code's glob syntax does not nest
+ * brace groups, so each glob is expanded and the results joined in one flat group.
+ */
+export function mergeGlobs(globs: string[]): string {
+  const nonEmpty = globs.filter((glob) => !!glob);
+  if (nonEmpty.length <= 1) {
+    return nonEmpty[0] || "";
+  }
+  const expanded = Array.from(new Set(nonEmpty.flatMap(expandBraces)));
+  return expanded.length > 1 ? `{${expanded.join(",")}}` : expanded[0];
+}
+
 export function matchesGlob(
   relativePath: string,
   glob: string | string[]

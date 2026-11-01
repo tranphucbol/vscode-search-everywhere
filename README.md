@@ -245,8 +245,11 @@ the language servers while indexing, and for libraries, commands and text search
   "Search: Exclude", or the `.gitignore` file (`searchEverywhere.excludeMode`).
 - Drop item kinds or names from the index with `searchEverywhere.itemsFilter`,
   `searchEverywhere.excludeProperties` and `searchEverywhere.excludeVariables`.
-- Config and data files (`json`, `yaml`, `xml`, `properties`, `md`, `go.mod`, …) are indexed by
-  file name only and never sent to a language server (`searchEverywhere.indexNamesOnly`).
+- Config files (`json`, `yaml`, `toml`, `ini`, `conf`, `properties`, `xml`, `md`, `.env`,
+  `Dockerfile`, …) are found by name in every workspace, whatever `include` or a language preset
+  says (`searchEverywhere.alwaysInclude`). They and other data files (`go.mod`, `csv`, `sql`, …)
+  are indexed by file name only and never sent to a language server
+  (`searchEverywhere.indexNamesOnly`).
 - Before indexing, the extension opens one file per language and waits until its language server
   returns symbols: up to 15 s, or 120 s for Java and Kotlin, whose servers import the build first.
   Files indexed without symbols while their language server was still starting are retried every
@@ -290,7 +293,8 @@ the language servers while indexing, and for libraries, commands and text search
   | Go | `**/*.{go,mod,work,proto,yaml,yml,json}` | `**/vendor/**`, `**/bin/**`, `**/testdata/**` | type parameters (25) |
   | Java | `**/*.{java,kt,kts,xml,yml,yaml,properties,gradle,sql}` | `**/target/**`, `**/build/**`, `**/.gradle/**`, `**/.idea/**` | |
 
-  A workspace with both markers gets the union. Without a marker the defaults apply. Adding or
+  A workspace with both markers gets the union. Without a marker the defaults apply. Config files
+  from `searchEverywhere.alwaysInclude` are indexed on top of either preset. Adding or
   removing a marker file reindexes the workspace. Turn presets off with
   `searchEverywhere.languagePresets`.
 - **Go methods** are stored by their name with the receiver type as container: gopls reports
@@ -389,7 +393,15 @@ against them. Measured on an Apple M4:
 - `searchEverywhere.include`, default `"**/*.{js,jsx,ts,tsx}"`
 
   A glob. Any file matching it is indexed. A [language preset](#go-and-java) replaces the default
-  when it is not set.
+  when it is not set. Config files are indexed through `searchEverywhere.alwaysInclude` whatever
+  `include` holds.
+
+- `searchEverywhere.alwaysInclude`, default
+  `["**/*.{json,jsonc,yaml,yml,toml,ini,conf,cfg,properties,xml,md}", "**/{.env,.env.*,Dockerfile,Makefile,.editorconfig}"]`
+
+  An array of globs indexed in addition to `include`, whatever language preset applies. A file
+  only these globs match is indexed by file name, without symbols. `exclude` still applies. Set it
+  to `[]` to index only `include`; changing it reindexes the workspace.
 
 - `searchEverywhere.indexNamesOnly`, default
   `"**/*.{json,jsonc,yaml,yml,xml,properties,toml,ini,csv,md,txt,lock,sum,mod,work,gradle,sql}"`

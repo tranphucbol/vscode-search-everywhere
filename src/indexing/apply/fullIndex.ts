@@ -2,6 +2,7 @@ import { performance } from "perf_hooks";
 import * as vscode from "vscode";
 import * as cache from "../../platform/cache";
 import {
+  fetchAlwaysInclude,
   fetchExclude,
   fetchInclude,
   fetchIndexedConfigSnapshot,
@@ -141,7 +142,9 @@ function logEffectiveConfig() {
     fetchLanguagePresets() === "auto" ? getActivePresets() : [];
   logger.log(
     `Indexing with presets: ${presets.length ? presets.join(", ") : "none"}; ` +
-      `include: ${fetchInclude()}; exclude: ${fetchExclude().join(", ")}`
+      `include: ${fetchInclude()}; ` +
+      `always include: ${fetchAlwaysInclude().join(", ") || "none"}; ` +
+      `exclude: ${fetchExclude().join(", ")}`
   );
 }
 

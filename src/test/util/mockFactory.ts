@@ -70,6 +70,7 @@ export const getConfiguration = (): { [key: string]: any } => {
       shouldItemsBeSorted: true,
       shouldSearchSelection: true,
       include: "**/*.{js,ts}",
+      alwaysInclude: ["**/*.{json,yaml}", "", "**/Dockerfile"],
       exclude: ["**/node_modules/**"],
       excludeMode: ExcludeMode.SearchEverywhere,
       shouldWorkspaceDataBeCached: true,

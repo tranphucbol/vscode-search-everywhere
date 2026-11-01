@@ -2,7 +2,7 @@ import * as sinon from "sinon";
 import * as vscode from "vscode";
 import * as cache from "../../platform/cache";
 import * as config from "../../platform/settings/config";
-import { database } from "../../database";
+import { database, SeedMeta } from "../../database";
 import { logger } from "../../platform/logger";
 import * as presets from "../../platform/settings/presets";
 import { dataConverter } from "../../symbols/items/dataConverter";
@@ -213,13 +213,28 @@ export const getTestSetups = () => {
     init: {
       setupForComparingIndexedConfig: (
         indexedConfig: string | undefined,
-        currentConfig: string
+        currentConfig: string,
+        seedMeta?: SeedMeta
       ) => {
         return stubMultiple(
           [
             {
               object: database,
               method: "clearAll",
+            },
+            {
+              object: database,
+              method: "setSeededFromTemplate",
+            },
+            {
+              object: database,
+              method: "wasSeededFromTemplate",
+              returns: !!seedMeta,
+            },
+            {
+              object: database,
+              method: "getSeedMeta",
+              returns: seedMeta,
             },
             {
               object: logger,

@@ -23,6 +23,7 @@ export const fileUri = (relativePath: string) =>
 
 interface WatcherOptions {
   watchFileSystem?: boolean;
+  includePatterns?: string[];
   openUris?: vscode.Uri[];
   stored?: Map<string, FileState>;
   onDisk?: Map<string, FileState>;
@@ -105,7 +106,7 @@ function stubWatcher(sandbox: sinon.SinonSandbox, options: WatcherOptions = {}) 
       {
         object: patternProvider,
         method: "getIncludePatterns",
-        returns: "**/*.ts",
+        returns: options.includePatterns || ["**/*.ts"],
       },
       {
         object: patternProvider,
@@ -192,6 +193,8 @@ export const getTestSetups = () => {
     startWatching: {
       setupForDisabledWatching: () =>
         stubWatcher(sandbox, { watchFileSystem: false }),
+      setupForIncludePatterns: (includePatterns: string[]) =>
+        stubWatcher(sandbox, { includePatterns }),
     },
   };
 };

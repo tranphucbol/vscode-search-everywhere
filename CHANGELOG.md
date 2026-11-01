@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+### ✨ Features
+- **Config files are always indexed**: config files (`json`, `yaml`, `toml`, `ini`, `conf`, `properties`, `xml`, `md`, `.env`, `Dockerfile`, …) are now indexed by name in every workspace, through the new `searchEverywhere.alwaysInclude` setting, whatever `include` or a Go or Java preset says. `exclude` still applies, and a file only `alwaysInclude` matches is never sent to a language server. Set it to `[]` for the old behaviour. The first start after updating reindexes the workspace, and a worktree is not seeded from a shared cache built with other index settings.
 
 ## [0.5.0] - 2026-10-20
 ### ✨ Features

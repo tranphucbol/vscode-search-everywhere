@@ -49,7 +49,7 @@ const stubConfig = (
       {
         object: patternProvider,
         method: "getIncludePatterns",
-        returns: Promise.resolve(["**/**/*"]),
+        returns: ["**/**/*"],
       },
       {
         object: dataConverter,

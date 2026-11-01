@@ -3,10 +3,11 @@ import {
   fetchExclude,
   fetchExcludeMode,
   fetchFilesAndSearchExclude,
+  fetchAlwaysInclude,
   fetchInclude,
 } from "./config";
 import { ExcludeMode } from "../../shared/types";
-import { matchesGlob } from "../../shared/glob";
+import { matchesGlob, mergeGlobs } from "../../shared/glob";
 
 const endLineRegex = /[^\r\n]+/g;
 const gitignoreFilePattern = "**/.gitignore";
@@ -89,12 +90,19 @@ function isIncluded(relativePath: string): boolean {
   );
 }
 
+function isAlwaysIncludedOnly(relativePath: string): boolean {
+  return (
+    matchesGlob(relativePath, alwaysIncludePatterns) &&
+    !(includePattern && matchesGlob(relativePath, includePattern)) &&
+    !patternProvider.isExcluded(relativePath)
+  );
+}
+
 async function fetchConfig() {
   const excludeMode = fetchExcludeMode();
   setExcludeMode(excludeMode);
 
-  const includePatterns = fetchInclude();
-  setIncludePatterns(includePatterns);
+  setIncludePatterns(fetchInclude(), fetchAlwaysInclude());
 
   const extensionExcludePatterns = fetchExclude();
   setExtensionExcludePatterns(extensionExcludePatterns);
@@ -117,12 +125,20 @@ function setExcludeMode(newExcludeMode: ExcludeMode) {
   excludeMode = newExcludeMode;
 }
 
-function getIncludePatterns() {
+function getIncludePatterns(): string[] {
   return includePatterns;
 }
 
-function setIncludePatterns(newIncludePatterns: string) {
-  includePatterns = newIncludePatterns;
+function getIncludeGlob(): string {
+  return mergeGlobs(patternProvider.getIncludePatterns());
+}
+
+function setIncludePatterns(include: string, alwaysInclude: string[]) {
+  includePattern = include;
+  alwaysIncludePatterns = alwaysInclude.filter((glob) => !!glob);
+  includePatterns = Array.from(
+    new Set([include, ...alwaysIncludePatterns].filter((glob) => !!glob))
+  );
 }
 
 function getExtensionExcludePatterns() {
@@ -160,7 +176,9 @@ function setGitignoreExcludePatterns(newGitignoreExcludePatterns: string[]) {
 }
 
 let excludeMode = ExcludeMode.SearchEverywhere;
-let includePatterns = "";
+let includePattern = "";
+let alwaysIncludePatterns: string[] = [];
+let includePatterns: string[] = [];
 let extensionExcludePatterns: string[] = [];
 let filesAndSearchExcludePatterns: string[] = [];
 let gitignoreExcludePatterns: string[] = [];
@@ -169,6 +187,7 @@ let fallbackExcludePatterns: string[] = [];
 export const patternProvider = {
   getExcludeMode,
   getIncludePatterns,
+  getIncludeGlob,
   getExtensionExcludePatterns,
   getFilesAndSearchExcludePatterns,
   getGitignoreExcludePatterns,
@@ -176,5 +195,6 @@ export const patternProvider = {
   getExcludePatterns,
   isExcluded,
   isIncluded,
+  isAlwaysIncludedOnly,
   fetchConfig,
 };
