@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { database } from "../../../database";
 import { quickPick } from "../../../quickPick/quickPick";
 import { quickPickState } from "../../../quickPick/state";
+import { CategoryButton } from "../../../shared/types";
 import { getQpItems } from "../../util/qpItemMockFactory";
 import { getTestSetups } from "./itemLoader.testSetup";
 
@@ -262,10 +263,16 @@ describe("QuickPick item loader", () => {
       quickPick.loadItems();
 
       const loaded = control.items[0];
+      const activeButton = (control.buttons as CategoryButton[]).find(
+        (button) =>
+          typeof button.categoryIndex === "number" &&
+          (button.toggle?.checked ||
+            (button.iconPath as vscode.ThemeIcon).id === "check")
+      );
       const title = control.title;
       sandbox.restore();
       control.dispose();
-      return { item, loaded, searchStub, title };
+      return { item, loaded, searchStub, title, activeButton };
     };
 
     it("should search the given kind without the phrase and keep results visible", () => {
@@ -296,48 +303,51 @@ describe("QuickPick item loader", () => {
     });
 
     it("should prefer a category over a one-kind phrase with the same text", () => {
-      const { searchStub, title } = loadWithQuery("!!save", {
+      const { searchStub, activeButton } = loadWithQuery("!!save", {
         phrases: { 11: "!!" },
         categories: defaultCategories,
       });
 
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
-      assert.equal(title, "Search Everywhere · Members");
+      assert.equal(activeButton?.categoryIndex, 1);
     });
 
     it("should match the longest phrase first", () => {
-      const { searchStub, title } = loadWithQuery("@@@srv", {
+      const { searchStub, activeButton } = loadWithQuery("@@@srv", {
         phrases: { 22: "@@@" },
         categories: defaultCategories,
       });
 
       assert.equal(searchStub.firstCall.args[0], "srv");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
-      assert.equal(title, "Search Everywhere");
+      assert.equal(activeButton?.categoryIndex, -1);
     });
 
     it("should use a one-kind phrase without selecting a category", () => {
-      const { searchStub, title } = loadWithQuery("s srv", {
+      const { searchStub, activeButton } = loadWithQuery("s srv", {
         phrases: { 22: "s " },
         categories: defaultCategories,
       });
 
       assert.equal(searchStub.firstCall.args[0], "srv");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [22]);
-      assert.equal(title, "Search Everywhere");
+      assert.equal(activeButton?.categoryIndex, -1);
     });
 
-    it("should name the active category in the title", () => {
-      assert.equal(
-        loadWithQuery("server", { phrases: {}, categories: defaultCategories })
-          .title,
-        "Search Everywhere"
-      );
-      assert.equal(
-        loadWithQuery("@@server", { phrases: {}, categories: defaultCategories })
-          .title,
-        "Search Everywhere · Types"
-      );
+    it("should mark the active category button without a title", () => {
+      const all = loadWithQuery("server", {
+        phrases: {},
+        categories: defaultCategories,
+      });
+      const types = loadWithQuery("@@server", {
+        phrases: {},
+        categories: defaultCategories,
+      });
+
+      assert.equal(all.activeButton?.categoryIndex, -1);
+      assert.equal(types.activeButton?.categoryIndex, 0);
+      assert.isUndefined(all.title);
+      assert.isUndefined(types.title);
     });
 
     it("should not add the phrase tag to row descriptions", () => {

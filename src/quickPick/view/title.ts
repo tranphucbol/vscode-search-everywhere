@@ -60,6 +60,8 @@ function buildLibraryButton(checked: boolean): LibraryButton {
       };
 }
 
+let renderedButtonsKey: string | undefined;
+
 function updateTitle(category?: Category, forceButtons = false): void {
   const control = quickPickState.getControl();
   if (!control || session.fileScopeUri) {
@@ -68,18 +70,21 @@ function updateTitle(category?: Category, forceButtons = false): void {
   const categories = quickPickState.getCategories() || [];
   const showCategories =
     quickPickState.getShouldUseItemsFilterPhrases() && categories.length > 0;
-  const title = [
-    "Search Everywhere",
-    showCategories && category ? category.name : "",
-    session.includeLibraries ? "including libraries" : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const buttonsKey = [
+    showCategories,
+    category ? categories.indexOf(category) : -1,
+    session.includeLibraries,
+  ].join();
   // loadItems runs on every keystroke; redrawing unchanged buttons there is wasted work.
-  if (control.title === title && !forceButtons) {
+  // Hiding the quick pick and leaving file scope clear the buttons, so an empty list redraws.
+  if (
+    !forceButtons &&
+    renderedButtonsKey === buttonsKey &&
+    control.buttons.length > 0
+  ) {
     return;
   }
-  control.title = title;
+  renderedButtonsKey = buttonsKey;
   control.buttons = [
     ...(showCategories ? buildCategoryButtons(category) : []),
     buildLibraryButton(session.includeLibraries),
