@@ -2,7 +2,7 @@
   "name": "search-everywhere-classic",
   "displayName": "Search Everywhere Classic",
   "description": "Fast and customizable files, symbols search engine. An alternative for 'Go to symbol in workspace' built-in feature.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "preview": false,
   "publisher": "tranphucbol",
   "author": {
