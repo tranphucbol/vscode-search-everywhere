@@ -26,6 +26,10 @@ async function main() {
       "../../.vscode-test/extensions"
     );
 
+    // Chromium refuses to run as root with its sandbox on; the headless box runs as root and is
+    // the sandbox itself (decision 010).
+    const asRoot = process.getuid?.() === 0;
+
     // Download VS Code, unzip it and run the integration test
     await runTests({
       extensionDevelopmentPath,
@@ -35,6 +39,7 @@ async function main() {
         "--disable-extensions",
         `--user-data-dir=${userDataDir}`,
         `--extensions-dir=${extensionsDir}`,
+        ...(asRoot ? ["--no-sandbox"] : []),
       ],
     });
   } catch (err) {

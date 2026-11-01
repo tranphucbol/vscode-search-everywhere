@@ -478,6 +478,7 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./dist/test/runTest.js",
+    "test:headless": "node ./scripts/headless/box.js npm test",
     "cov:fixpaths": "gulp fixCoverageReportSrcPaths",
     "package": "npx @vscode/vsce package",
     "publish:extension": "node ./scripts/publish.js",

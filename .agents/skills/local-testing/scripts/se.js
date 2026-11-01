@@ -5,17 +5,24 @@ const net = require("net");
 const os = require("os");
 const path = require("path");
 const http = require("http");
-const { execFileSync, spawn } = require("child_process");
+const { execFileSync, spawn, spawnSync } = require("child_process");
 const { writeSample, initGit, DEFAULT_BIG_MODULES } = require("./make-sample");
 
 const REPO = path.resolve(__dirname, "../../../..");
-const { chromium } = require(require.resolve("playwright-core", { paths: [REPO] }));
+// Loaded on first use: a host command forwarded to the headless box needs no host node_modules.
+const chromium = () => require(require.resolve("playwright-core", { paths: [REPO] })).chromium;
+const box = require(path.join(REPO, "scripts", "headless", "box.js"));
+
+const IS_MAC = process.platform === "darwin";
+const IN_BOX = process.env.SE_IN_BOX === "1";
 
 const USAGE = `usage: node se.js <command> [options]
 
-  start [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]
+  start [--headless] [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]
         compile, write the acme-shop sample, launch VS Code with the extension
-        under development, open Search Everywhere once and wait for the first index
+        under development, open Search Everywhere once and wait for the first index;
+        --headless runs it in the Linux box (Docker), off your screen, and every
+        later command of the instance goes there
   restart [--no-compile] [--no-activate] [--workspace <dir>]
         recompile and relaunch the same instance, keeping its profile, settings, caches
         and workspace (needed after every source change: VS Code runs dist/);
@@ -150,9 +157,25 @@ function parseSetting(entry) {
   return [key.includes(".") ? key : `searchEverywhere.${key}`, value];
 }
 
-function findExecutable() {
+// Commands are written with macOS keys; Linux binds the same commands to Control.
+function keyName(key) {
+  return IS_MAC ? key : key.replace(/\bMeta\b/g, "Control");
+}
+
+function press(page, key) {
+  return page.keyboard.press(keyName(key));
+}
+
+async function findExecutable() {
   if (process.env.VSCODE_EXECUTABLE) {
     return process.env.VSCODE_EXECUTABLE;
+  }
+  if (!IS_MAC) {
+    const { downloadAndUnzipVSCode } = require(require.resolve("@vscode/test-electron", { paths: [REPO] }));
+    return downloadAndUnzipVSCode({
+      cachePath: path.join(REPO, ".vscode-test"),
+      reporter: { report() {}, error() {} },
+    });
   }
   const app = "/Applications/Visual Studio Code.app/Contents/MacOS/Code";
   if (fs.existsSync(app)) {
@@ -211,7 +234,7 @@ async function connect(state, { timeout = 60000 } = {}) {
     }
     await sleep(300);
   }
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
+  const browser = await chromium().connectOverCDP(`http://127.0.0.1:${state.port}`);
   let page;
   while (!page) {
     page = browser
@@ -461,11 +484,11 @@ function printWorkbench(view) {
 
 async function openQuickInput(page, key, { attempts = 1 } = {}) {
   if (await quickInputOpen(page)) {
-    await page.keyboard.press("Escape");
+    await press(page, "Escape");
     await sleep(200);
   }
   for (let attempt = 1; ; attempt++) {
-    await page.keyboard.press(key);
+    await press(page, key);
     try {
       await page.waitForFunction(
         (selector) => !!document.activeElement && !!document.activeElement.closest(selector),
@@ -485,11 +508,11 @@ async function openQuickInput(page, key, { attempts = 1 } = {}) {
 }
 
 async function replaceText(page, value) {
-  await page.keyboard.press("Meta+A");
+  await press(page, "Meta+A");
   if (value) {
     await page.keyboard.type(value, { delay: 30 });
   } else {
-    await page.keyboard.press("Backspace");
+    await press(page, "Backspace");
   }
 }
 
@@ -504,8 +527,14 @@ function compile() {
 }
 
 async function launch(p, workspace) {
-  const executable = findExecutable();
+  const executable = await findExecutable();
   const port = await freePort();
+  // The box runs as root, which Chromium allows only without its sandbox; with no keyring on a
+  // bare Linux, VS Code asks which one to use unless told to store secrets in plain files.
+  const platformArgs = [
+    ...(process.getuid && process.getuid() === 0 ? ["--no-sandbox"] : []),
+    ...(process.platform === "linux" ? ["--password-store=basic"] : []),
+  ];
   const out = fs.openSync(p.console, "a");
   const env = { ...process.env, VSCODE_SKIP_PRELAUNCH: "1" };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -522,6 +551,7 @@ async function launch(p, workspace) {
       "--skip-release-notes",
       "--disable-telemetry",
       "--new-window",
+      ...platformArgs,
     ],
     { detached: true, stdio: ["ignore", out, out], env }
   );
@@ -577,7 +607,7 @@ async function activate(p, page, flags) {
     }
     await sleep(500);
   }
-  await page.keyboard.press("Escape");
+  await press(page, "Escape");
 }
 
 async function stopProcess(state) {
@@ -588,7 +618,7 @@ async function stopProcess(state) {
   // lives; a signal kills the extension host before it persists.
   try {
     const { page } = await connect(state, { timeout: 5000 });
-    await page.keyboard.press("Meta+Q");
+    await press(page, "Meta+Q");
     const quitDeadline = Date.now() + 15000;
     while (isAlive(state.pid) && Date.now() < quitDeadline) {
       await sleep(200);
@@ -708,7 +738,7 @@ const commands = {
     }
     // The hover of the button clicked last can cover the next one and swallow the click.
     await page.mouse.move(0, 0);
-    await page.keyboard.press("Shift");
+    await press(page, "Shift");
     await sleep(150);
     await page.click("[data-se-click]", { timeout: 5000 });
     printQuickInput(await settle(page, { minimum: 600 }));
@@ -731,7 +761,7 @@ const commands = {
     const state = requireState(p);
     const { page } = await connect(state);
     for (const key of positional) {
-      await page.keyboard.press(key);
+      await press(page, key);
       await sleep(250);
     }
     const view = await settle(page, { minimum: 700 });
@@ -748,7 +778,7 @@ const commands = {
     await openQuickInput(page, "Meta+P");
     await replaceText(page, positional.join(" "));
     await settle(page, { minimum: 700 });
-    await page.keyboard.press("Enter");
+    await press(page, "Enter");
     await sleep(800);
     printWorkbench(await readWorkbench(page));
   },
@@ -770,9 +800,9 @@ const commands = {
     }
     const focused = rows.find((row) => row.focused) || rows[0];
     for (let step = focused.index; step < target.index; step++) {
-      await page.keyboard.press("ArrowDown");
+      await press(page, "ArrowDown");
     }
-    await page.keyboard.press("Enter");
+    await press(page, "Enter");
     if (!/search everywhere: reload/i.test(positional.join(" "))) {
       await sleep(1000);
       printWorkbench(await readWorkbench(page));
@@ -836,7 +866,8 @@ const commands = {
     const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
     const file = path.join(p.shots, `${state.id}-${positional[0] || "shot"}-${stamp}.png`);
     await page.screenshot({ path: file });
-    console.log(file);
+    // In the box the folder is mounted from the host; print where the host sees the file.
+    console.log(process.env.SE_HOST_SHOTS_DIR ? path.join(process.env.SE_HOST_SHOTS_DIR, path.basename(file)) : file);
   },
 
   async stop(p, { flags }) {
@@ -853,6 +884,113 @@ const commands = {
   },
 };
 
+const BOX_SHOTS = "/tmp/se-shots";
+const BOX_SCRIPT = path.posix.join(box.WORKDIR, ...path.relative(REPO, __filename).split(path.sep));
+
+// On the host, beside the instance's folder: inside the box /tmp is the container's own.
+function boxMarker(id) {
+  return path.join("/tmp", `se-${id}-box.json`);
+}
+
+function readBox(id) {
+  const file = boxMarker(id);
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : undefined;
+}
+
+function boxRunning(container) {
+  const { stdout, status } = spawnSync("docker", ["inspect", "--format", "{{.State.Running}}", container], {
+    encoding: "utf8",
+  });
+  return status === 0 && stdout.trim() === "true";
+}
+
+function removeBox(id, container) {
+  spawnSync("docker", ["rm", "--force", container], { stdio: "ignore" });
+  fs.rmSync(boxMarker(id), { force: true });
+}
+
+// The box sees host folders at the same path, so a relative --workspace is resolved here.
+function boxArgv(rest) {
+  const argv = rest.filter((arg) => arg !== "--headless");
+  const index = argv.indexOf("--workspace");
+  if (index !== -1 && argv[index + 1] && !argv[index + 1].startsWith("--")) {
+    argv[index + 1] = path.resolve(argv[index + 1]);
+  }
+  return argv;
+}
+
+function forwardToBox(container, id, name, rest) {
+  const { status } = box.docker(["exec", "--env", `SE_ID=${id}`, container, "node", BOX_SCRIPT, name, ...boxArgv(rest)]);
+  return status === null ? 1 : status;
+}
+
+async function waitForBox(container) {
+  const deadline = Date.now() + 600000;
+  while (spawnSync("docker", ["exec", container, "test", "-f", "/tmp/box-ready"]).status !== 0) {
+    if (!boxRunning(container)) {
+      box.docker(["logs", container]);
+      throw new Error(`the headless box ${container} exited while starting`);
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`the headless box ${container} was not ready within 600s; see "docker logs ${container}"`);
+    }
+    await sleep(500);
+  }
+}
+
+async function startBox(id, rest, flags) {
+  const existing = readBox(id);
+  if (existing && boxRunning(existing.container)) {
+    throw new Error(`instance "${id}" is already running in box ${existing.container}; run "node se.js stop" first`);
+  }
+  box.buildImage();
+  const container = `se-${id}-${box.checkoutKey()}`;
+  removeBox(id, container);
+  const shots = paths(id).shots;
+  fs.mkdirSync(shots, { recursive: true });
+  const mounts = [[shots, BOX_SHOTS]];
+  if (typeof flags.workspace === "string") {
+    const workspace = path.resolve(flags.workspace);
+    mounts.push([workspace, workspace]);
+  }
+  const run = box.docker(
+    [...box.runArgs({ name: container, detach: true, mounts, env: { SE_HOST_SHOTS_DIR: shots } }), "sleep", "infinity"],
+    { stdio: ["ignore", "ignore", "inherit"] }
+  );
+  if (run.status !== 0) {
+    throw new Error("the headless box did not start");
+  }
+  fs.writeFileSync(boxMarker(id), JSON.stringify({ container }, null, 2));
+  console.log(`box: ${container} (a first start installs Linux node_modules and downloads VS Code)`);
+  await waitForBox(container);
+  return forwardToBox(container, id, "start", rest);
+}
+
+/** Runs the command in the instance's box and returns its exit status; `undefined` when the instance runs on the host. */
+async function viaBox(id, name, rest, flags) {
+  if (name === "start" && flags.headless) {
+    return startBox(id, rest, flags);
+  }
+  const existing = readBox(id);
+  if (!existing) {
+    return undefined;
+  }
+  if (!boxRunning(existing.container)) {
+    removeBox(id, existing.container);
+    if (name === "stop") {
+      console.log("no running instance");
+      return 0;
+    }
+    throw new Error(`the headless box of instance "${id}" is gone; run "node se.js start --headless" again`);
+  }
+  const status = forwardToBox(existing.container, id, name, rest);
+  if (name === "stop" && !flags.keep) {
+    removeBox(id, existing.container);
+    console.log(`removed box ${existing.container}`);
+  }
+  return status;
+}
+
 async function main() {
   const [name, ...rest] = process.argv.slice(2);
   if (!name || !commands[name]) {
@@ -861,6 +999,12 @@ async function main() {
   }
   const args = parseArgs(rest);
   const id = typeof args.flags.id === "string" ? args.flags.id : process.env.SE_ID || "lt";
+  if (!IN_BOX) {
+    const status = await viaBox(id, name, rest, args.flags);
+    if (status !== undefined) {
+      process.exit(status);
+    }
+  }
   const p = { ...paths(id), id };
   await commands[name](p, args);
 }
