@@ -127,8 +127,7 @@ the language servers while indexing, and for libraries, commands and text search
   Press `tab` / `shift + tab` to cycle All → Types → Members → Files; the query keeps its text and
   only the leading phrase changes. Or click a category button: All and one button per category
   sit next to the input as toggles (VS Code 1.109 and later), with the active one pressed, and in
-  the title bar before 1.109, with a check on the active one. The title names the active category:
-  `Search Everywhere` for All, `Search Everywhere · Types` for Types. After a click the keyboard
+  the title bar before 1.109, with a check on the active one. After a click the keyboard
   focus is on the results list, where arrows, `enter` and `alt + arrow` keys work; click the input
   to type again. Categories are configurable with `searchEverywhere.categories`.
 
@@ -158,9 +157,9 @@ the language servers while indexing, and for libraries, commands and text search
   indexed results under `Not indexed yet`. They are never written to the index. Turn it off with
   `searchEverywhere.searchLanguageServersWhileIndexing`.
 - **Include libraries**: press `alt + cmd + p` / `ctrl + alt + p` again while the search is open,
-  or click the library button in its title, to also search symbols outside the indexed files:
+  or click the library button next to the input, to also search symbols outside the indexed files:
   the JDK and dependencies, `node_modules`, the Go standard library. They are listed after the
-  workspace results under `Libraries`, and the title ends with `including libraries`. The toggle
+  workspace results under `Libraries`, and the library button is pressed. The toggle
   is off each time the search opens. What it finds depends on the language server: jdtls covers
   the JDK and the project's dependencies, gopls covers dependencies with its default
   `symbolScope` of `all`, and the TypeScript server covers what the project loads, such as

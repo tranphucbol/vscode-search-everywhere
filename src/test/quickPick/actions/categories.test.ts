@@ -30,7 +30,7 @@ describe("QuickPick categories", () => {
 
       quickPick.cycleCategory(direction);
 
-      const result = { value: control.value, title: control.title, searchStub };
+      const result = { value: control.value, searchStub };
       sandbox.restore();
       control.dispose();
       return result;
@@ -49,12 +49,11 @@ describe("QuickPick categories", () => {
     });
 
     it("should keep the query when switching categories", () => {
-      const { value, title, searchStub } = cycle("@@Server.Start", 1);
+      const { value, searchStub } = cycle("@@Server.Start", 1);
 
       assert.equal(value, "!!Server.Start");
       assert.equal(searchStub.firstCall.args[0], "Server.Start");
       assert.deepEqual(searchStub.firstCall.args[2]?.symbolKinds, [5, 6, 11]);
-      assert.equal(title, "Search Everywhere · Members");
     });
   });
 
@@ -168,7 +167,6 @@ describe("QuickPick categories", () => {
       await quickPick.handleDidTriggerButton(buttonFor("Types (@@) · Tab"));
 
       assert.equal(control.value, "@@order");
-      assert.equal(control.title, "Search Everywhere · Types");
       assert.deepEqual(checked(), ["Types (@@) · Tab"]);
     });
 
@@ -197,7 +195,6 @@ describe("QuickPick categories", () => {
       await quickPick.handleDidTriggerButton(buttonFor("All · Tab"));
 
       assert.equal(control.value, "order");
-      assert.equal(control.title, "Search Everywhere");
       assert.deepEqual(checked(), ["All · Tab"]);
     });
 
@@ -217,14 +214,13 @@ describe("QuickPick categories", () => {
       await quickPick.navigateBack();
 
       assert.equal(control.value, "@@order");
-      assert.equal(control.title, "Search Everywhere · Types");
+      assert.isUndefined(control.title);
       assert.deepEqual(checked(), ["Types (@@) · Tab"]);
     });
 
     it("should show the library button when filter phrases are off", () => {
       open("order", { phrases: false });
 
-      assert.equal(control.title, "Search Everywhere");
       assert.deepEqual(buttons(), []);
       assert.match(libraryButton()?.tooltip || "", /^Include libraries · /);
     });
@@ -235,7 +231,7 @@ describe("QuickPick categories", () => {
       await quickPick.handleDidTriggerButton(libraryButton()!);
 
       assert.isTrue(quickPick.getIncludeLibraries());
-      assert.equal(control.title, "Search Everywhere · including libraries");
+      assert.isUndefined(control.title);
       assert.isTrue(libraryButton()?.toggle?.checked);
       quickPick.toggleIncludeLibraries();
     });

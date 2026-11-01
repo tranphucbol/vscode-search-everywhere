@@ -7,7 +7,7 @@ import { dataConverter } from "../../../symbols/items/dataConverter";
 import { liveSymbols } from "../../../symbols/liveSymbols";
 import { quickPick } from "../../../quickPick/quickPick";
 import { quickPickState } from "../../../quickPick/state";
-import { QuickPickItem } from "../../../shared/types";
+import { LibraryButton, QuickPickItem } from "../../../shared/types";
 import { lifecycle } from "../../../indexing/lifecycle";
 import {
   getQpItems,
@@ -61,6 +61,15 @@ describe("QuickPick live results", () => {
     });
     const labels = () =>
       (control.items as QuickPickItem[]).map((item) => item.label);
+    const librariesChecked = () => {
+      const button = (control.buttons as LibraryButton[]).find(
+        (candidate) => candidate.includeLibraries
+      );
+      return (
+        button?.toggle?.checked ??
+        (button?.iconPath as vscode.ThemeIcon | undefined)?.id === "check"
+      );
+    };
     const type = async (query: string) => {
       control.value = query;
       quickPick.loadItems();
@@ -196,7 +205,7 @@ describe("QuickPick live results", () => {
         symbolKinds: undefined,
       });
       assert.deepEqual(labels().slice(-2), ["Libraries", "Promise"]);
-      assert.equal(control.title, "Search Everywhere · including libraries");
+      assert.isTrue(librariesChecked());
     });
 
     it("should reset include libraries when the quick pick opens", () => {
@@ -206,7 +215,7 @@ describe("QuickPick live results", () => {
       quickPick.show();
 
       assert.isFalse(quickPick.getIncludeLibraries());
-      assert.equal(control.title, "Search Everywhere");
+      assert.isFalse(librariesChecked());
     });
 
     it("should not offer Search symbols in this file on a library result", async () => {
