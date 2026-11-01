@@ -210,7 +210,7 @@
         },
         "searchEverywhere.previewOnSelect": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Open the highlighted item in a preview editor, without moving focus, as the selection moves in the search. Escape returns to the editor that was active before the search opened."
         },
         "searchEverywhere.restoreLastQuery": {
