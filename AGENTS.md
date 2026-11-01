@@ -28,6 +28,10 @@ Run these from the repository root.
 - `npm run compile` - clean `dist/` and run `tsc`; this is also the type check
 - `npm test` - compiles, then runs the mocha suite inside a downloaded VS Code through
   `@vscode/test-electron` (`src/test/runTest.ts`); the first run needs network access
+- `npm run test:headless` - `npm test` in the headless Linux box (decision 010): a Docker
+  container under Xvfb, so no VS Code window opens on the screen. `node scripts/headless/box.js
+  <command>` runs any other command there. The first run in a checkout installs Linux
+  `node_modules` and downloads VS Code into the checkout's `se-box-*` volumes (about a minute)
 - `npm run watch` - `tsc --watch`
 - `npm run package` - build the `.vsix` with `vsce`
 - `npm run publish:extension` - publish to the VS Code Marketplace and Open VSX
@@ -56,11 +60,11 @@ Run these before considering a change done:
 - `npm run compile`
 - `npm run check:cycles`
 - `npm run check:layers`
-- `npm test`
+- `npm run test:headless` (agents and plan sessions; `npm test` when no Docker is running)
 - for a change to `src/` that a user can see (the quick pick, keys, indexing, settings), the
   `local-testing` skill in `.agents/skills/local-testing/`: it runs the extension in a real VS
-  Code on a sample project and prints what the quick pick shows. Run its smoke set at least.
-  macOS only
+  Code on a sample project and prints what the quick pick shows. Run its smoke set at least,
+  with `start --headless` unless the check is about macOS itself
 
 ## Layout
 
@@ -118,7 +122,8 @@ src/test/<folder>/          `<module>.test.ts` and `<module>.testSetup.ts` side 
                             mirroring `src/<folder>/` and its subfolders
 src/test/fixtures/          recorded language server symbols
 src/test/util/              mock and stub factories shared by the suites
-scripts/                    publish.js, benchmark.js, check-layers.js
+scripts/                    publish.js, benchmark.js, check-layers.js; headless/ the Linux
+                            test box (Dockerfile, entrypoint.sh, box.js)
 .agents/skills/             project skills; local-testing drives a real VS Code
 docs/decisions/             one numbered file per durable architecture decision
 docs/plans/                 working implementation plans; only the template is tracked

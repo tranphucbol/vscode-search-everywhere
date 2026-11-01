@@ -1,6 +1,6 @@
 ---
 name: local-testing
-description: Test a change to this extension in a real VS Code. Launches VS Code with the extension under development on a generated TypeScript sample (acme-shop), drives Search Everywhere from the shell, and prints the quick pick rows, editor state, notifications and the extension log as text. Use after changing src/ and before calling the change done, when asked to "test it locally", "try it in VS Code", "run the extension", "check it in a real VS Code", "smoke test", or to reproduce a bug a user reported in the quick pick. macOS only.
+description: Test a change to this extension in a real VS Code. Launches VS Code with the extension under development on a generated TypeScript sample (acme-shop), drives Search Everywhere from the shell, and prints the quick pick rows, editor state, notifications and the extension log as text. Use after changing src/ and before calling the change done, when asked to "test it locally", "try it in VS Code", "run the extension", "check it in a real VS Code", "smoke test", or to reproduce a bug a user reported in the quick pick. Runs on macOS, or off-screen in a Docker Linux box with `start --headless`.
 ---
 
 # Local testing
@@ -27,7 +27,8 @@ SE() { node .agents/skills/local-testing/scripts/se.js "$@"; }
 For the same reason, write each call out with its arguments quoted (`SE search "impl user"`);
 a loop over strings like `'search USI'` hands `SE` one argument and prints the usage.
 
-1. **Start.** `SE start` compiles (`npm run compile`), writes the sample to `/tmp/se-lt/acme-shop`,
+1. **Start.** `SE start --headless` (see Headless below; plain `SE start` opens the window on your
+   screen) compiles (`npm run compile`), writes the sample to `/tmp/se-lt/acme-shop`,
    launches VS Code on it with a fresh profile, opens Search Everywhere once to activate the
    extension, and waits until the index is built. It ends with a line like
    `index ready: Workspace scan completed - ... scanned files: 17 | indexed items: 77`.
@@ -39,9 +40,29 @@ a loop over strings like `'search USI'` hands `SE` one argument and prints the u
    the smoke set.
 4. **Change code, then restart.** VS Code runs `dist/`, not `src/`. After editing, `SE restart`
    recompiles and relaunches the same instance (same profile, settings and workspace).
-5. **Stop.** `SE stop` quits VS Code and deletes `/tmp/se-lt`. Always stop before you finish.
+5. **Stop.** `SE stop` quits VS Code and deletes `/tmp/se-lt` (and the box). Always stop before
+   you finish.
 
-Run `npm run compile` and `npm test` as usual; this skill comes on top, not instead.
+Run `npm run compile` and `npm run test:headless` as usual; this skill comes on top, not instead.
+
+### Headless
+
+`SE start --headless` runs the instance in the Linux box (decision 010,
+`scripts/headless/`): a Docker container with its own X display, so no window opens on the
+screen and nothing takes the keyboard. Every later command of that instance (`search`, `key`,
+`restart`, `log`, `stop`, …) runs in the box through `docker exec`; the commands and their output
+are the same. Use it by default; start without it only to check what macOS itself shows.
+
+- The box is Linux: keybinding labels read `Ctrl+Alt+P`, not `⌥⌘P`, and the title says
+  `[Superuser]`. Write keys as on macOS; the driver presses `Control` for `Meta` there.
+- The first `start --headless` in a checkout installs Linux `node_modules` and downloads VS Code
+  (about a minute); later starts take as long as on the host.
+- The sample, profile and logs live in the box's `/tmp/se-<id>`; `--workspace <dir>` mounts a host
+  folder at its own path, and `shot` prints a host path under `$TMPDIR/se-shots`.
+- `stop --keep` stops VS Code but keeps the box, so `restart` finds the profile again; `stop`
+  removes the box.
+- The box's container is `se-<id>-<checkout hash>`; `docker logs` on it shows the start-up
+  (`npm ci`, Xvfb) when a start fails before VS Code launches.
 
 ### Smoke set
 
@@ -49,7 +70,7 @@ Run these after any change to `src/`, whatever it touched. One `start` and one `
 whole session: run the scenarios for your change between the smoke steps and `SE stop`.
 
 ```sh
-SE start
+SE start --headless
 SE search "USI"            # UserServiceImpl.ts, then the UserServiceImpl class
 SE search "@@order"        # only the classes Order, OrderService, OrderController
 SE search "OrderService"
@@ -62,7 +83,7 @@ SE stop
 
 | Command | Does |
 |---|---|
-| `start [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]` | Compile, write the sample, launch, activate, wait for the index. `--big` adds 400 generated modules (417 files, 2,477 items) for progress, debounce and notifications. `--git` makes the sample a git repository with a worktree at `acme-shop-wt`. `--workspace` opens your own folder instead of the sample |
+| `start [--headless] [--big [N]] [--git] [--setting key=value]... [--workspace <dir>] [--no-compile] [--no-activate]` | Compile, write the sample, launch, activate, wait for the index. `--big` adds 400 generated modules (417 files, 2,477 items) for progress, debounce and notifications. `--git` makes the sample a git repository with a worktree at `acme-shop-wt`. `--workspace` opens your own folder instead of the sample. `--headless` runs it in the Linux box |
 | `restart [--no-compile] [--no-activate] [--workspace <dir>]` | Quit gracefully and relaunch the same instance. `--workspace` reopens the same profile on another folder |
 | `search "<query>" [--file]` | Open Search Everywhere (`--file`: Search in Current File), type the query, print the rows |
 | `type "<text>"` | Replace the text in the open quick pick, print the rows |
@@ -150,7 +171,8 @@ the repository.
   Reload"` samples them while indexing because the progress toast disappears when it ends.
 - **TypeScript reports `const` as a variable** (kind 12), not a constant, so `MAX_VALUE` shows as
   `Variable` and `excludeVariables` removes it.
-- **Keys are macOS keys.** `Meta` is Cmd. The driver is macOS only.
+- **Keys are macOS keys.** `Meta` is Cmd; in the headless box the driver presses Control for it.
+  Without `--headless` the driver runs on macOS only.
 - **Clicking a toggle button moves focus out of the input.** VS Code focuses an inline or
   in-input toggle when it is clicked; the extension then moves focus to the result list after
   a category button click. Either way `SE type` and `SE text` do not change the query; run
@@ -168,4 +190,8 @@ the repository.
 - Quick Open or the palette picked the wrong entry: the driver prints the rows it saw and fails;
   use the exact title shown there.
 - VS Code binary: `$VSCODE_EXECUTABLE`, else `/Applications/Visual Studio Code.app`, else the newest
-  build `npm test` downloaded into `.vscode-test/`.
+  build `npm test` downloaded into `.vscode-test/`. In the box, the stable Linux build
+  `@vscode/test-electron` downloads into the box's `.vscode-test` volume.
+- `/tmp/se-lt/code.log` in the headless box: `SE log` reads the box's files; for VS Code's own
+  output run `docker exec se-lt-<hash> cat /tmp/se-lt/code.log`.
+- "the headless box … is gone": Docker or the container stopped; `SE start --headless` again.
