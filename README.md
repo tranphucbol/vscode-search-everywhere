@@ -207,8 +207,9 @@ the language servers while indexing, and for libraries, commands and text search
 
   ![Highlight disabled](img/highlight-off.gif)
 
-- **Preview while browsing**: moving through the results opens the highlighted file or symbol in a
-  preview editor without leaving the quick pick (`searchEverywhere.previewOnSelect`). Press
+- **Preview while browsing**: when `searchEverywhere.previewOnSelect` is on (it is off by
+  default), moving through the results opens the highlighted file or symbol in a preview editor
+  without leaving the quick pick. Press
   `escape` to go back to the editor and cursor you started from; press `enter` to keep it.
 - **Last query restored**: reopening Search Everywhere puts the last workspace query back,
   selected, so typing replaces it (`searchEverywhere.restoreLastQuery`).
@@ -525,7 +526,7 @@ against them. Measured on an Apple M4:
 
   Put the selection of the active editor in the search.
 
-- `searchEverywhere.previewOnSelect`, default `true`
+- `searchEverywhere.previewOnSelect`, default `false`
 
   Open the highlighted result in a preview editor, without moving focus, while moving through the
   results. `escape` restores the editor and selection that were active before the search opened.

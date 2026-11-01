@@ -6,6 +6,9 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 ### ✨ Features
 - **Config files are always indexed**: config files (`json`, `yaml`, `toml`, `ini`, `conf`, `properties`, `xml`, `md`, `.env`, `Dockerfile`, …) are now indexed by name in every workspace, through the new `searchEverywhere.alwaysInclude` setting, whatever `include` or a Go or Java preset says. `exclude` still applies, and a file only `alwaysInclude` matches is never sent to a language server. Set it to `[]` for the old behaviour. The first start after updating reindexes the workspace, and a worktree is not seeded from a shared cache built with other index settings.
 
+### 🔧 Changes
+- **Preview while browsing is off by default**: moving through the results no longer switches the editor to the highlighted file. Set `searchEverywhere.previewOnSelect` to `true` to bring the preview back.
+
 ## [0.5.0] - 2026-10-20
 ### ✨ Features
 - **Select a line range**: end the query with `:start-end`, such as `User.ts:50-100`, to open the selected file or symbol with those whole lines selected, in the preview too. A reversed range is swapped, an end past the last line stops at the last line, and `:50-` still typing acts as `:50`.

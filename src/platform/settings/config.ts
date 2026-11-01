@@ -132,7 +132,7 @@ const keys = {
   },
   previewOnSelect: {
     name: "previewOnSelect",
-    value: true,
+    value: false,
   },
   restoreLastQuery: {
     name: "restoreLastQuery",
