@@ -3,6 +3,8 @@
 All notable changes to the "vscode-search-everywhere" extension will be documented in this file.
 
 ## [Unreleased]
+
+## [0.6.1] - 2026-11-01
 ### 🔧 Changes
 - **No title bar**: the quick pick no longer shows the `Search Everywhere` header above the input, so the results start higher. The pressed category and library buttons next to the input show what the title used to name. Before VS Code 1.109, where those buttons sit in the title bar, the bar stays with the buttons only. Searching in one file keeps its `Search in <file>` title and Back button.
 
