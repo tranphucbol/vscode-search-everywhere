@@ -1,12 +1,15 @@
 <p align="center">
-  <img src="img/logo.png" alt="Jetbrain Search Everywhere logo" width="128">
+  <img src="img/logo.png" alt="Search Everywhere Classic logo" width="128">
 </p>
 
-# Jetbrain Search Everywhere
+# Search Everywhere Classic
 
 One quick pick that finds files and symbols across the whole workspace, modelled on the
 "Search Everywhere" feature of JetBrains IDEs. A fully customizable alternative to VS Code's
 "Go to Symbol in Workspace...".
+
+A fork of [kbysiec.vscode-search-everywhere](https://github.com/kbysiec/vscode-search-everywhere)
+by Kamil Bysiec. Unofficial: not affiliated with or endorsed by JetBrains s.r.o. or Microsoft.
 
 ![How it works](img/how-it-works.gif)
 
@@ -24,15 +27,20 @@ One quick pick that finds files and symbols across the whole workspace, modelled
 
 ## Install
 
-- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.jetbrain-search-everywhere)
-- [Open VSX](https://open-vsx.org/extension/tranphucbol/jetbrain-search-everywhere)
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.search-everywhere-classic)
+- [Open VSX](https://open-vsx.org/extension/tranphucbol/search-everywhere-classic)
 
-Or run `ext install tranphucbol.jetbrain-search-everywhere` from the command palette quick open
+Or run `ext install tranphucbol.search-everywhere-classic` from the command palette quick open
 (`cmd + p` / `ctrl + p`).
 
 > Coming from `kbysiec.vscode-search-everywhere`? This extension is a fork of it and keeps the
 > same `searchEverywhere.*` settings and command IDs, so your settings carry over. Uninstall or
 > disable the original, otherwise both register the same commands and keybindings.
+
+> Had `tranphucbol.jetbrain-search-everywhere` installed? It is this extension under its former
+> ID, which no longer gets updates. Uninstall it and install `tranphucbol.search-everywhere-classic`;
+> settings and keybindings carry over. The index is rebuilt once on the first start and the
+> recently used results start empty, because VS Code keeps both per extension ID.
 
 ## Quick start
 
@@ -724,5 +732,5 @@ Created by [Kamil Bysiec](https://github.com/kbysiec)
 This fork is maintained by [tranphucbol](https://github.com/tranphucbol).
 
 If you find it useful, a rating on the
-[Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.jetbrain-search-everywhere&ssr=false#review-details)
+[Marketplace](https://marketplace.visualstudio.com/items?itemName=tranphucbol.search-everywhere-classic&ssr=false#review-details)
 or a star on [GitHub](https://github.com/tranphucbol/vscode-search-everywhere) is appreciated.
