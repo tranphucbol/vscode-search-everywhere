@@ -319,7 +319,7 @@ indexing leaves no template, and the worktree then rebuilds; wait first.
 
 | Setting | Check |
 |---|---|
-| `useFileIconTheme=true` | file rows show `[file-icon-theme:typescript]` instead of `[symbol-file]`; symbols keep their codicons. Applies without reload |
+| `useFileIconTheme=false` | file rows show `[symbol-file]` instead of the default `[file-icon-theme:typescript]`; symbols keep their codicons either way. Applies without reload |
 | `icons={"4":"star"}` | class rows show `[star]`; kinds left out of the map have no icon |
 | `itemsFilterPhrases={"4":"cls:"}` | `cls:order` filters classes; the description tag becomes `[cls:Order]` |
 | `helpPhrase=h?` | `h?` lists the help rows |

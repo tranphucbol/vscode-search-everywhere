@@ -351,7 +351,7 @@
         },
         "searchEverywhere.useFileIconTheme": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Show file icons from the active VS Code file icon theme (e.g. Seti, Material Icon Theme) instead of the built-in icon. Requires VS Code 1.108 or newer; older versions keep the built-in icon."
         }
       }

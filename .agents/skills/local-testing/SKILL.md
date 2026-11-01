@@ -105,7 +105,7 @@ Every command takes 2–3 seconds; `start` takes about 6 (`--big` about 10).
 
 ```
 quick pick: "USI"
->  1. UserServiceImpl.ts  [$$UserServiceImpl.ts] File  [symbol-file]
+>  1. UserServiceImpl.ts  [$$UserServiceImpl.ts] File  [file-icon-theme:typescript]
         /src/services/UserServiceImpl.ts
         buttons: Search symbols in this file, Open to the side
    2. UserServiceImpl  [@@UserServiceImpl] Class at lines: 5 - 22  [symbol-class]

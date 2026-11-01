@@ -8,6 +8,7 @@ All notable changes to the "vscode-search-everywhere" extension will be document
 
 ### 🔧 Changes
 - **Preview while browsing is off by default**: moving through the results no longer switches the editor to the highlighted file. Set `searchEverywhere.previewOnSelect` to `true` to bring the preview back.
+- **File icons follow the VS Code file icon theme by default**: file results show the icon of the active file icon theme (e.g. Seti, Material Icon Theme) on VS Code 1.108 or newer; older versions keep the built-in icon. Set `searchEverywhere.useFileIconTheme` to `false` for the built-in icon.
 
 ## [0.5.0] - 2026-10-20
 ### ✨ Features
